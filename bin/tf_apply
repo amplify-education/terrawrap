@@ -1,0 +1,58 @@
+#!/usr/bin/env python
+"""
+Terraform Wrapper Apply
+
+Usage:
+    tf_apply --pipeline=PIPELINE [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug]
+    tf_apply --version
+
+Options:
+
+    -h,--help                                   Display this message.
+    -p PIPELINE --pipeline=PIPELINE             Path to the pipeline file to execute.
+    -o OPERATION --operation=OPERATION          Which operation to apply to the directories defined in the
+                                                pipeline file.
+                                                [allowed: [apply, destroy, plan, validate]]
+                                                [default: plan]
+    -j NUM_JOBS --parallel-jobs=NUM_JOBS        The number of Terraform operations to run in parallel.
+                                                [default: 4].
+    -v,--debug                                  Turns on debug logging.
+    --version                                   Display the current version of Terraform Wrapper.
+"""
+
+from docopt import docopt
+
+from terrawrap.models.pipeline import Pipeline
+from terrawrap.version import __git_hash__, __version__
+from terrawrap.utils.path import get_absolute_path
+
+
+VALID_OPERATIONS = ['apply', 'destroy', 'plan', 'validate']
+
+
+def handler():
+    args = docopt(__doc__, version="Terraform Wrapper %s (%s)" % (__version__, __git_hash__))
+
+    pipeline_file = get_absolute_path(args['--pipeline'])
+
+    operation = args['--operation']
+
+    if operation not in VALID_OPERATIONS:
+        raise RuntimeError(
+            "Unable to execute operation '%s', must be one of: %s" % (operation, VALID_OPERATIONS)
+        )
+
+    try:
+        num_parallel = int(args['--parallel-jobs'])
+    except ValueError:
+        raise RuntimeError(
+            "Unable to parse number of parallel jobs, '%s' is not an integer." % args['--parallel-jobs']
+        )
+
+    pipeline = Pipeline(operation, config_path=pipeline_file)
+
+    pipeline.execute(num_parallel=num_parallel, debug=args['--debug'])
+
+
+if __name__ == "__main__":
+    handler()

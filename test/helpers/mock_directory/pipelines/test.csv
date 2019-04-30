@@ -1,0 +1,2 @@
+seq,directory,variables
+1,config/app1,foo=bar cat=dog

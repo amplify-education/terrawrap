@@ -1,0 +1,296 @@
+#!/usr/bin/env python
+"""Terraform Wrapper
+
+Usage:
+    tf [--no-resolve-envvars] (<tf_path> <tf_command>) [<additional_arguments>...]
+    tf -h,--help
+
+Options:
+    tf_path                 A path to a directory containing Terraform files.
+    tf_command              The terraform command to run in that directory. Ex: init, plan, apply, etc.
+    additional_arguments    Space separated arguments to pass to the wrapped terraform command. Ex: -lock=True
+    -h,--help               Display this help message and quit.
+    --no-resolve-envvars    Disable automatic resolution of envvars from .tf_wrapper files.
+
+Examples:
+    tf some/path/to/tf_files plan
+    tf some/path/to/tf_files apply -var foo=bar -lock=True
+"""
+from __future__ import print_function
+import os
+import re
+import sys
+import shutil
+from tempfile import gettempdir
+from datetime import datetime, timedelta
+
+import hcl
+import pathlib2
+from six import iteritems
+
+from terrawrap.utils.cli import execute_command
+from terrawrap.utils.config import (
+    find_variable_files,
+    parse_wrapper_configs,
+    calc_backend_config,
+    parse_variable_files,
+    find_wrapper_config_files, resolve_envvars)
+from terrawrap.utils.path import get_absolute_path
+from terrawrap.utils.dynamodb import DynamoDB
+
+LOCK_TIMEOUT = timedelta(minutes=60)
+MAX_COUNT = 5
+
+
+def does_command_get_variables(command, path, arguments):
+    commands_with_variables = ["init", "plan", "import", "refresh", "console", "destroy", "push", "validate"]
+
+    if command == "apply":
+        if arguments:
+            last_argument = arguments[-1]
+            return not os.path.isfile(os.path.join(path, last_argument))
+        else:
+            return True
+
+    return command in commands_with_variables
+
+
+def resolve_terraform_arguments(variable_files, arguments):
+    tf_arguments = [
+        "-var-file=%s" % variable_file
+        for variable_file in variable_files
+    ]
+
+    return tf_arguments + arguments
+
+
+def exec_tf_command(command, path, variable_files, variables, arguments, additional_envvars):
+    terraform_arguments = resolve_terraform_arguments(
+        variable_files=variable_files,
+        arguments=arguments
+    )
+
+    command_env = os.environ.copy()
+    command_env.update(additional_envvars)
+
+    # We don't want to move to tmp if its the fmt command, because this command updates the files and it would
+    # be annoying to write logic for copying those files back into the directory
+    if command == "fmt":
+        new_path = path
+    else:
+        new_path = move_to_tmp(config_path=path)
+
+    if command == "init":
+        shutil.rmtree(os.path.join(new_path, ".terraform"), ignore_errors=True)
+
+    try_count = 0
+    while True:
+        exit_code, stdout = execute_command(
+            ["terraform", command] + terraform_arguments,
+            cwd=new_path,
+            capture_stderr=True,
+            print_command=True,
+            retry=True,
+            env=command_env
+        )
+
+        try_count += 1
+
+        if exit_code != 0 and try_count <= MAX_COUNT:
+            error = ''.join([line for line in stdout])
+            if 'Error locking state' in error:
+                if tf_unlock(error, new_path, LOCK_TIMEOUT):
+                    continue
+            elif 'state data in S3 does not have the expected content' in error:
+                if update_digest(error, path, variables):
+                    continue
+
+        sys.exit(exit_code)
+
+
+def move_to_tmp(config_path):
+    # type (str) -> str
+    """
+    Function for moving the given config path to a location in a temp directory.
+    :param config_path: An absolute path to a terraform configuration directory.
+    :return: The new location of the config_path in a temp directory.
+    """
+    # We remove the first character of config_path here because os.path.join ignores paths that come before
+    # absolute directories, and config_path is guaranteed to be an absolute directory.
+    tmp_dir = os.path.join(gettempdir(), "terrawrap", config_path[1:])
+
+    for current_directory, sub_dirs, files in os.walk(config_path, followlinks=True):
+        if ".terraform" in current_directory:
+            # Do not copy anything in .terraform, it might overwrite important stuff in the new location
+            continue
+
+        future_directory = os.path.join(tmp_dir, current_directory[len(config_path)+1:])
+        pathlib2.Path(future_directory).mkdir(parents=True, exist_ok=True)
+
+        # Remove files that no longer exist in the config directory to keep things up to date
+        for future_file in os.listdir(future_directory):
+            future_file_path = os.path.join(future_directory, future_file)
+            if os.path.isfile(future_file_path) and future_file not in files:
+                os.unlink(future_file_path)
+
+        for file in files:
+            current_location = os.path.join(current_directory, file)
+            future_location = os.path.join(future_directory, file)
+
+            if file.endswith(".tf"):
+                with open(current_location, 'r') as source:
+                    strings_to_replace = {}
+                    parsed_source = hcl.load(source)
+                    for module in parsed_source.get('module', {}).values():
+                        # join handles the case where the source attribute is an absolute directory by
+                        # dropping off the current_directory.
+                        joined_path = os.path.join(current_directory, module['source'])
+                        # This is just for convenience
+                        normalized_path = os.path.normpath(joined_path)
+                        # If the path exists, we must not have created some frankenstein monster of a URI,
+                        # git path, etc, so go ahead and replace it
+                        if os.path.exists(normalized_path):
+                            strings_to_replace['"%s"' % module['source']] = '"%s"' % normalized_path
+
+                with open(current_location, 'r') as source, open(future_location, 'w') as destination:
+                    for line in source.readlines():
+                        for needle, replacement in iteritems(strings_to_replace):
+                            line = line.replace(needle, replacement)
+                        destination.write(line)
+
+            else:
+                shutil.copy2(
+                    src=current_location,
+                    dst=future_location
+                )
+
+    return tmp_dir
+
+
+def tf_unlock(error, path, lock_timeout):
+    """
+    Function to unlock terraform
+    :param error: Error log text from stdout
+    :param path: Locked terraform path
+    :param lock_timeout: Time to wait before running unlock command (timedelta object)
+    :return: True if unlock command runs successfully, otherwise False
+    """
+    lock_id = re.search(r'[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}', error).group()
+    # Creation time example: '2018-10-10 15:23:09.715308766 +0000 UTC'
+    # strptime can handle microseconds, not nanoseconds
+    # utcnow object does not have offset and timezone name
+    # Strip last 13 characters from lock creation time
+    created_time = re.search(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{6}', error).group()
+    delta = datetime.utcnow() - datetime.strptime(created_time, '%Y-%m-%d %H:%M:%S.%f')
+    if delta > lock_timeout:
+        exit_code, output = execute_command(
+            ["terraform", "force-unlock", "-force", lock_id],
+            print_command=True,
+            cwd=path,
+            retry=True
+        )
+        if exit_code == 0:
+            return True
+
+    return False
+
+
+def update_digest(error, path, variables):
+    """
+    Update DynamoDB table item with the Terraform suggested digest value
+    :param error: Error log text from stdout
+    :param path: Terraform path with wrong digest
+    :param variables: Terraform command variables (dictionary)
+    :return: True if digest is updated, otherwise False
+    """
+    dynamodb = DynamoDB(region=variables['region'])
+    digest = re.search(r'[\da-f]{32}', error).group()
+    lock_id = '{region}--mclass--terraform--{account}/{path}.tfstate-md5'.format(
+        region=variables['region'],
+        account=variables['account_short_name'],
+        path=re.sub('.*/terraform-config', 'terraform-config', path)
+    )
+    response = dynamodb.upsert_item(
+        table_name='terraform-locking',
+        primary_key_name='LockID',
+        primary_key_value=lock_id,
+        attribute_name='Digest',
+        attribute_value=digest
+    )
+    if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+        return True
+
+    return False
+
+
+def process_arguments(args):
+    try:
+        resolve_envvars = True
+
+        if args[1] in ["-h", "--help"]:
+            print(__doc__)
+            sys.exit(0)
+
+        if args[1] in ["--no-resolve-envvars"]:
+            resolve_envvars = False
+            args.pop(1)
+
+        path = args[1]
+        command = args[2]
+        additional_arguments = args[3:]
+
+        return path, command, additional_arguments, resolve_envvars
+    except IndexError:
+        print(__doc__)
+        sys.exit(0)
+
+
+def handler():
+    path, command, additional_arguments, should_resolve_envvars = process_arguments(sys.argv)
+
+    tf_config_path = get_absolute_path(path=path)
+
+    if not os.path.isdir(tf_config_path):
+        print(__doc__)
+        print(
+            "Error: Path '%s' evaluated as '%s' and is not a directory." % (path, tf_config_path),
+            file=sys.stderr
+        )
+        sys.exit(1)
+
+    wrapper_config_files = find_wrapper_config_files(path=tf_config_path)
+    wrapper_config = parse_wrapper_configs(wrapper_config_files=wrapper_config_files)
+    additional_envvars = resolve_envvars(wrapper_config["envvars"]) if should_resolve_envvars else {}
+
+    add_variables = does_command_get_variables(
+        command=command,
+        path=tf_config_path,
+        arguments=additional_arguments
+    )
+
+    if add_variables:
+        variable_files = find_variable_files(path=tf_config_path)
+    else:
+        variable_files = []
+
+    variables = parse_variable_files(variable_files=variable_files)
+
+    if command == 'init' and wrapper_config['configure_backend']:
+        backend_config = calc_backend_config(
+            path=tf_config_path,
+            variables=variables
+        )
+        additional_arguments = backend_config + additional_arguments
+
+    exec_tf_command(
+        command=command,
+        path=tf_config_path,
+        variable_files=variable_files,
+        variables=variables,
+        arguments=additional_arguments,
+        additional_envvars=additional_envvars
+    )
+
+
+if __name__ == "__main__":
+    handler()

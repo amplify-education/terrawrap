@@ -1,0 +1,290 @@
+#!/usr/bin/env python
+
+"""
+This script checks if any IAM or s3 bucket policy changes made in the terraform config
+
+Usage:
+    plan_check.py [options] <path>
+
+Arguments:
+    path    The path of the config directory to check
+
+Options:
+    -h, --help          Show this message and exit.[default: False]
+    -s, --skip-iam      Skip iam changes for this run.[default: False]
+    --modified-only     Only run plan check on directories that were changed in git
+    
+"""
+import os
+import re
+import concurrent.futures
+
+from operator import attrgetter
+from enum import Enum
+from typing import Tuple, List, Dict
+from docopt import docopt
+from terrawrap.utils.cli import execute_command
+from terrawrap.utils.collection_utils import pick_dict_values_by_substring, flatten_collection
+from terrawrap.utils.config import parse_wrapper_configs, find_wrapper_config_files, resolve_envvars
+from terrawrap.utils.git_utils import get_git_changed_files
+from terrawrap.utils.module import get_module_usage_map
+from terrawrap.utils.path import get_symlinks, get_directories_for_paths
+from terrawrap.utils.tf_variables import get_auto_var_usages
+
+IAM_POLICY_RE = re.compile('[-~+] .*(aws_iam_|aws_s3_bucket_policy).*')
+SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
+CURRENT_DIRECTORY = os.getcwd()
+
+
+class ExitCode(Enum):
+    SUCCESS = 0
+    IAM_CHANGES = 2
+    TERRAFORM_FAILURE = 3
+
+
+def get_subdirectories(root_dir):
+    # type: (str) -> Tuple[List[str], List[str]]
+    """
+    Make a list of subdirectories (with '.tf' files) of the path provided as the argument
+    :param root_dir: The directory to run the script on.
+    :return: lists of regular and symlinked directories
+    """
+
+    regular_directories = []
+    symlinked_directories = []
+
+    for current_dir, dirs, files in os.walk(root_dir, followlinks=True):
+        if ".terraform" not in current_dir and any(entry.endswith(".tf") for entry in files):
+            if os.path.islink(current_dir):
+                symlinked_directories.append(current_dir)
+            else:
+                regular_directories.append(current_dir)
+    return regular_directories, symlinked_directories
+
+
+def init_and_plan_directory(directory, skip_iam, additional_envvars):
+    # type: (str, bool, Dict[str, str]) -> ExitCode
+    """
+    Run 'init' and 'plan' against the passed in directory
+    :param directory: A directory with the terraform config
+    :param skip_iam: A boolean to skip iam changes check
+    :param additional_envvars: A dictionary representing additional environment variables to supply
+    :return: One of the ExitCode enums
+    """
+
+    arguments = ['-no-color', '-lock=false', '-input=false']
+    pr_checker_arguments = ['-var-file=pr_checker.tfvars']
+    wrapper_py = os.path.join(SCRIPT_DIR, 'tf')
+
+    command_env = os.environ.copy()
+    command_env.update(additional_envvars)
+
+    # We're using --no-resolve-envvars here because we've already resolved the environment variables in
+    # the constructor. We are then passing in those environment variables explicitly in the
+    # execute_command call below.
+    init_exit_code, init_stdout = execute_command(
+        [wrapper_py, "--no-resolve-envvars", directory, 'init'] + arguments,
+        print_output=False,
+        env=command_env
+    )
+
+    if init_exit_code:
+        print("'terraform init' failed for {}:\n{}".format(directory, "".join(init_stdout)))
+        return ExitCode.TERRAFORM_FAILURE
+
+    if os.path.exists('%s/%s' % (directory, 'pr_checker.tfvars')):
+        arguments += pr_checker_arguments
+
+    # We're using --no-resolve-envvars here because we've already resolved the environment variables in
+    # the constructor. We are then passing in those environment variables explicitly in the
+    # execute_command call below.
+    plan_exit_code, plan_stdout = execute_command(
+        [wrapper_py, "--no-resolve-envvars", directory, 'plan'] + arguments,
+        print_output=False,
+        env=command_env
+    )
+
+    if plan_exit_code:
+        print("'terraform plan' failed for {}:\n{}".format(directory, "".join(plan_stdout)))
+        return ExitCode.TERRAFORM_FAILURE
+
+    # Check output for IAM changes
+    if skip_iam:
+        return ExitCode.SUCCESS
+    return check_for_iam_changes(plan_stdout, directory)
+
+
+def check_for_iam_changes(stdout, directory):
+    # type: (List[str], str) -> ExitCode
+    """
+    Look for the IAM changes in stdout
+    :param stdout: Stdout of the 'plan' command for IAM changes lookup
+    :param directory: A directory with the config to be printed along with the notification about IAM changes
+    :return: One of the ExitCode enums
+    """
+
+    iam_resources = []
+
+    for line in stdout:
+        match = re.search(IAM_POLICY_RE, line)
+        if match:
+            iam_resources.append(match.group(0))
+    if iam_resources:
+        print("Detected IAM resources modified in {0}:\n{1}\n".format(directory, "\n".join(iam_resources)))
+        return ExitCode.IAM_CHANGES
+
+    return ExitCode.SUCCESS
+
+
+def execute_init_and_plan(regular_directories, symlinked_directories, skip_iam):
+    # type: (List[str], List[str], bool) -> ExitCode
+    """
+    Execute functions concurrently
+    :param regular_directories: Non symlinked directories to be processed in parallel
+    :param symlinked_directories: Symlinked directories to be processed one-by-one
+    :param skip_iam: A boolean to skip iam changes check
+    :return: exit code
+    """
+    worst_exit_code = ExitCode.SUCCESS
+    # Lookup everyone's environment variables at once so that we get the benefit of Parameter Store calls
+    # being cached.
+    directory_to_envvars = {
+        directory: resolve_envvars(parse_wrapper_configs(find_wrapper_config_files(directory))["envvars"])
+        for directory in regular_directories + symlinked_directories
+    }
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        future_exec = {}
+        for directory in regular_directories:
+            envvars = directory_to_envvars[directory]
+            future = executor.submit(
+                init_and_plan_directory,
+                directory,
+                skip_iam,
+                envvars
+            )
+            future_exec[future] = directory
+
+        for future in concurrent.futures.as_completed(future_exec):
+            exit_code = future.result()
+            if exit_code != ExitCode.SUCCESS:
+                worst_exit_code = max(worst_exit_code, exit_code, key=attrgetter('value'))
+
+    for directory in symlinked_directories:
+        envvars = directory_to_envvars[directory]
+        exit_code = init_and_plan_directory(directory, skip_iam, envvars)
+        if exit_code != ExitCode.SUCCESS:
+            worst_exit_code = max(worst_exit_code, exit_code, key=attrgetter('value'))
+
+    return worst_exit_code
+
+
+def get_modified_subdirectories(root_directory):
+    # type (str) -> Tuple[List[str], List[str]]
+    """
+    Use Git to find which directories have changed and return a list of them
+    A changed directory is a directory that has files that changed, or has symlinks to files that
+    changed, or uses a module that changed
+    :param root_directory: root to search for changed subdirectories from
+    :return: A list of "regular" directories and directories that are symlinks which have changed
+    """
+    changed_files = get_git_changed_files()
+    module_usage_map = get_module_usage_map(root_directory)
+
+    # this searches for symlinks and autovars usages at the root_directory
+    # therefore it won't run plan if any symlinks or autovars changed outside the root_directory
+    # TODO fix that ^
+    symlink_map = get_symlinks(root_directory)
+    auto_vars_usages = get_auto_var_usages(root_directory)
+
+    # get directories that changed because a file in them changed
+    changed_directories = [
+        os.path.dirname(changed_file)
+        for changed_file in changed_files
+    ]
+
+    # filter out any directories without tf files. This could be a directory with just auto.tfvars files
+    # or directories with just pipeline files
+    # also filter out any directories that don't exist anymore if all files in them were deleted
+    changed_directories = [
+        directory
+        for directory in changed_directories
+        if os.path.exists(directory) and any(file.endswith('.tf') for file in os.listdir(directory))
+    ]
+
+    # look up each changed path in symlink map to get list of linked paths that also changed
+    changed_symlinks = pick_dict_values_by_substring(changed_files, symlink_map)
+    changed_symlinks = flatten_collection(changed_symlinks)
+    # get set of directories that are symlinks to paths that changed (convert file symlinks to directories)
+    changed_symlink_directories = get_directories_for_paths(changed_symlinks)
+
+    # get directories that changed because a module changed
+    changed_module_instances = pick_dict_values_by_substring(changed_files, module_usage_map)
+    changed_module_instances = flatten_collection(changed_module_instances)
+
+    # get directories that changed because an auto var changed
+    changed_auto_vars_instances = pick_dict_values_by_substring(changed_files, auto_vars_usages)
+    changed_auto_vars_instances = flatten_collection(changed_auto_vars_instances)
+
+    # we need to check any directory that was changed directly or changed via a module change
+    # or is a symlink to a directory that changed or depends on a autovars file that changed
+    directories_to_check = (changed_directories + changed_module_instances +
+                            changed_symlink_directories + changed_auto_vars_instances)
+
+    # filter out any directories that aren't under our root.
+    # We may have got some while following symlinks and module links
+    # some directories may also not exist if they were deleted. can't run plan on them
+    directories_to_check = {
+        directory
+        for directory in directories_to_check
+        if directory.startswith(root_directory) and os.path.exists(directory)
+    }
+
+    # group directories into regular and symlink paths so downstream code can treat them differently
+    regular_directories = [
+        directory for directory in directories_to_check
+        if not os.path.islink(directory)
+    ]
+
+    symlinked_directories = [
+        directory for directory in directories_to_check
+        if os.path.islink(directory)
+    ]
+
+    return regular_directories, symlinked_directories
+
+
+def main():
+    arguments = docopt(__doc__)
+
+    skip_iam = arguments['--skip-iam']
+    modified_only = arguments['--modified-only']
+
+    # Get the directory with Terraform config passed to this script as an argument
+    config_dir = arguments['<path>']
+    if not os.path.isabs(config_dir):
+        config_dir = os.path.abspath(os.path.join(CURRENT_DIRECTORY, config_dir))
+
+    if modified_only:
+        regular_directories, symlinked_directories = get_modified_subdirectories(config_dir)
+    else:
+        regular_directories, symlinked_directories = get_subdirectories(config_dir)
+
+    print(
+        "Running plan check for regular directories %s and symlink directories %s"
+        % (regular_directories, symlinked_directories)
+    )
+
+    exit_code = execute_init_and_plan(regular_directories, symlinked_directories, skip_iam)
+
+    if exit_code == ExitCode.TERRAFORM_FAILURE:
+        print("General Terraform failures detected. Check the output above and please resolve any issues.")
+
+    if exit_code == ExitCode.IAM_CHANGES:
+        print("IAM changes have been detected. If these changes are intended, please contact an Astronaut to merge.")
+
+    exit(exit_code.value)
+
+
+if __name__ == '__main__':
+    main()

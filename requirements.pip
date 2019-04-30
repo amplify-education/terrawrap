@@ -1,0 +1,11 @@
+# Place dependencies in this file, following the distutils format:
+# http://docs.python.org/2/distutils/setupscript.html#relationships-between-distributions-and-packages
+amplify-aws-utils>=0.1.2
+docopt==0.6.2
+gitpython>=2.1.10
+pyhcl>=0.3.10
+six>=1.11.0,<2
+pathlib2>=2.3.2,<3
+pyyaml>=3.13,<4
+schema>=0.7.0,<1
+ssm-cache>=2.7,<3
