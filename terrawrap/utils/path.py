@@ -4,8 +4,7 @@ from collections import defaultdict
 from typing import Dict, Set, Iterable, List
 
 
-def get_absolute_path(path, root_dir=None):
-    # type: (str, str) -> str
+def get_absolute_path(path: str, root_dir: str = None) -> str:
     """
     Convenience function for determining the full path to a file or directory.
     A RuntimeError will be raised if the given path does not appear to point to either a file or a directory.
@@ -21,8 +20,7 @@ def get_absolute_path(path, root_dir=None):
     return path
 
 
-def get_symlinks(directory):
-    # type: (str) -> Dict[str, Set[str]]
+def get_symlinks(directory: str) -> Dict[str, Set[str]]:
     """
     Recursively walk a directory and return a dict of all symlinks
     :param directory:
@@ -41,8 +39,7 @@ def get_symlinks(directory):
     return dict(links)
 
 
-def get_directories_for_paths(paths):
-    # type: (Iterable[str]) -> List[str]
+def get_directories_for_paths(paths: Iterable[str]) -> List[str]:
     """
     For a list of paths check if each one is a directory or a file. If its a file then return
     the directory for the file otherwise return the path itself

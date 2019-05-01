@@ -1,17 +1,15 @@
 """Utilities for working with Terraform variables"""
+import concurrent.futures
+import os
 from collections import defaultdict, namedtuple
 from typing import Dict, Set, Tuple, Union
-import concurrent.futures
-
-import os
 
 import hcl
 
 Variable = namedtuple('Variable', ['name', 'value'])
 
 
-def get_auto_vars(root_directory):
-    # type: (str) -> Dict[str, Set[Variable]]
+def get_auto_vars(root_directory: str) -> Dict[str, Set[Variable]]:
     """
     Recursively scan a directory and find all variables that are being exposed via tfvars files
     :param root_directory: directory where to start search
@@ -33,8 +31,7 @@ def get_auto_vars(root_directory):
     return dict(auto_vars)
 
 
-def get_nondefault_variables_for_file(file_path):
-    # type: (str) -> Set[str]
+def get_nondefault_variables_for_file(file_path: str) -> Set[str]:
     """
     Find all variables missing default values that are declared in a terraform file
     :param file_path: a terraform file
@@ -50,8 +47,8 @@ def get_nondefault_variables_for_file(file_path):
     return variables
 
 
-def get_source_for_variable(usage_directory, var_name, vars_map):
-    # type: (str, str, Dict[str, Set[Variable]]) -> Union[None, str]
+def get_source_for_variable(usage_directory: str, var_name: str, vars_map: Dict[str, Set[Variable]]) \
+        -> Union[None, str]:
     """
     Find which auto tfvars file terraform will use to get a variable value from
     :param usage_directory: A directory with terraform config that's using a variable

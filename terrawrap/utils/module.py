@@ -7,8 +7,7 @@ import os
 import hcl
 
 
-def get_module_usage_map(root_directory):
-    # type: (str) -> Dict[str, Set[str]]
+def get_module_usage_map(root_directory: str) -> Dict[str, Set[str]]:
     """
     Recursively scan a directory with terraform config files and return what modules are being used
     :param root_directory: Directory to scan
@@ -37,8 +36,7 @@ def get_module_usage_map(root_directory):
     return dict(module_map)
 
 
-def _get_modules_for_file(directory, file_name):
-    # type: (str, str) -> Tuple[str, Set[str]]
+def _get_modules_for_file(directory: str, file_name: str) -> Tuple[str, Set[str]]:
     """
     Get the modules used in a terraform file
     :param directory: Directory where the file is in
