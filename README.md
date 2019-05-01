@@ -1,5 +1,6 @@
 [![Build Status](https://travis-ci.org/amplify-education/terrawrap.svg?branch=master)](https://travis-ci.org/amplify-education/terrawrap)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/amplify-education/terrawrap/master/LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/terrawrap.svg)](https://pypi.org/project/terrawrap/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/terrawrap.svg)](https://pypi.python.org/pypi/terrawrap)
 [![Downloads](https://img.shields.io/badge/dynamic/json.svg?label=downloads&url=https%3A%2F%2Fpypistats.org%2Fapi%2Fpackages%2Fterrawrap%2Frecent&query=data.last_month&colorB=brightgreen&suffix=%2FMonth)](https://pypistats.org/api/packages/terrawrap/recent)
 
