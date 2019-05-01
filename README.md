@@ -15,50 +15,50 @@ country. We have a long history as the leading innovator in K-12 education - and
 company in education and the best education company in tech. While others try to shrink the learning experience into the 
 technology, we use technology to expand what is possible in real classrooms with real students and teachers.
 
-Learn more at https://www.amplify.com
+Learn more at <https://www.amplify.com>
 
 ## Table of Contents
-* [Features](#features)
-* [Goals](#goals)
-* [Getting Started](#getting-started)
-  * [Prerequisites](#prerequisites)
-  * [Installing/Building](#installingbuilding)
-  * [Running Tests](#running-tests)
-* [Configuration](#configuration)
-  * [\.tf_wrapper](#tf_wrapper) 
-  * [Autovars](#autovars)
-  * [Terraform S3 Remote State](#terraform-s3-remote-state)
-* [Commands](#commands)
-  * [tf](#tf)
-  * [plan_check](#plan_check) 
+*   [Features](#features)
+*   [Goals](#goals)
+*   [Getting Started](#getting-started)
+    -   [Prerequisites](#prerequisites)
+    -   [Installing/Building](#installingbuilding)
+    -   [Running Tests](#running-tests)
+*   [Configuration](#configuration)
+    -   [\.tf_wrapper](#tf_wrapper) 
+    -   [Autovars](#autovars)
+    -   [Terraform S3 Remote State](#terraform-s3-remote-state)
+*   [Commands](#commands)
+    -   [tf](#tf)
+    -   [plan_check](#plan_check) 
 
 
 ## Features 
 
-1. `auto.tfvars` inheritance. Terrawrap makes it easier to share variables between Terraform directories through
+1.  `auto.tfvars` inheritance. Terrawrap makes it easier to share variables between Terraform directories through
 inheritance of `auto.tfvars` files.
 
-2. Remote S3 backend generation. Terrawrap makes it easier to work with AWS S3 remote state backends by
+2.  Remote S3 backend generation. Terrawrap makes it easier to work with AWS S3 remote state backends by
 generating configuration for them.
 
-3. Repository level plan/apply. Terrawrap provides commands for running plan/apply recursively on a entire
+3.  Repository level plan/apply. Terrawrap provides commands for running plan/apply recursively on a entire
 repository at once. 
 
 ## Goals
 
-1. Make Terraform DRY for large organizations. A Terraform best practices is to break up Terraform configs
+1.  Make Terraform DRY for large organizations. A Terraform best practices is to break up Terraform configs
 into many small state files. This leads to an explosion in boilerplate code when using Terraform in large organizations
 with 100s of state files. Terrawrap reduces some boilerplate code by providing `auto.tfvars` inheritance
 and generating backend configurations. 
 
-2. Make Terraform code easier to manage. Terraform only runs commands on a single directory at a time. This makes
+2.  Make Terraform code easier to manage. Terraform only runs commands on a single directory at a time. This makes
 working with hundreds of terraform directories/state files hard. Terrawrap provides utilities for running 
 commands against an entire repository at once instead of one directory at a time.
 
-3. All Terraform code should be valid Terraform. Any Terraform code used with Terrawrap should be runnable with 
+3.  All Terraform code should be valid Terraform. Any Terraform code used with Terrawrap should be runnable with 
 Terraform by itself without the wrapper. Terrawrap does not provide any new syntax. 
 
-4. Terrawrap is not a code generator (except when generating terraform backends). Generated code is harder to 
+4.  Terrawrap is not a code generator (except when generating terraform backends). Generated code is harder to 
 read and understand. Code generators tend to lead to leaky abstractions that can be more trouble than they are worth.
 
 
