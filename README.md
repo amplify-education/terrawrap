@@ -1,3 +1,4 @@
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/e8bf52c80edf4070a18d8725b1f5f166)](https://app.codacy.com/app/amplify-education/terrawrap?utm_source=github.com&utm_medium=referral&utm_content=amplify-education/terrawrap&utm_campaign=Badge_Grade_Settings)
 [![Build Status](https://travis-ci.org/amplify-education/terrawrap.svg?branch=master)](https://travis-ci.org/amplify-education/terrawrap)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/amplify-education/terrawrap/master/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/terrawrap.svg)](https://pypi.org/project/terrawrap/)
