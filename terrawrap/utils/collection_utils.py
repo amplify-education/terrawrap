@@ -1,11 +1,10 @@
 """Utilities for working with collections"""
 from typing import List, Iterable, Mapping, TypeVar, Dict
 
-Type = TypeVar('T')
+Type = TypeVar('Type')
 
 
-def flatten_collection(lists):
-    # type: (Iterable[Iterable[Type]]) -> List[Type]
+def flatten_collection(lists: Iterable[Iterable[Type]]) -> List[Type]:
     """
     Flatten a collection of collections into a list
     :param lists:
@@ -18,8 +17,8 @@ def flatten_collection(lists):
     ]
 
 
-def pick_dict_values_by_substring(search_terms, dictionary):
-    # type: (Iterable[str], Mapping[str, Type]) -> Iterable[Type]
+def pick_dict_values_by_substring(search_terms: Iterable[str], dictionary: Mapping[str, Type]) \
+        -> Iterable[Type]:
     """
     Get list of dictionary values with keys that are substrings of a list of search terms
     :param search_terms: search terms
@@ -32,8 +31,7 @@ def pick_dict_values_by_substring(search_terms, dictionary):
     ]
 
 
-def update(dict1, dict2):
-    # type: (Dict, Dict) -> Dict
+def update(dict1: Dict, dict2: Dict) -> Dict:
     """
     Recursively updates the first provided dictionary with the keys and values from the second dictionary.
     Child dictionary and lists are merged, not replaced.
@@ -42,7 +40,7 @@ def update(dict1, dict2):
     :return: A merged dictionary.
     """
     for key, value in dict2.items():
-        if isinstance(value, Mapping):
+        if isinstance(value, Dict):
             dict1[key] = update(dict1.get(key, {}), value)
         elif isinstance(value, List):
             dict1[key] = dict1[key].extend(value)

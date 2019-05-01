@@ -5,8 +5,7 @@ import os
 from git import Repo
 
 
-def get_git_changed_files():
-    # type: () -> Set[str]
+def get_git_changed_files() -> Set[str]:
     """
     Compare HEAD of the current branch with master and return list of paths that changed
     Assumes this script is running from a git directory
