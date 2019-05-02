@@ -107,8 +107,8 @@ def get_auto_var_usages(root_directory: str) -> Dict[str, Set[str]]:
     return dict(var_usages)
 
 
-def _collect_variable_usages(current_dir, file, auto_vars):
-    # type: (str, Dict[str, Set[Variable]]) -> Tuple[str, Set[str]]
+def _collect_variable_usages(current_dir: str, file: str, auto_vars: Dict[str, Set[Variable]]) \
+        -> Tuple[str, Set[str]]:
     var_sources = set()
     for variable in get_nondefault_variables_for_file(os.path.join(current_dir, file)):
         var_source = get_source_for_variable(current_dir, variable, auto_vars)
