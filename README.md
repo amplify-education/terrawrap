@@ -1,4 +1,5 @@
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/e8bf52c80edf4070a18d8725b1f5f166)](https://app.codacy.com/app/amplify-education/terrawrap?utm_source=github.com&utm_medium=referral&utm_content=amplify-education/terrawrap&utm_campaign=Badge_Grade_Settings)
+[![Codacy Badge](https://api.codacy.com/project/badge/Coverage/ceeb459250dd429f9ca5a497c0e45051)](https://www.codacy.com/app/amplify-education/terrawrap?utm_source=github.com&utm_medium=referral&utm_content=amplify-education/terrawrap&utm_campaign=Badge_Coverage)
 [![Build Status](https://travis-ci.org/amplify-education/terrawrap.svg?branch=master)](https://travis-ci.org/amplify-education/terrawrap)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/amplify-education/terrawrap/master/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/terrawrap.svg)](https://pypi.org/project/terrawrap/)
@@ -21,15 +22,19 @@ Learn more at <https://www.amplify.com>
 ## Table of Contents
 
 -   [Features](#features)
+
 -   [Goals](#goals)
+
 -   [Getting Started](#getting-started)
     -   [Prerequisites](#prerequisites)
     -   [Installing/Building](#installingbuilding)
     -   [Running Tests](#running-tests)
+
 -   [Configuration](#configuration)
     -   [.tf_wrapper](#tf_wrapper)
     -   [Autovars](#autovars)
     -   [Terraform S3 Remote State](#terraform-s3-remote-state)
+
 -   [Commands](#commands)
     -   [tf](#tf)
     -   [plan_check](#plan_check)

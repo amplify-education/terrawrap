@@ -1,0 +1,3 @@
+[run]
+# tox fails with an EOF error unless we move the coverage data file to the reports folder
+data_file=reports/.coverage
