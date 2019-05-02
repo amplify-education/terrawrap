@@ -74,8 +74,7 @@ def get_source_for_variable(usage_directory: str, var_name: str, vars_map: Dict[
     return possible_sources[-1]
 
 
-def get_auto_var_usages(root_directory):
-    # type: (str) -> Dict[str, Set[str]]
+def get_auto_var_usages(root_directory: str) -> Dict[str, Set[str]]:
     """
     Recursively scan a directory to build a dictionary of auto tfvars files and the directories
     that depend on them
