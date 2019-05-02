@@ -4,6 +4,7 @@ from __future__ import print_function
 import subprocess
 import tempfile
 import logging
+from typing import List
 
 from amplify_aws_utils.resource_helper import Jitter
 
@@ -100,8 +101,7 @@ def _execute_command(args, print_output, capture_stderr, print_command, *pargs, 
     return exit_code, stdout
 
 
-def _get_retriable_errors(out):
-    # type: (List[str]) -> List[str]
+def _get_retriable_errors(out: List[str]) -> List[str]:
     """Filter line output for retriable errors"""
     return [
         line for line in out
