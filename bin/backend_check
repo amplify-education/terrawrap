@@ -65,10 +65,10 @@ def does_file_define_backend(file_path: str):
 
 
 def check_directory_for_backend(dir_path: str, dir_files: List[str]):
-    for file in dir_files:
-        if does_file_define_backend(file_path=os.path.join(dir_path, file)):
-            return True
-    return False
+    return any(
+        does_file_define_backend(file_path=os.path.join(dir_path, file))
+        for file in dir_files
+    )
 
 
 if __name__ == '__main__':
