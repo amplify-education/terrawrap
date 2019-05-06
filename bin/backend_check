@@ -12,8 +12,10 @@ Options:
     -h, --help          Show this message and exit.
     --version           Show the version.
 """
+import concurrent.futures
 import os
 import sys
+from typing import List
 
 import hcl
 from docopt import docopt
@@ -32,22 +34,22 @@ def main():
            and any(entry.endswith(".tf") for entry in files)
     }
 
-    config_dirs_with_terraform_backend = set()
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures_to_dirs = {
+            executor.submit(
+                check_directory_for_backend,
+                dir_path=config_dir,
+                dir_files=files,
+            ): config_dir
+            for config_dir, files in config_dirs.items()
+        }
 
-    for config_dir, files in config_dirs.items():
-        # Traditionally we put this in a backend.tf file, so check for it there first.
-        if "backend.tf" in files:
-            if does_file_define_backend(file_path=os.path.join(config_dir, "backend.tf")):
-                config_dirs_with_terraform_backend.add(config_dir)
-                continue
+        config_dirs_without_terraform_backend = {
+            futures_to_dirs[future]
+            for future in concurrent.futures.as_completed(futures_to_dirs)
+            if not future.result()
+        }
 
-        # However, if it isn't in that file, let's check all the other files, just in case.
-        for file in files:
-            if does_file_define_backend(file_path=os.path.join(config_dir, file)):
-                config_dirs_with_terraform_backend.add(config_dir)
-                break
-
-    config_dirs_without_terraform_backend = set(config_dirs.keys()) - config_dirs_with_terraform_backend
     if config_dirs_without_terraform_backend:
         print("The following config directories do not have Terraform Backends defined:")
         for config_dir in config_dirs_without_terraform_backend:
@@ -60,6 +62,13 @@ def does_file_define_backend(file_path: str):
     with open(file_path, "r") as file_source:
         parsed_file_source = hcl.load(file_source)
     return parsed_file_source.get("terraform", {}).get("backend")
+
+
+def check_directory_for_backend(dir_path: str, dir_files: List[str]):
+    for file in dir_files:
+        if does_file_define_backend(file_path=os.path.join(dir_path, file)):
+            return True
+    return False
 
 
 if __name__ == '__main__':
