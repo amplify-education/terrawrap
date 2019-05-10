@@ -85,13 +85,13 @@ def _execute_command(args, print_output, capture_stderr, print_command, *pargs, 
     )
 
     while True:
-        output = stdout_read.readline().decode()
+        output = stdout_read.read(1).decode()
 
         if output == '' and process.poll() is not None:
             break
 
         if print_output and output:
-            print(output, end="")
+            print(output, end="", flush=True)
 
     exit_code = process.poll()
 
