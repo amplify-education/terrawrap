@@ -205,3 +205,8 @@ on any directory that contains `tf` files with the following criteria
 3. A directory with symlinked files that are linked to files that changed
 4. A directory that that uses a Terraform module whose source changed
 5. A directory with Terraform files that refer to an autovar file that changed
+
+### backend_check
+
+`backend_check [directory]` verifies that all directories under the given directory that contain `.tf` files
+also have Terraform Backends defined.

@@ -73,7 +73,8 @@ setup(
     scripts=[
         'bin/tf',
         'bin/tf_apply',
-        'bin/plan_check',
+        'bin/backend_check',
         'bin/pipeline_check',
+        'bin/plan_check',
     ],
 )
