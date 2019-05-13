@@ -4,7 +4,7 @@ import re
 import subprocess
 
 import hcl
-import jsons as jsons
+import jsons
 import yaml
 from ssm_cache import SSMParameterGroup
 
