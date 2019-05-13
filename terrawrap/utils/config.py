@@ -2,13 +2,14 @@
 import os
 import re
 import subprocess
+from typing import Dict
 
 import hcl
 import jsons
 import yaml
 from ssm_cache import SSMParameterGroup
 
-from terrawrap.models.wrapper_config import WrapperConfig
+from terrawrap.models.wrapper_config import WrapperConfig, EnvVarSource, EnvVarConfig
 from terrawrap.utils.collection_utils import update
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
@@ -83,7 +84,7 @@ def parse_wrapper_configs(wrapper_config_files) -> WrapperConfig:
     return wrapper_config_obj
 
 
-def resolve_envvars(envvar_configs):
+def resolve_envvars(envvar_configs: Dict[str, EnvVarConfig]):
     """
     Resolves the 'envvars' section from the wrapper config to actual environment variables that can be easily
     supplied to a command.
@@ -93,8 +94,8 @@ def resolve_envvars(envvar_configs):
     """
     resolved_envvars = {}
     for envvar_name, envvar_config in envvar_configs.items():
-        if envvar_config["source"] == "ssm":
-            resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(envvar_config["path"]).value
+        if envvar_config.source == EnvVarSource.SSM:
+            resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(envvar_config.path).value
     return resolved_envvars
 
 
