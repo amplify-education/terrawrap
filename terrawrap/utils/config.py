@@ -4,30 +4,16 @@ import re
 import subprocess
 
 import hcl
+import jsons as jsons
 import yaml
-from schema import Schema, Optional, Or
 from ssm_cache import SSMParameterGroup
 
+from terrawrap.models.wrapper_config import WrapperConfig
 from terrawrap.utils.collection_utils import update
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
 DEFAULT_REGION = 'us-west-2'
 SSM_ENVVAR_CACHE = SSMParameterGroup(max_age=600)
-WRAPPER_CONFIG_SCHEMA = Schema(
-    {
-        Optional('configure_backend'): bool,
-        Optional('pipeline_check'): bool,
-        Optional('envvars'): {
-            str: {
-                'source': Or("ssm"),
-                str: str
-            }
-        },
-        Optional('resolved_envvars'): {
-            str: str
-        }
-    },
-)
 
 
 def find_variable_files(path):
@@ -74,7 +60,7 @@ def find_wrapper_config_files(path):
     return wrapper_config_files
 
 
-def parse_wrapper_configs(wrapper_config_files):
+def parse_wrapper_configs(wrapper_config_files) -> WrapperConfig:
     """
     Function for parsing the Terraform wrapper config file.
     :param wrapper_config_files: A list of file paths to wrapper config files. Config files later in the list
@@ -91,10 +77,10 @@ def parse_wrapper_configs(wrapper_config_files):
     for wrapper_config_path in wrapper_config_files:
         with open(wrapper_config_path) as wrapper_config_file:
             wrapper_config = yaml.safe_load(wrapper_config_file)
-            wrapper_config = WRAPPER_CONFIG_SCHEMA.validate(wrapper_config)
             generated_wrapper_config = update(generated_wrapper_config, wrapper_config)
 
-    return generated_wrapper_config
+    wrapper_config_obj: WrapperConfig = jsons.load(generated_wrapper_config, WrapperConfig, strict=True)
+    return wrapper_config_obj
 
 
 def resolve_envvars(envvar_configs):
