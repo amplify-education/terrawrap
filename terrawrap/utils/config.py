@@ -17,7 +17,7 @@ DEFAULT_REGION = 'us-west-2'
 SSM_ENVVAR_CACHE = SSMParameterGroup(max_age=600)
 
 
-def find_variable_files(path):
+def find_variable_files(path: str) -> List[str]:
     """
     Convenience function for finding all Terraform variable files by walking a given path.
     :param path: The path to the Terraform configuration directory.
@@ -39,7 +39,7 @@ def find_variable_files(path):
     return variable_files
 
 
-def find_wrapper_config_files(path):
+def find_wrapper_config_files(path: str) -> List[str]:
     """
     Convenience function for finding all wrapper config files by walking a given path.
     :param path: The path to the Terraform configuration directory.
@@ -79,7 +79,7 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
     return wrapper_config_obj
 
 
-def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]):
+def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, str]:
     """
     Resolves the 'envvars' section from the wrapper config to actual environment variables that can be easily
     supplied to a command.
@@ -94,7 +94,7 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]):
     return resolved_envvars
 
 
-def calc_backend_config(path, variables):
+def calc_backend_config(path: str, variables: Dict[str, str]) -> List[str]:
     """
     Convenience function for calculating the backend config of the given Terraform directory.
     :param path: The path to the directory containing the Terraform config.
@@ -128,7 +128,7 @@ def calc_backend_config(path, variables):
     return backend_config
 
 
-def parse_variable_files(variable_files):
+def parse_variable_files(variable_files: List[str]) -> Dict[str, Dict]:
     """
     Convenience function for parsing variable files and returning the variables as a dictionary
     :param variable_files: List of file paths to variable files. Variable files overwrite files before them.
