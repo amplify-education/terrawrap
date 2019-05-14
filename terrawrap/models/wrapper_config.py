@@ -39,9 +39,13 @@ jsons.set_deserializer(env_var_deserializer, AbstractEnvVarConfig)
 
 # pylint: disable=missing-docstring
 class WrapperConfig:
-    def __init__(self, configure_backend: bool = True, pipeline_check: bool = True,
-                 envvars: Dict[str, AbstractEnvVarConfig] = None,
-                 resolved_envvars: Dict[str, str] = None):
+    def __init__(
+            self,
+            configure_backend: bool = True,
+            pipeline_check: bool = True,
+            envvars: Dict[str, AbstractEnvVarConfig] = None,
+            resolved_envvars: Dict[str, str] = None
+    ):
         self.configure_backend = configure_backend
         self.pipeline_check = pipeline_check
         self.envvars = envvars
