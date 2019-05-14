@@ -66,7 +66,7 @@ def parse_wrapper_configs(wrapper_config_files) -> WrapperConfig:
     Function for parsing the Terraform wrapper config file.
     :param wrapper_config_files: A list of file paths to wrapper config files. Config files later in the list
     override those earlier in the list, and are merged with the default config and earlier files.
-    :return: A dictionary of the Terraform wrapper config file, or the default config object.
+    :return: A WrapperConfig object representing the accumulated values of all the wrapper config files
     """
     generated_wrapper_config = {}
 
