@@ -44,9 +44,7 @@ class WrapperConfig:
             configure_backend: bool = True,
             pipeline_check: bool = True,
             envvars: Dict[str, AbstractEnvVarConfig] = None,
-            resolved_envvars: Dict[str, str] = None
     ):
         self.configure_backend = configure_backend
         self.pipeline_check = pipeline_check
-        self.envvars = envvars
-        self.resolved_envvars = resolved_envvars or {}
+        self.envvars = envvars or {}

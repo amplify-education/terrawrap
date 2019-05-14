@@ -68,12 +68,7 @@ def parse_wrapper_configs(wrapper_config_files) -> WrapperConfig:
     override those earlier in the list, and are merged with the default config and earlier files.
     :return: A dictionary of the Terraform wrapper config file, or the default config object.
     """
-    generated_wrapper_config = {
-        "configure_backend": True,
-        "pipeline_check": True,
-        "resolved_envvars": {},
-        "envvars": {}
-    }
+    generated_wrapper_config = {}
 
     for wrapper_config_path in wrapper_config_files:
         with open(wrapper_config_path) as wrapper_config_file:
