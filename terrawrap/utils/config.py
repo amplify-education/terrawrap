@@ -2,7 +2,7 @@
 import os
 import re
 import subprocess
-from typing import Dict
+from typing import Dict, List
 
 import hcl
 import jsons
@@ -61,7 +61,7 @@ def find_wrapper_config_files(path):
     return wrapper_config_files
 
 
-def parse_wrapper_configs(wrapper_config_files) -> WrapperConfig:
+def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
     """
     Function for parsing the Terraform wrapper config file.
     :param wrapper_config_files: A list of file paths to wrapper config files. Config files later in the list
