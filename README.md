@@ -149,8 +149,8 @@ will generate the following command:
 
 ```bash
 terraform apply -var-file config/config.auto.tfvars \
-    -var-file foo.auto.tfvars \
-    -var-file bar.auto.tfvars
+    -var-file config/foo/foo.auto.tfvars \
+    -var-file config/foo/bar/bar.auto.tfvars
 ```
 
 ### Terraform S3 Remote State

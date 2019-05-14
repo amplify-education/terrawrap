@@ -2,35 +2,22 @@
 import os
 import re
 import subprocess
+from typing import Dict, List
 
 import hcl
+import jsons
 import yaml
-from schema import Schema, Optional, Or
 from ssm_cache import SSMParameterGroup
 
+from terrawrap.models.wrapper_config import WrapperConfig, AbstractEnvVarConfig, SSMEnvVarConfig
 from terrawrap.utils.collection_utils import update
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
 DEFAULT_REGION = 'us-west-2'
 SSM_ENVVAR_CACHE = SSMParameterGroup(max_age=600)
-WRAPPER_CONFIG_SCHEMA = Schema(
-    {
-        Optional('configure_backend'): bool,
-        Optional('pipeline_check'): bool,
-        Optional('envvars'): {
-            str: {
-                'source': Or("ssm"),
-                str: str
-            }
-        },
-        Optional('resolved_envvars'): {
-            str: str
-        }
-    },
-)
 
 
-def find_variable_files(path):
+def find_variable_files(path: str) -> List[str]:
     """
     Convenience function for finding all Terraform variable files by walking a given path.
     :param path: The path to the Terraform configuration directory.
@@ -52,7 +39,7 @@ def find_variable_files(path):
     return variable_files
 
 
-def find_wrapper_config_files(path):
+def find_wrapper_config_files(path: str) -> List[str]:
     """
     Convenience function for finding all wrapper config files by walking a given path.
     :param path: The path to the Terraform configuration directory.
@@ -74,30 +61,25 @@ def find_wrapper_config_files(path):
     return wrapper_config_files
 
 
-def parse_wrapper_configs(wrapper_config_files):
+def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
     """
     Function for parsing the Terraform wrapper config file.
     :param wrapper_config_files: A list of file paths to wrapper config files. Config files later in the list
     override those earlier in the list, and are merged with the default config and earlier files.
-    :return: A dictionary of the Terraform wrapper config file, or the default config object.
+    :return: A WrapperConfig object representing the accumulated values of all the wrapper config files
     """
-    generated_wrapper_config = {
-        "configure_backend": True,
-        "pipeline_check": True,
-        "resolved_envvars": {},
-        "envvars": {}
-    }
+    generated_wrapper_config = {}
 
     for wrapper_config_path in wrapper_config_files:
         with open(wrapper_config_path) as wrapper_config_file:
             wrapper_config = yaml.safe_load(wrapper_config_file)
-            wrapper_config = WRAPPER_CONFIG_SCHEMA.validate(wrapper_config)
             generated_wrapper_config = update(generated_wrapper_config, wrapper_config)
 
-    return generated_wrapper_config
+    wrapper_config_obj: WrapperConfig = jsons.load(generated_wrapper_config, WrapperConfig, strict=True)
+    return wrapper_config_obj
 
 
-def resolve_envvars(envvar_configs):
+def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, str]:
     """
     Resolves the 'envvars' section from the wrapper config to actual environment variables that can be easily
     supplied to a command.
@@ -107,12 +89,12 @@ def resolve_envvars(envvar_configs):
     """
     resolved_envvars = {}
     for envvar_name, envvar_config in envvar_configs.items():
-        if envvar_config["source"] == "ssm":
-            resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(envvar_config["path"]).value
+        if isinstance(envvar_config, SSMEnvVarConfig):
+            resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(envvar_config.path).value
     return resolved_envvars
 
 
-def calc_backend_config(path, variables):
+def calc_backend_config(path: str, variables: Dict[str, str]) -> List[str]:
     """
     Convenience function for calculating the backend config of the given Terraform directory.
     :param path: The path to the directory containing the Terraform config.
@@ -146,7 +128,7 @@ def calc_backend_config(path, variables):
     return backend_config
 
 
-def parse_variable_files(variable_files):
+def parse_variable_files(variable_files: List[str]) -> Dict[str, Dict]:
     """
     Convenience function for parsing variable files and returning the variables as a dictionary
     :param variable_files: List of file paths to variable files. Variable files overwrite files before them.

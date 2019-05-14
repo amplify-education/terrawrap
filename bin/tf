@@ -260,7 +260,7 @@ def handler():
 
     wrapper_config_files = find_wrapper_config_files(path=tf_config_path)
     wrapper_config = parse_wrapper_configs(wrapper_config_files=wrapper_config_files)
-    additional_envvars = resolve_envvars(wrapper_config["envvars"]) if should_resolve_envvars else {}
+    additional_envvars = resolve_envvars(wrapper_config.envvars) if should_resolve_envvars else {}
 
     add_variables = does_command_get_variables(
         command=command,
@@ -275,7 +275,7 @@ def handler():
 
     variables = parse_variable_files(variable_files=variable_files)
 
-    if command == 'init' and wrapper_config['configure_backend']:
+    if command == 'init' and wrapper_config.configure_backend:
         backend_config = calc_backend_config(
             path=tf_config_path,
             variables=variables

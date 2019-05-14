@@ -42,8 +42,7 @@ class ExitCode(Enum):
     TERRAFORM_FAILURE = 3
 
 
-def get_subdirectories(root_dir):
-    # type: (str) -> Tuple[List[str], List[str]]
+def get_subdirectories(root_dir: str)-> Tuple[List[str], List[str]]:
     """
     Make a list of subdirectories (with '.tf' files) of the path provided as the argument
     :param root_dir: The directory to run the script on.
@@ -62,8 +61,7 @@ def get_subdirectories(root_dir):
     return regular_directories, symlinked_directories
 
 
-def init_and_plan_directory(directory, skip_iam, additional_envvars):
-    # type: (str, bool, Dict[str, str]) -> ExitCode
+def init_and_plan_directory(directory: str, skip_iam: bool, additional_envvars: Dict[str, str]) -> ExitCode:
     """
     Run 'init' and 'plan' against the passed in directory
     :param directory: A directory with the terraform config
@@ -114,8 +112,7 @@ def init_and_plan_directory(directory, skip_iam, additional_envvars):
     return check_for_iam_changes(plan_stdout, directory)
 
 
-def check_for_iam_changes(stdout, directory):
-    # type: (List[str], str) -> ExitCode
+def check_for_iam_changes(stdout: List[str], directory: str) -> ExitCode:
     """
     Look for the IAM changes in stdout
     :param stdout: Stdout of the 'plan' command for IAM changes lookup
@@ -136,8 +133,7 @@ def check_for_iam_changes(stdout, directory):
     return ExitCode.SUCCESS
 
 
-def execute_init_and_plan(regular_directories, symlinked_directories, skip_iam):
-    # type: (List[str], List[str], bool) -> ExitCode
+def execute_init_and_plan(regular_directories: List[str], symlinked_directories: List[str], skip_iam: bool) -> ExitCode:
     """
     Execute functions concurrently
     :param regular_directories: Non symlinked directories to be processed in parallel
@@ -149,7 +145,7 @@ def execute_init_and_plan(regular_directories, symlinked_directories, skip_iam):
     # Lookup everyone's environment variables at once so that we get the benefit of Parameter Store calls
     # being cached.
     directory_to_envvars = {
-        directory: resolve_envvars(parse_wrapper_configs(find_wrapper_config_files(directory))["envvars"])
+        directory: resolve_envvars(parse_wrapper_configs(find_wrapper_config_files(directory)).envvars)
         for directory in regular_directories + symlinked_directories
     }
 
@@ -179,8 +175,7 @@ def execute_init_and_plan(regular_directories, symlinked_directories, skip_iam):
     return worst_exit_code
 
 
-def get_modified_subdirectories(root_directory):
-    # type (str) -> Tuple[List[str], List[str]]
+def get_modified_subdirectories(root_directory: str) -> Tuple[List[str], List[str]]:
     """
     Use Git to find which directories have changed and return a list of them
     A changed directory is a directory that has files that changed, or has symlinks to files that

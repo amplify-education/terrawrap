@@ -7,5 +7,5 @@ pyhcl>=0.3.10
 six>=1.11.0,<2
 pathlib2>=2.3.2,<3
 pyyaml>=3.13,<4
-schema>=0.7.0,<1
 ssm-cache>=2.7,<3
+jsons>=0.8.9,<1
