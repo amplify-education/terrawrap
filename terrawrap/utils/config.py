@@ -73,7 +73,8 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
     for wrapper_config_path in wrapper_config_files:
         with open(wrapper_config_path) as wrapper_config_file:
             wrapper_config = yaml.safe_load(wrapper_config_file)
-            generated_wrapper_config = update(generated_wrapper_config, wrapper_config)
+            if wrapper_config and isinstance(wrapper_config, dict):
+                generated_wrapper_config = update(generated_wrapper_config, wrapper_config)
 
     wrapper_config_obj: WrapperConfig = jsons.load(generated_wrapper_config, WrapperConfig, strict=True)
     return wrapper_config_obj
