@@ -34,7 +34,7 @@ class TestConfig(TestCase):
 
         self.assertEqual(expected_config, actual_config)
 
-    def test_calc_backend_config_from_wrapper_config(self):
+    def test_calc_backend_config_wrapper_config(self):
         """Test that correct backend config is generated from the tf wrapper config"""
         wrapper_config = WrapperConfig(
             backends=BackendsConfig(
@@ -62,7 +62,7 @@ class TestConfig(TestCase):
         self.assertEqual(expected_config, actual_config)
 
     def test_calc_backend_config_with_role_arn(self):
-        """Test that correct backend config is generated from the tf wrapper config"""
+        """Test that the correct role is used in backend config"""
         wrapper_config = WrapperConfig(
             backends=BackendsConfig(
                 s3=S3BackendConfig(

@@ -67,7 +67,7 @@ Learn more at <https://www.amplify.com>
 4.  Terrawrap is not a code generator. Generated code is harder to
     read and understand. Code generators tend to lead to leaky abstractions that can be more trouble than they are worth.
     However, Terrawrap does generate remote backend configs as a workaround to Terraform's lack of support for variables
-    in backend configs (See https://github.com/hashicorp/terraform/issues/13022). We expect this to be the only instance
+    in backend configs (See <https://github.com/hashicorp/terraform/issues/13022>). We expect this to be the only instance
     of code generation in Terrawrap.
 
 ## Getting Started
@@ -177,7 +177,7 @@ terraform init -reconfigure
 
 Terrawrap configures the backend by looking for `.tf_wrapper` files in the directory structure. The following
 options are supported. See the Terraform S3 backend documentation for information about each option. 
-https://www.terraform.io/docs/backends/types/s3.html#configuration-variables
+<https://www.terraform.io/docs/backends/types/s3.html#configuration-variables>
 
 ```yml
 backends:
