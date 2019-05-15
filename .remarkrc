@@ -5,6 +5,7 @@
     "remark-validate-links",
     ["lint-ordered-list-marker-value", "ordered"],
     ["lint-maximum-line-length", 120],
-    ["lint-list-item-indent", "space"]
+    ["lint-list-item-indent", "space"],
+    ["remark-lint-list-item-indent", "tab-size"]
   ]
 }
