@@ -14,61 +14,62 @@ Set of Python-based CLI tools for working with Terraform configurations in bulk
 
 Amplify builds innovative and compelling digital educational products that empower teachers and students across the 
 country. We have a long history as the leading innovator in K-12 education - and have been described as the best tech 
-company in education and the best education company in tech. While others try to shrink the learning experience into the 
-technology, we use technology to expand what is possible in real classrooms with real students and teachers.
+company in education and the best education company in tech. While others try to shrink the learning experience into  
+the technology, we use technology to expand what is possible in real classrooms with real students and teachers.
 
 Learn more at <https://www.amplify.com>
 
 ## Table of Contents
 
--   [Features](#features)
+- [Features](#features)
 
--   [Goals](#goals)
+- [Goals](#goals)
 
--   [Getting Started](#getting-started)
-    -   [Prerequisites](#prerequisites)
-    -   [Installing/Building](#installingbuilding)
-    -   [Running Tests](#running-tests)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installing](#installing)
+  - [Building From Source](#building-from-source)
+  - [Running Tests](#running-tests)
 
--   [Configuration](#configuration)
-    -   [.tf_wrapper](#tf_wrapper)
-    -   [Autovars](#autovars)
-    -   [Terraform S3 Remote State](#terraform-s3-remote-state)
+- [Configuration](#configuration)
+  - [.tf_wrapper](#tf_wrapper)
+  - [Autovars](#autovars)
+  - [Terraform S3 Remote State](#terraform-s3-remote-state)
 
--   [Commands](#commands)
-    -   [tf](#tf)
-    -   [plan_check](#plan_check)
+- [Commands](#commands)
+  - [tf](#tf)
+  - [plan_check](#plan_check)
 
 ## Features
 
-1.  `auto.tfvars` inheritance. Terrawrap makes it easier to share variables between Terraform directories through
-    inheritance of `auto.tfvars` files.
+1. `auto.tfvars` inheritance. Terrawrap makes it easier to share variables between Terraform directories through
+   inheritance of `auto.tfvars` files.
 
-2.  Remote S3 backend generation. Terrawrap makes it easier to work with AWS S3 remote state backends by
-    generating configuration for them.
+2. Remote S3 backend generation. Terrawrap makes it easier to work with AWS S3 remote state backends by
+   generating configuration for them.
 
-3.  Repository level plan/apply. Terrawrap provides commands for running plan/apply recursively on a entire
-    repository at once.
+3. Repository level plan/apply. Terrawrap provides commands for running plan/apply recursively on a entire
+   repository at once.
 
 ## Goals
 
-1.  Make Terraform DRY for large organizations. A Terraform best practices is to break up Terraform configs
-    into many small state files. This leads to an explosion in boilerplate code when using Terraform in large organizations
-    with 100s of state files. Terrawrap reduces some boilerplate code by providing `auto.tfvars` inheritance
-    and generating backend configurations. 
+1. Make Terraform DRY for large organizations. A Terraform best practices is to break up Terraform configs
+   into many small state files. This leads to an explosion in boilerplate code when using Terraform in large 
+   organizations with 100s of state files. Terrawrap reduces some boilerplate code by providing `auto.tfvars` 
+   inheritance and generating backend configurations. 
 
-2.  Make Terraform code easier to manage. Terraform only runs commands on a single directory at a time. This makes
-    working with hundreds of terraform directories/state files hard. Terrawrap provides utilities for running 
-    commands against an entire repository at once instead of one directory at a time.
+2. Make Terraform code easier to manage. Terraform only runs commands on a single directory at a time. This makes
+   working with hundreds of terraform directories/state files hard. Terrawrap provides utilities for running 
+   commands against an entire repository at once instead of one directory at a time.
 
-3.  All Terraform code should be valid Terraform. Any Terraform code used with Terrawrap should be runnable with 
-    Terraform by itself without the wrapper. Terrawrap does not provide any new syntax. 
+3. All Terraform code should be valid Terraform. Any Terraform code used with Terrawrap should be runnable with 
+   Terraform by itself without the wrapper. Terrawrap does not provide any new syntax. 
 
-4.  Terrawrap is not a code generator. Generated code is harder to
-    read and understand. Code generators tend to lead to leaky abstractions that can be more trouble than they are worth.
-    However, Terrawrap does generate remote backend configs as a workaround to Terraform's lack of support for variables
-    in backend configs (See <https://github.com/hashicorp/terraform/issues/13022>). We expect this to be the only instance
-    of code generation in Terrawrap.
+4. Terrawrap is not a code generator. Generated code is harder to
+   read and understand. Code generators tend to lead to leaky abstractions that can be more trouble than they are 
+   worth. However, Terrawrap does generate remote backend configs as a workaround to Terraform's lack of support for 
+   variables in backend configs (See <https://github.com/hashicorp/terraform/issues/13022>). We expect this to be 
+   the only instance of code generation in Terrawrap.
 
 ## Getting Started
 
@@ -150,10 +151,10 @@ config
 
 will generate the following command:
 
-```
-terraform apply -var-file config/config.auto.tfvars
-    -var-file config/foo/foo.auto.tfvars
-    -var-file config/foo/bar/bar.auto.tfvars
+```test
+    terraform apply -var-file config/config.auto.tfvars \
+        -var-file config/foo/foo.auto.tfvars \
+        -var-file config/foo/bar/bar.auto.tfvars
 ```
 
 ### Terraform S3 Remote State
@@ -163,16 +164,16 @@ args when running `init`
 
 For example, the Terrawrap command `tf config/foo/bar init` will generate a Terraform command like 
 
-```
-terraform init -reconfigure 
-    -backend-config=dynamodb_table=<lock table name>
-    -backend-config=encrypt=true 
-    -backend-config=key=config/foo/bar.tfstate
-    -backend-config=region=<region name>
-    -backend-config=bucket=<state bucket name>
-    -backend-config=skip_get_ec2_platforms=true
-    -backend-config=skip_region_validation=true
-    -backend-config=skip_credentials_validation=true
+```bash
+    terraform init -reconfigure 
+        -backend-config=dynamodb_table=<lock table name> \
+        -backend-config=encrypt=true \
+        -backend-config=key=config/foo/bar.tfstate \
+        -backend-config=region=<region name> \
+        -backend-config=bucket=<state bucket name> \
+        -backend-config=skip_get_ec2_platforms=true \
+        -backend-config=skip_region_validation=true \
+        -backend-config=skip_credentials_validation=true
 ```
 
 Terrawrap configures the backend by looking for `.tf_wrapper` files in the directory structure. The following
@@ -188,18 +189,15 @@ backends:
         lock_table:
 ```
 
-
-| Option Name            | Required     | Purpose                                                                |
-| ---------------------- | ----------------- | ---------------------------------------------------------------------- |
-| bucket   | Yes | Name of S3 Bucket                    |
-| region |  Yes                 | AWS Region that S3 state bucket and DynamoDB lock table are located in |
-| lock_table |  No                 | DynamoDB table to use for state locking. Locking is disable if lock_table is not set |
-| role_arn |  No                 | AWS role to assume when reading/writing to S3 bucket and lock table  |
-
+| Option Name | Required | Purpose                                                                              |
+| ----------- | -------- | ------------------------------------------------------------------------------------ |
+| bucket      | Yes      | Name of S3 Bucket                                                                    |
+| region      | Yes      | AWS Region that S3 state bucket and DynamoDB lock table are located in               |
+| lock_table  | No       | DynamoDB table to use for state locking. Locking is disable if lock_table is not set |
+| role_arn    | No       | AWS role to assume when reading/writing to S3 bucket and lock table                  |
 
 The S3 state file key name is generated from the directory name being used to run the terraform command. 
 For example, `tf config/foo/bar init` uses a state file with the key `config/foo/bar.tfstate` in S3
-
 
 ## Commands
 
@@ -214,6 +212,7 @@ command is supported
 `plan_check <directory>` runs `terraform plan` recursively for all child directories starting at the given directory.
 `plan_check` uses `git` to identify which files have changed compared with the `master` branch. It will then run `plan`
 on any directory that contains `tf` files with the following criteria
+
 1. A directory that has files that changed
 2. A directory that is symlinked to a directory that has files changed
 3. A directory with symlinked files that are linked to files that changed
