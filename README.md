@@ -152,9 +152,9 @@ config
 will generate the following command:
 
 ```test
-    terraform apply -var-file config/config.auto.tfvars \
-        -var-file config/foo/foo.auto.tfvars \
-        -var-file config/foo/bar/bar.auto.tfvars
+terraform apply -var-file config/config.auto.tfvars \
+    -var-file config/foo/foo.auto.tfvars \
+    -var-file config/foo/bar/bar.auto.tfvars
 ```
 
 ### Terraform S3 Remote State
@@ -165,15 +165,15 @@ args when running `init`
 For example, the Terrawrap command `tf config/foo/bar init` will generate a Terraform command like 
 
 ```bash
-    terraform init -reconfigure 
-        -backend-config=dynamodb_table=<lock table name> \
-        -backend-config=encrypt=true \
-        -backend-config=key=config/foo/bar.tfstate \
-        -backend-config=region=<region name> \
-        -backend-config=bucket=<state bucket name> \
-        -backend-config=skip_get_ec2_platforms=true \
-        -backend-config=skip_region_validation=true \
-        -backend-config=skip_credentials_validation=true
+terraform init -reconfigure
+    -backend-config=dynamodb_table=<lock table name> \
+    -backend-config=encrypt=true \
+    -backend-config=key=config/foo/bar.tfstate \
+    -backend-config=region=<region name> \
+    -backend-config=bucket=<state bucket name> \
+    -backend-config=skip_get_ec2_platforms=true \
+    -backend-config=skip_region_validation=true \
+    -backend-config=skip_credentials_validation=true
 ```
 
 Terrawrap configures the backend by looking for `.tf_wrapper` files in the directory structure. The following
