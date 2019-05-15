@@ -25,6 +25,22 @@ class SSMEnvVarConfig(AbstractEnvVarConfig):
         self.path = path
 
 
+# pylint: disable=missing-docstring
+class S3BackendConfig:
+    def __init__(self, bucket: str, region: str, dynamodb_table: str = None, role_arn: str = None):
+        self.region = region
+        self.bucket = bucket
+        self.dynamodb_table = dynamodb_table
+        self.role_arn = role_arn
+
+
+# pylint: disable=missing-docstring
+class BackendsConfig:
+    # pylint: disable=invalid-name
+    def __init__(self, s3: S3BackendConfig = None):
+        self.s3 = s3
+
+
 # pylint: disable=unused-argument
 def env_var_deserializer(obj_dict, cls, **kwargs):
     """convert a dict to a subclass of AbstractEnvVarConfig"""
@@ -44,7 +60,9 @@ class WrapperConfig:
             configure_backend: bool = True,
             pipeline_check: bool = True,
             envvars: Dict[str, AbstractEnvVarConfig] = None,
+            backends: BackendsConfig = None
     ):
         self.configure_backend = configure_backend
         self.pipeline_check = pipeline_check
         self.envvars = envvars or {}
+        self.backends = backends

@@ -64,8 +64,11 @@ Learn more at <https://www.amplify.com>
 3.  All Terraform code should be valid Terraform. Any Terraform code used with Terrawrap should be runnable with 
     Terraform by itself without the wrapper. Terrawrap does not provide any new syntax. 
 
-4.  Terrawrap is not a code generator (except when generating terraform backends). Generated code is harder to 
+4.  Terrawrap is not a code generator. Generated code is harder to
     read and understand. Code generators tend to lead to leaky abstractions that can be more trouble than they are worth.
+    However, Terrawrap does generate remote backend configs as a workaround to Terraform's lack of support for variables
+    in backend configs (See https://github.com/hashicorp/terraform/issues/13022). We expect this to be the only instance
+    of code generation in Terrawrap.
 
 ## Getting Started
 
@@ -147,9 +150,9 @@ config
 
 will generate the following command:
 
-```bash
-terraform apply -var-file config/config.auto.tfvars \
-    -var-file config/foo/foo.auto.tfvars \
+```
+terraform apply -var-file config/config.auto.tfvars
+    -var-file config/foo/foo.auto.tfvars
     -var-file config/foo/bar/bar.auto.tfvars
 ```
 
@@ -158,34 +161,45 @@ terraform apply -var-file config/config.auto.tfvars \
 Terrawrap supports automatically configuring S3 remote backends. It will inject the appropriate `-backend-config`
 args when running `init`
 
-For example, the following Terrawrap command `tf config/foo/bar init` will generate a Terraform command like 
+For example, the Terrawrap command `tf config/foo/bar init` will generate a Terraform command like 
 
-```bash
-terraform init -reconfigure \
-    -backend-config=dynamodb_table=<lock table name> \
-    -backend-config=encrypt=true \
-    -backend-config=key=config/foo/bar.tfstate \
-    -backend-config=region=<region name> \
-    -backend-config=bucket=<state bucket name> \
-    -backend-config=skip_get_ec2_platforms=true \
-    -backend-config=skip_region_validation=true \
+```
+terraform init -reconfigure 
+    -backend-config=dynamodb_table=<lock table name>
+    -backend-config=encrypt=true 
+    -backend-config=key=config/foo/bar.tfstate
+    -backend-config=region=<region name>
+    -backend-config=bucket=<state bucket name>
+    -backend-config=skip_get_ec2_platforms=true
+    -backend-config=skip_region_validation=true
     -backend-config=skip_credentials_validation=true
 ```
 
-Terrawrap configures the backend by looking for `*.auto.tfvars` files in the directory structure. The following
-variables will be used to configure S3 backends
+Terrawrap configures the backend by looking for `.tf_wrapper` files in the directory structure. The following
+options are supported. See the Terraform S3 backend documentation for information about each option. 
+https://www.terraform.io/docs/backends/types/s3.html#configuration-variables
 
-| Variable Name          | Default value     | Purpose                                                                |
+```yml
+backends:
+    s3:
+        region:
+        role_arn:
+        bucket:
+        lock_table:
+```
+
+
+| Option Name            | Required     | Purpose                                                                |
 | ---------------------- | ----------------- | ---------------------------------------------------------------------- |
-| terraform_lock_table   | terraform-locking | Name of DynamoDB lock table to use with S3 backend                     |
-| terraform_state_bucket |                   | Name of AWS S3 bucket that will hold Terraform state files             |
-| region                 |                   | AWS Region that S3 state bucket and DynamoDB lock table are located in |
+| bucket   | Yes | Name of S3 Bucket                    |
+| region |  Yes                 | AWS Region that S3 state bucket and DynamoDB lock table are located in |
+| lock_table |  No                 | DynamoDB table to use for state locking. Locking is disable if lock_table is not set |
+| role_arn |  No                 | AWS role to assume when reading/writing to S3 bucket and lock table  |
+
 
 The S3 state file key name is generated from the directory name being used to run the terraform command. 
-For example, `tf config/foo/bar init` uses a state file in the `config/foo/bar.tfstate` key in S3
+For example, `tf config/foo/bar init` uses a state file with the key `config/foo/bar.tfstate` in S3
 
-The value of the assume role ARN is read from `*.auto.tfvars` files in the directory structure. Terrawrap
-will look for a variable named `tf_aws_provider_role`
 
 ## Commands
 

@@ -94,16 +94,17 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
     return resolved_envvars
 
 
-def calc_backend_config(path: str, variables: Dict[str, str]) -> List[str]:
+def calc_backend_config(path: str, variables: Dict[str, str], wrapper_config: WrapperConfig) -> List[str]:
     """
     Convenience function for calculating the backend config of the given Terraform directory.
     :param path: The path to the directory containing the Terraform config.
     :param variables: The variables derived from the auto.tfvars files.
+    :param wrapper_config:
     :return: A dictionary representing the backend configuration for the Terraform directory.
     """
     terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
-        region=variables['region'],
-        account_short_name=variables['account_short_name']
+        region=variables.get('region'),
+        account_short_name=variables.get('account_short_name')
     )
 
     output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path).decode("utf-8")
@@ -113,22 +114,29 @@ def calc_backend_config(path: str, variables: Dict[str, str]) -> List[str]:
     else:
         raise RuntimeError("Could not determine git repo name, are we in a git repo?")
 
-    backend_config = [
-        "-reconfigure",
-        "-backend-config=dynamodb_table=%s" % variables.get('terraform_lock_table', 'terraform-locking'),
-        "-backend-config=encrypt=true",
-        "-backend-config=key=%s/%s.tfstate" % (repo_name, path[path.index("/config") + 1:]),
-        "-backend-config=region=%s" % variables['region'],
-        "-backend-config=bucket=%s" % variables.get('terraform_state_bucket', terraform_bucket),
-        "-backend-config=skip_get_ec2_platforms=true",  # Not needed if we have ec2:DescribeAccountAttributes
-        "-backend-config=skip_region_validation=true",  # We don't need to validate that our region is correct
-        "-backend-config=skip_credentials_validation=true",  # This solves the TLS errors we've seen
-    ]
+    options = {
+        'dynamodb_table': variables.get('terraform_lock_table', 'terraform-locking'),
+        'encrypt': 'true',
+        'key': '%s/%s.tfstate' % (repo_name, path[path.index("/config") + 1:]),
+        'region': variables.get('region'),
+        'bucket': variables.get('terraform_state_bucket', terraform_bucket),
+        'skip_get_ec2_platforms': 'true',
+        'skip_region_validation': 'true',
+        'skip_credentials_validation': 'true'
+    }
+
+    if wrapper_config.backends and wrapper_config.backends.s3:
+        s3_vars = vars(wrapper_config.backends.s3)
+        s3_vars = {key: value for key, value in s3_vars.items() if value is not None}
+        options.update(s3_vars)
+
+    backend_config = ['-reconfigure']
+    backend_config.extend(['-backend-config=%s=%s' % (key, value) for key, value in options.items()])
 
     return backend_config
 
 
-def parse_variable_files(variable_files: List[str]) -> Dict[str, Dict]:
+def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
     """
     Convenience function for parsing variable files and returning the variables as a dictionary
     :param variable_files: List of file paths to variable files. Variable files overwrite files before them.
