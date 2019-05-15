@@ -127,6 +127,7 @@ def calc_backend_config(path: str, variables: Dict[str, str], wrapper_config: Wr
     }
 
     if wrapper_config.backends and wrapper_config.backends.s3:
+        # convert the object into a dict so we can append each field to the backend config dynamically
         s3_vars = vars(wrapper_config.backends.s3)
         s3_vars = {key: value for key, value in s3_vars.items() if value is not None}
         options.update(s3_vars)
