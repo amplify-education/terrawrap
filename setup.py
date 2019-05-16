@@ -3,7 +3,6 @@ from __future__ import print_function
 
 import re
 import os.path
-from os import path
 
 from setuptools import setup, find_packages
 
@@ -18,8 +17,8 @@ VERSION_FILE = os.path.join("terrawrap", "version.py")
 
 def get_long_description():
     """Reads the long description from the README"""
-    this_directory = path.abspath(path.dirname(__file__))
-    with open(path.join(this_directory, 'README.md'), encoding='utf-8') as file:
+    this_directory = os.path.abspath(os.path.dirname(__file__))
+    with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as file:
         return file.read()
 
 
