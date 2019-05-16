@@ -278,7 +278,8 @@ def handler():
     if command == 'init' and wrapper_config.configure_backend:
         backend_config = calc_backend_config(
             path=tf_config_path,
-            variables=variables
+            variables=variables,
+            wrapper_config=wrapper_config
         )
         additional_arguments = backend_config + additional_arguments
 
