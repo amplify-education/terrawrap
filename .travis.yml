@@ -2,13 +2,11 @@ sudo: true
 language: python
 python: 3.6
 before_install:
-  # need pandoc to convert markdown readme to reStructuredText that PyPi requires
-  - sudo apt-get install pandoc
   # Must sudo rm -f /etc/boto.cfg because of compiling error in travis-ci
   # see: https://github.com/travis-ci/travis-ci/issues/7940
   - sudo rm -f /etc/boto.cfg
 install:
-  - pip install tox-travis codacy-coverage pypandoc
+  - pip install tox-travis codacy-coverage
 script:
   - bash bin/versionCheck.sh $TRAVIS_BRANCH $TRAVIS_PULL_REQUEST
   - tox
