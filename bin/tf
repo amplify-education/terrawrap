@@ -25,7 +25,7 @@ from tempfile import gettempdir
 from datetime import datetime, timedelta
 
 import hcl
-import pathlib2
+import pathlib
 from six import iteritems
 
 from terrawrap.utils.cli import execute_command
@@ -125,7 +125,7 @@ def move_to_tmp(config_path):
             continue
 
         future_directory = os.path.join(tmp_dir, current_directory[len(config_path)+1:])
-        pathlib2.Path(future_directory).mkdir(parents=True, exist_ok=True)
+        pathlib.Path(future_directory).mkdir(parents=True, exist_ok=True)
 
         # Remove files that no longer exist in the config directory to keep things up to date
         for future_file in os.listdir(future_directory):
