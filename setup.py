@@ -3,6 +3,7 @@ from __future__ import print_function
 
 import re
 import os.path
+
 from setuptools import setup, find_packages
 
 
@@ -16,13 +17,9 @@ VERSION_FILE = os.path.join("terrawrap", "version.py")
 
 def get_long_description():
     """Reads the long description from the README"""
-    # Attempt to convert the markdown readme to a reStructuredText one to work with legacy PyPi
-    try:
-        import pypandoc
-        return pypandoc.convert('README.md', 'rst')
-    except Exception as ex:
-        print("Unable to convert README to RST: '{}'".format(ex))
-        return " "
+    this_directory = os.path.abspath(os.path.dirname(__file__))
+    with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as file:
+        return file.read()
 
 
 def get_version():
@@ -48,6 +45,7 @@ setup(
     version=get_version(),
     description="Set of Python-based CLI tools for working with Terraform configurations",
     long_description=get_long_description(),
+    long_description_content_type='text/markdown',
     # Get strings from http://www.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         'Development Status :: 4 - Beta',
