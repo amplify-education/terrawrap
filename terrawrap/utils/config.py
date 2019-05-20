@@ -4,6 +4,7 @@ import re
 import subprocess
 from typing import Dict, List
 
+import boto3
 import hcl
 import jsons
 import yaml
@@ -13,8 +14,22 @@ from terrawrap.models.wrapper_config import WrapperConfig, AbstractEnvVarConfig,
 from terrawrap.utils.collection_utils import update
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
-DEFAULT_REGION = 'us-west-2'
-SSM_ENVVAR_CACHE = SSMParameterGroup(max_age=600)
+SSM_ENVVAR_CACHES = {}
+
+
+def get_ssm_cache(region: str = None) -> SSMParameterGroup:
+    """
+    Get the SSM cache for the given region
+    :param region: Name of the region such as us-west-2
+    """
+    if region not in SSM_ENVVAR_CACHES:
+        ssm_client = boto3.client('ssm', region_name=region)
+        cache = SSMParameterGroup(max_age=600)
+        cache.set_ssm_client(ssm_client)
+
+        SSM_ENVVAR_CACHES[region] = cache
+
+    return SSM_ENVVAR_CACHES[region]
 
 
 def find_variable_files(path: str) -> List[str]:
@@ -91,7 +106,8 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
     resolved_envvars = {}
     for envvar_name, envvar_config in envvar_configs.items():
         if isinstance(envvar_config, SSMEnvVarConfig):
-            resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(envvar_config.path).value
+            ssm_cache = get_ssm_cache(envvar_config.region)
+            resolved_envvars[envvar_name] = ssm_cache.parameter(envvar_config.path).value
     return resolved_envvars
 
 

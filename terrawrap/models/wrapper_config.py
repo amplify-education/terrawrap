@@ -20,9 +20,10 @@ class AbstractEnvVarConfig:
 
 # pylint: disable=missing-docstring
 class SSMEnvVarConfig(AbstractEnvVarConfig):
-    def __init__(self, path: str):
+    def __init__(self, path: str, region=None):
         super().__init__(EnvVarSource.SSM)
         self.path = path
+        self.region = region
 
 
 # pylint: disable=missing-docstring

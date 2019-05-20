@@ -2,8 +2,10 @@
 import os
 from unittest import TestCase
 
-from terrawrap.models.wrapper_config import WrapperConfig, BackendsConfig, S3BackendConfig
-from terrawrap.utils.config import calc_backend_config
+from mock import patch, MagicMock
+
+from terrawrap.models.wrapper_config import WrapperConfig, BackendsConfig, S3BackendConfig, SSMEnvVarConfig
+from terrawrap.utils.config import calc_backend_config, resolve_envvars
 
 ROLE_ARN = 'arn:aws:iam::1234567890:role/test_role'
 BUCKET = 'us-west-2--mclass--terraform--test'
@@ -94,3 +96,30 @@ class TestConfig(TestCase):
         ]
 
         self.assertEqual(expected_config, actual_config)
+
+    @patch('terrawrap.utils.config.get_ssm_cache')
+    def test_resolve_envvars(self, get_ssm_cache_mock):
+        """Test that env vars are correctly retrieved based on the config"""
+
+        def get_ssm_cache_side_effect(region):
+            ssm_cache = MagicMock()
+            cache_result = MagicMock()
+            ssm_cache.parameter.return_value = cache_result
+            if region == 'us-moon-1':
+                cache_result.value = 'other region value'
+            else:
+                cache_result.value = 'value'
+
+            return ssm_cache
+
+        get_ssm_cache_mock.side_effect = get_ssm_cache_side_effect
+
+        env_vars = resolve_envvars({
+            'var1': SSMEnvVarConfig('/foo/bar'),
+            'var2': SSMEnvVarConfig('/foo/bar', 'us-moon-1')
+        })
+
+        self.assertEqual(env_vars, {
+            'var1': 'value',
+            'var2': 'other region value'
+        })

@@ -7,3 +7,4 @@ pyhcl>=0.3.10
 pyyaml>=3.13,<4
 ssm-cache>=2.7,<3
 jsons>=0.8.9,<1
+boto3>=1.4.4,<2
