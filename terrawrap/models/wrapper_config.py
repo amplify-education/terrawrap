@@ -46,7 +46,7 @@ class BackendsConfig:
 def env_var_deserializer(obj_dict, cls, **kwargs):
     """convert a dict to a subclass of AbstractEnvVarConfig"""
     if obj_dict['source'] == EnvVarSource.SSM.value:
-        return SSMEnvVarConfig(obj_dict['path'])
+        return SSMEnvVarConfig(obj_dict['path'], region=obj_dict.get('region'))
 
     raise RuntimeError('Invalid Source')
 
