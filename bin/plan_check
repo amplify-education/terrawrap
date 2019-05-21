@@ -36,10 +36,16 @@ SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 CURRENT_DIRECTORY = os.getcwd()
 
 
-class ExitCode(Enum):
+class WrapperExitCode(Enum):
     SUCCESS = 0
     IAM_CHANGES = 2
     TERRAFORM_FAILURE = 3
+
+
+class PlanExitCode(Enum):
+    SUCCESS_NO_DIFF = 0
+    FAILURE = 1
+    SUCCESS_WITH_DIFF = 2
 
 
 def get_subdirectories(root_dir: str)-> Tuple[List[str], List[str]]:
@@ -61,13 +67,13 @@ def get_subdirectories(root_dir: str)-> Tuple[List[str], List[str]]:
     return regular_directories, symlinked_directories
 
 
-def init_and_plan_directory(directory: str, skip_iam: bool, additional_envvars: Dict[str, str]) -> ExitCode:
+def init_and_plan_directory(directory: str, skip_iam: bool, additional_envvars: Dict[str, str]) -> WrapperExitCode:
     """
     Run 'init' and 'plan' against the passed in directory
     :param directory: A directory with the terraform config
     :param skip_iam: A boolean to skip iam changes check
     :param additional_envvars: A dictionary representing additional environment variables to supply
-    :return: One of the ExitCode enums
+    :return: One of the WrapperExitCode enums
     """
 
     arguments = ['-no-color', '-lock=false', '-input=false']
@@ -88,7 +94,7 @@ def init_and_plan_directory(directory: str, skip_iam: bool, additional_envvars: 
 
     if init_exit_code:
         print("'terraform init' failed for {}:\n{}".format(directory, "".join(init_stdout)))
-        return ExitCode.TERRAFORM_FAILURE
+        return WrapperExitCode.TERRAFORM_FAILURE
 
     if os.path.exists('%s/%s' % (directory, 'pr_checker.tfvars')):
         arguments += pr_checker_arguments
@@ -97,27 +103,39 @@ def init_and_plan_directory(directory: str, skip_iam: bool, additional_envvars: 
     # the constructor. We are then passing in those environment variables explicitly in the
     # execute_command call below.
     plan_exit_code, plan_stdout = execute_command(
-        [wrapper_py, "--no-resolve-envvars", directory, 'plan'] + arguments,
+        [wrapper_py, "--no-resolve-envvars", directory, 'plan', '-detailed-exitcode'] + arguments,
         print_output=False,
         env=command_env
     )
 
-    if plan_exit_code:
-        print("'terraform plan' failed for {}:\n{}".format(directory, "".join(plan_stdout)))
-        return ExitCode.TERRAFORM_FAILURE
+    if plan_exit_code == PlanExitCode.FAILURE.value:
+        print(
+            "'terraform plan' failed for {}:\n{}".format(
+                directory,
+                "".join(plan_stdout)
+            )
+        )
+        return WrapperExitCode.TERRAFORM_FAILURE
+    elif plan_exit_code == PlanExitCode.SUCCESS_WITH_DIFF.value:
+        print(
+            "'terraform plan' generated following changes for {}:\n{}".format(
+                directory,
+                "".join(plan_stdout)
+            )
+        )
 
     # Check output for IAM changes
     if skip_iam:
-        return ExitCode.SUCCESS
+        return WrapperExitCode.SUCCESS
     return check_for_iam_changes(plan_stdout, directory)
 
 
-def check_for_iam_changes(stdout: List[str], directory: str) -> ExitCode:
+def check_for_iam_changes(stdout: List[str], directory: str) -> WrapperExitCode:
     """
     Look for the IAM changes in stdout
     :param stdout: Stdout of the 'plan' command for IAM changes lookup
     :param directory: A directory with the config to be printed along with the notification about IAM changes
-    :return: One of the ExitCode enums
+    :return: One of the WrapperExitCode enums
     """
 
     iam_resources = []
@@ -128,12 +146,12 @@ def check_for_iam_changes(stdout: List[str], directory: str) -> ExitCode:
             iam_resources.append(match.group(0))
     if iam_resources:
         print("Detected IAM resources modified in {0}:\n{1}\n".format(directory, "\n".join(iam_resources)))
-        return ExitCode.IAM_CHANGES
+        return WrapperExitCode.IAM_CHANGES
 
-    return ExitCode.SUCCESS
+    return WrapperExitCode.SUCCESS
 
 
-def execute_init_and_plan(regular_directories: List[str], symlinked_directories: List[str], skip_iam: bool) -> ExitCode:
+def execute_init_and_plan(regular_directories: List[str], symlinked_directories: List[str], skip_iam: bool) -> WrapperExitCode:
     """
     Execute functions concurrently
     :param regular_directories: Non symlinked directories to be processed in parallel
@@ -141,7 +159,7 @@ def execute_init_and_plan(regular_directories: List[str], symlinked_directories:
     :param skip_iam: A boolean to skip iam changes check
     :return: exit code
     """
-    worst_exit_code = ExitCode.SUCCESS
+    worst_exit_code = WrapperExitCode.SUCCESS
     # Lookup everyone's environment variables at once so that we get the benefit of Parameter Store calls
     # being cached.
     directory_to_envvars = {
@@ -163,13 +181,13 @@ def execute_init_and_plan(regular_directories: List[str], symlinked_directories:
 
         for future in concurrent.futures.as_completed(future_exec):
             exit_code = future.result()
-            if exit_code != ExitCode.SUCCESS:
+            if exit_code != WrapperExitCode.SUCCESS:
                 worst_exit_code = max(worst_exit_code, exit_code, key=attrgetter('value'))
 
     for directory in symlinked_directories:
         envvars = directory_to_envvars[directory]
         exit_code = init_and_plan_directory(directory, skip_iam, envvars)
-        if exit_code != ExitCode.SUCCESS:
+        if exit_code != WrapperExitCode.SUCCESS:
             worst_exit_code = max(worst_exit_code, exit_code, key=attrgetter('value'))
 
     return worst_exit_code
@@ -272,10 +290,10 @@ def main():
 
     exit_code = execute_init_and_plan(regular_directories, symlinked_directories, skip_iam)
 
-    if exit_code == ExitCode.TERRAFORM_FAILURE:
+    if exit_code == WrapperExitCode.TERRAFORM_FAILURE:
         print("General Terraform failures detected. Check the output above and please resolve any issues.")
 
-    if exit_code == ExitCode.IAM_CHANGES:
+    if exit_code == WrapperExitCode.IAM_CHANGES:
         print("IAM changes have been detected. If these changes are intended, please contact an Astronaut to merge.")
 
     exit(exit_code.value)
