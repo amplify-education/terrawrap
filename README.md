@@ -82,7 +82,7 @@ Terrawrap requires Python 3.6.0 or higher to run.
 This package can be installed using `pip`
 
 ```sh
-pip install terrawrap
+pip3 install terrawrap
 ```
 
 You should now be able to use the `tf` command.
