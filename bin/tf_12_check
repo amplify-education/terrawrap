@@ -58,16 +58,17 @@ def main():
 
 
 def check_directory_for_backend(dir_path: str):
-    exit_code, init_output = execute_command(["tf", dir_path, "init"])
+    exit_code, init_output = execute_command(["tf", dir_path, "init"], print_output=False)
     if exit_code != 0:
         print("Error while running init for '%s':\n%s" % (dir_path, "".join(init_output)))
         return False
 
-    exit_code, check_output = execute_command(["tf", dir_path, "0.12checklist"])
+    exit_code, check_output = execute_command(["tf", dir_path, "0.12checklist"], print_output=False)
     if exit_code != 0:
-        print("Error while running checklist for '%s':\n%s" % (dir_path, "".join(check_output)))
+        print("Error while running 0.12 checklist for '%s':\n%s" % (dir_path, "".join(check_output)))
         return False
 
+    print("0.12 checklist passed for '%s'" % dir_path)
     return True
 
 
