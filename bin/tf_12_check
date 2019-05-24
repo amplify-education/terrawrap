@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+"""
+This script checks that all terraform directories under the directory provided contain backend configs.
+
+Usage:
+    backend_check [options] [PATH]
+
+Arguments:
+    PATH    The path of the directory to check. Defaults to the current working directory.
+
+Options:
+    -h, --help          Show this message and exit.
+    --version           Show the version.
+"""
+import concurrent.futures
+import os
+import sys
+from typing import List
+
+import hcl
+from docopt import docopt
+
+from terrawrap.version import __version__
+from terrawrap.utils.cli import execute_command
+
+
+def main():
+    arguments = docopt(__doc__, version=__version__)
+    target_dir = arguments["PATH"] if arguments["PATH"] else os.getcwd()
+
+    config_dirs = {
+        current_dir: [file for file in files if file.endswith(".tf")]
+        for current_dir, dirs, files in os.walk(target_dir, followlinks=True)
+        if ".terraform" not in current_dir
+           and any(entry.endswith(".tf") for entry in files)
+    }
+
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures_to_dirs = {
+            executor.submit(
+                check_directory_for_backend,
+                dir_path=config_dir,
+            ): config_dir
+            for config_dir, files in config_dirs.items()
+        }
+
+    bad_dirs = [
+        futures_to_dirs[future]
+        for future in concurrent.futures.as_completed(futures_to_dirs)
+        if not future.result()
+    ]
+
+    if bad_dirs:
+        print("The following directories failed:")
+        for bad_dir in bad_dirs:
+            print("\t", bad_dir)
+        exit(1)
+
+
+def check_directory_for_backend(dir_path: str):
+    exit_code, init_output = execute_command(["tf", dir_path, "init"])
+    if exit_code != 0:
+        print("Error while running init for '%s':\n%s" % (dir_path, "".join(init_output)))
+        return False
+
+    exit_code, check_output = execute_command(["tf", dir_path, "0.12checklist"])
+    if exit_code != 0:
+        print("Error while running checklist for '%s':\n%s" % (dir_path, "".join(check_output)))
+        return False
+
+    return True
+
+
+if __name__ == '__main__':
+    main()
