@@ -13,7 +13,7 @@ Options:
     -h, --help          Show this message and exit.[default: False]
     -s, --skip-iam      Skip iam changes for this run.[default: False]
     --modified-only     Only run plan check on directories that were changed in git
-    
+    --print-diff        Print the diff for any directories with changed configurations. [default: False]
 """
 import os
 import re
@@ -67,11 +67,12 @@ def get_subdirectories(root_dir: str)-> Tuple[List[str], List[str]]:
     return regular_directories, symlinked_directories
 
 
-def init_and_plan_directory(directory: str, skip_iam: bool, additional_envvars: Dict[str, str]) -> WrapperExitCode:
+def init_and_plan_directory(directory: str, skip_iam: bool, print_diff: bool, additional_envvars: Dict[str, str]) -> WrapperExitCode:
     """
     Run 'init' and 'plan' against the passed in directory
     :param directory: A directory with the terraform config
     :param skip_iam: A boolean to skip iam changes check
+    :param print_diff: A boolean to print diffs for changes
     :param additional_envvars: A dictionary representing additional environment variables to supply
     :return: One of the WrapperExitCode enums
     """
@@ -116,7 +117,7 @@ def init_and_plan_directory(directory: str, skip_iam: bool, additional_envvars: 
             )
         )
         return WrapperExitCode.TERRAFORM_FAILURE
-    elif plan_exit_code == PlanExitCode.SUCCESS_WITH_DIFF.value:
+    elif print_diff and plan_exit_code == PlanExitCode.SUCCESS_WITH_DIFF.value:
         print(
             "'terraform plan' generated following changes for {}:\n{}".format(
                 directory,
@@ -151,12 +152,18 @@ def check_for_iam_changes(stdout: List[str], directory: str) -> WrapperExitCode:
     return WrapperExitCode.SUCCESS
 
 
-def execute_init_and_plan(regular_directories: List[str], symlinked_directories: List[str], skip_iam: bool) -> WrapperExitCode:
+def execute_init_and_plan(
+        regular_directories: List[str],
+        symlinked_directories: List[str],
+        skip_iam: bool,
+        print_diff: bool
+) -> WrapperExitCode:
     """
     Execute functions concurrently
     :param regular_directories: Non symlinked directories to be processed in parallel
     :param symlinked_directories: Symlinked directories to be processed one-by-one
     :param skip_iam: A boolean to skip iam changes check
+    :param print_diff: A boolean to control printing diffs for changes
     :return: exit code
     """
     worst_exit_code = WrapperExitCode.SUCCESS
@@ -175,7 +182,8 @@ def execute_init_and_plan(regular_directories: List[str], symlinked_directories:
                 init_and_plan_directory,
                 directory,
                 skip_iam,
-                envvars
+                print_diff,
+                envvars,
             )
             future_exec[future] = directory
 
@@ -272,6 +280,7 @@ def main():
 
     skip_iam = arguments['--skip-iam']
     modified_only = arguments['--modified-only']
+    print_diff = arguments['--print-diff']
 
     # Get the directory with Terraform config passed to this script as an argument
     config_dir = arguments['<path>']
@@ -288,7 +297,7 @@ def main():
         % (regular_directories, symlinked_directories)
     )
 
-    exit_code = execute_init_and_plan(regular_directories, symlinked_directories, skip_iam)
+    exit_code = execute_init_and_plan(regular_directories, symlinked_directories, skip_iam, print_diff)
 
     if exit_code == WrapperExitCode.TERRAFORM_FAILURE:
         print("General Terraform failures detected. Check the output above and please resolve any issues.")
