@@ -69,10 +69,11 @@ setup(
     install_requires=get_requirements(),
     test_suite='nose.collector',
     scripts=[
-        'bin/tf',
-        'bin/tf_apply',
         'bin/backend_check',
         'bin/pipeline_check',
         'bin/plan_check',
+        'bin/tf',
+        'bin/tf_12_check',
+        'bin/tf_apply',
     ],
 )
