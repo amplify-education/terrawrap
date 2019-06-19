@@ -73,9 +73,8 @@ def exec_tf_command(command, path, variable_files, variables, arguments, additio
     command_env = os.environ.copy()
     command_env.update(additional_envvars)
 
-    # We don't want to move to tmp if its the fmt command, because this command updates the files and it would
-    # be annoying to write logic for copying those files back into the directory
-    if command == "fmt":
+    # These commands modify the source files, so still run them in the original directory
+    if command in ["fmt", "0.12upgrade"]:
         new_path = path
     else:
         new_path = move_to_tmp(config_path=path)
