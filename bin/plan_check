@@ -194,7 +194,7 @@ def execute_init_and_plan(
 
     for directory in symlinked_directories:
         envvars = directory_to_envvars[directory]
-        exit_code = init_and_plan_directory(directory, skip_iam, envvars)
+        exit_code = init_and_plan_directory(directory, skip_iam, print_diff, envvars)
         if exit_code != WrapperExitCode.SUCCESS:
             worst_exit_code = max(worst_exit_code, exit_code, key=attrgetter('value'))
 
