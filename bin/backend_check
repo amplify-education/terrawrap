@@ -59,10 +59,13 @@ def main():
 
 
 def does_file_define_backend(file_path: str):
-    with open(file_path, "r") as file_source:
-        parsed_file_source = hcl.load(file_source)
-    return parsed_file_source.get("terraform", {}).get("backend")
-
+    try:
+        with open(file_path, "r") as file_source:
+            parsed_file_source = hcl.load(file_source)
+        return parsed_file_source.get("terraform", {}).get("backend")
+    except Exception:
+        print('Error while parsing file %s', file_path)
+        raise
 
 def check_directory_for_backend(dir_path: str, dir_files: List[str]):
     return any(
