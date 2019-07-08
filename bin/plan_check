@@ -303,7 +303,7 @@ def main():
         print("General Terraform failures detected. Check the output above and please resolve any issues.")
 
     if exit_code == WrapperExitCode.IAM_CHANGES:
-        print("IAM changes have been detected. If these changes are intended, please contact an Astronaut to merge.")
+        print("IAM changes have been detected. If these changes are intended, please contact the devops team to merge.")
 
     exit(exit_code.value)
 
