@@ -24,7 +24,6 @@ import shutil
 from tempfile import gettempdir
 from datetime import datetime, timedelta
 
-import hcl
 import pathlib
 from six import iteritems
 
@@ -40,6 +39,7 @@ from terrawrap.utils.dynamodb import DynamoDB
 
 LOCK_TIMEOUT = timedelta(minutes=60)
 MAX_COUNT = 5
+REGEX_MODULE_SOURCE = re.compile("source.*\"(.*?)\"", re.IGNORECASE|re.DOTALL)
 
 
 def does_command_get_variables(command, path, arguments):
@@ -73,12 +73,10 @@ def exec_tf_command(command, path, variable_files, variables, arguments, additio
     command_env = os.environ.copy()
     command_env.update(additional_envvars)
 
-    # We don't want to move to tmp if its the fmt command, because this command updates the files and it would
-    # be annoying to write logic for copying those files back into the directory. Same thing for upgrade.
-    if command in ["fmt", "0.12upgrade"]:
-        new_path = path
-    else:
-        new_path = move_to_tmp(config_path=path)
+    new_path = os.path.join(gettempdir(), "terrawrap", path[1:])
+    string_replacements = move_tf_dif(original_dir=path, new_dir=new_path)
+    # Invert these replacements because we want to undo them later on
+    string_replacements_inverted = {v: k for k, v in iteritems(string_replacements)}
 
     if command == "init":
         shutil.rmtree(os.path.join(new_path, ".terraform"), ignore_errors=True)
@@ -105,26 +103,31 @@ def exec_tf_command(command, path, variable_files, variables, arguments, additio
                 if update_digest(error, path, variables):
                     continue
 
-        sys.exit(exit_code)
+        if exit_code == 0 or try_count > MAX_COUNT:
+            break
+
+    move_tf_dif(original_dir=new_path, new_dir=path, string_replacements=string_replacements_inverted)
+    sys.exit(exit_code)
 
 
-def move_to_tmp(config_path):
-    # type (str) -> str
+def move_tf_dif(original_dir, new_dir, string_replacements=None):
+    # type (str, str, Optional[Dict[str, str]) -> Dict[str, str]
     """
-    Function for moving the given config path to a location in a temp directory.
-    :param config_path: An absolute path to a terraform configuration directory.
-    :return: The new location of the config_path in a temp directory.
+    Function for moving the given config path to a new location.
+    :param original_dir: An absolute path to the terraform configuration directory to move.
+    :param new_dir: An absolute path to the new location for the terraform configuration directory.
+    :param string_replacements: A dictionary of string replacements to make while moving the files. If not
+    provided, the default behavior is to update relative paths.
+    :return: A dictionary of all string replacements made while moving the directory.
     """
-    # We remove the first character of config_path here because os.path.join ignores paths that come before
-    # absolute directories, and config_path is guaranteed to be an absolute directory.
-    tmp_dir = os.path.join(gettempdir(), "terrawrap", config_path[1:])
+    lines_replaced = {}
 
-    for current_directory, sub_dirs, files in os.walk(config_path, followlinks=True):
+    for current_directory, sub_dirs, files in os.walk(original_dir, followlinks=True):
         if ".terraform" in current_directory:
             # Do not copy anything in .terraform, it might overwrite important stuff in the new location
             continue
 
-        future_directory = os.path.join(tmp_dir, current_directory[len(config_path)+1:])
+        future_directory = os.path.join(new_dir, current_directory[len(original_dir) + 1:])
         pathlib.Path(future_directory).mkdir(parents=True, exist_ok=True)
 
         # Remove files that no longer exist in the config directory to keep things up to date
@@ -138,24 +141,25 @@ def move_to_tmp(config_path):
             future_location = os.path.join(future_directory, file)
 
             if file.endswith(".tf"):
-                with open(current_location, 'r') as source:
-                    strings_to_replace = {}
-                    parsed_source = hcl.load(source)
-                    for module in parsed_source.get('module', {}).values():
-                        # join handles the case where the source attribute is an absolute directory by
-                        # dropping off the current_directory.
-                        joined_path = os.path.join(current_directory, module['source'])
-                        # This is just for convenience
-                        normalized_path = os.path.normpath(joined_path)
-                        # If the path exists, we must not have created some frankenstein monster of a URI,
-                        # git path, etc, so go ahead and replace it
-                        if os.path.exists(normalized_path):
-                            strings_to_replace['"%s"' % module['source']] = '"%s"' % normalized_path
-
                 with open(current_location, 'r') as source, open(future_location, 'w') as destination:
                     for line in source.readlines():
-                        for needle, replacement in iteritems(strings_to_replace):
-                            line = line.replace(needle, replacement)
+                        if string_replacements:
+                            for original_value, new_value in iteritems(string_replacements):
+                                line = line.replace(original_value, new_value)
+                        else:
+                            match = REGEX_MODULE_SOURCE.search(line)
+                            if match:
+                                module_source = match.group(1)
+                                # join handles the case where the source attribute is an absolute directory by
+                                # dropping off the current_directory.
+                                joined_path = os.path.join(current_directory, module_source)
+                                # This is just for convenience
+                                normalized_path = os.path.normpath(joined_path)
+                                # If the path exists, we must not have created some frankenstein monster of a
+                                # URI, # git path, etc, so go ahead and replace it
+                                if os.path.exists(normalized_path):
+                                    line = line.replace(module_source, normalized_path)
+                                    lines_replaced[module_source] = normalized_path
                         destination.write(line)
 
             else:
@@ -164,7 +168,7 @@ def move_to_tmp(config_path):
                     dst=future_location
                 )
 
-    return tmp_dir
+    return string_replacements or lines_replaced
 
 
 def tf_unlock(error, path, lock_timeout):
