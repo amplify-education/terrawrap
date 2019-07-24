@@ -37,7 +37,7 @@ LOCK_TIMEOUT = timedelta(minutes=60)
 MAX_COUNT = 5
 
 
-def does_command_get_variables(command, path, arguments):
+def does_command_get_variables(command: str, path: str, arguments: List[str]) -> bool:
     commands_with_variables = ["init", "plan", "import", "refresh", "console", "destroy", "push", "validate"]
 
     if command == "apply":
@@ -50,7 +50,7 @@ def does_command_get_variables(command, path, arguments):
     return command in commands_with_variables
 
 
-def resolve_terraform_arguments(variable_files, arguments):
+def resolve_terraform_arguments(variable_files: List[str], arguments: List[str]) -> List[str]:
     tf_arguments = [
         "-var-file=%s" % variable_file
         for variable_file in variable_files
@@ -59,7 +59,7 @@ def resolve_terraform_arguments(variable_files, arguments):
     return tf_arguments + arguments
 
 
-def exec_tf_command(command, path, variable_files, variables, arguments, additional_envvars):
+def exec_tf_command(command: str, path: str, variable_files, variables, arguments, additional_envvars) -> None:
     terraform_arguments = resolve_terraform_arguments(
         variable_files=variable_files,
         arguments=arguments
@@ -96,7 +96,7 @@ def exec_tf_command(command, path, variable_files, variables, arguments, additio
         sys.exit(exit_code)
 
 
-def tf_unlock(error, path, lock_timeout):
+def tf_unlock(error: str, path: str, lock_timeout: timedelta) -> bool:
     """
     Function to unlock terraform
     :param error: Error log text from stdout
@@ -124,7 +124,7 @@ def tf_unlock(error, path, lock_timeout):
     return False
 
 
-def update_digest(error, path, variables):
+def update_digest(error: str, path: str, variables: Dict[str, str]) -> bool:
     """
     Update DynamoDB table item with the Terraform suggested digest value
     :param error: Error log text from stdout
@@ -134,9 +134,16 @@ def update_digest(error, path, variables):
     """
     dynamodb = DynamoDB(region=variables['region'])
     digest = re.search(r'[\da-f]{32}', error).group()
-    lock_id = '{region}--mclass--terraform--{account}/{path}.tfstate-md5'.format(
-        region=variables['region'],
-        account=variables['account_short_name'],
+
+    default_terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
+        region=variables.get('region'),
+        account_short_name=variables.get('account_short_name')
+    )
+
+    terraform_bucket = variables.get('terraform_state_bucket', default_terraform_bucket)
+
+    lock_id = '{bucket_name}/{path}.tfstate-md5'.format(
+        bucket_name=terraform_bucket,
         path=re.sub('.*/terraform-config', 'terraform-config', path)
     )
     response = dynamodb.upsert_item(
@@ -152,7 +159,7 @@ def update_digest(error, path, variables):
     return False
 
 
-def process_arguments(args):
+def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
     try:
         resolve_envvars = True
 
@@ -174,7 +181,7 @@ def process_arguments(args):
         sys.exit(0)
 
 
-def handler():
+def handler() -> None:
     path, command, additional_arguments, should_resolve_envvars = process_arguments(sys.argv)
 
     tf_config_path = get_absolute_path(path=path)

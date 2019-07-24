@@ -15,7 +15,7 @@ def get_auto_vars(root_directory: str) -> Dict[str, Set[Variable]]:
     :param root_directory: directory where to start search
     :return:
     """
-    auto_vars = defaultdict(set)
+    auto_vars: Dict[str, Set[Variable]] = defaultdict(set)
     # pylint: disable=unused-variable
     for current_dir, dirs, files in os.walk(root_directory, followlinks=True):
         if '.terraform' in current_dir:
@@ -83,7 +83,7 @@ def get_auto_var_usages(root_directory: str) -> Dict[str, Set[str]]:
     """
     auto_vars = get_auto_vars(root_directory)
 
-    var_usages = defaultdict(set)
+    var_usages: Dict[str, Set[str]] = defaultdict(set)
 
     future_list = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
