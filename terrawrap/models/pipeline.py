@@ -2,6 +2,7 @@
 import csv
 import concurrent.futures
 
+from pathlib import Path
 from collections import defaultdict
 
 from terrawrap.models.pipeline_entry import PipelineEntry
@@ -25,14 +26,18 @@ class Pipeline:
 
         with open(config_path) as config_file:
             reader = csv.DictReader(config_file)
-            entries = defaultdict(list)
+            entries = defaultdict(lambda: ([], []))
 
             for row in reader:
                 entry = PipelineEntry(
                     path=row['directory'],
                     variables=row['variables'].split(' ') if row['variables'] else []
                 )
-                entries[int(row['seq'])] += [entry]
+                path = Path(row['directory'])
+                if not path.is_symlink():
+                    entries[int(row['seq'])][0].append(entry)
+                else:
+                    entries[int(row['seq'])][1].append(entry)
 
         self.entries = entries
 
@@ -43,23 +48,44 @@ class Pipeline:
         :param num_parallel: The number of pipeline entries to run in parallel.
         :param debug: True if Terraform debugging should be turned on.
         """
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
-            for sequence in sorted(self.entries.keys(), reverse=self.reverse_pipeline):
-                print("Executing sequence %s" % sequence)
-
+        for sequence in sorted(self.entries.keys(), reverse=self.reverse_pipeline):
+            print("Executing sequence %s" % sequence)
+            parallel_entries = self.entries[sequence][0]
+            sequential_entries = self.entries[sequence][1]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
                 self._execute_entries(
                     command="init",
-                    entries=self.entries[sequence],
+                    entries=parallel_entries,
                     debug=debug,
                     executor=executor
                 )
 
                 self._execute_entries(
                     command=self.command,
-                    entries=self.entries[sequence],
+                    entries=parallel_entries,
                     debug=debug,
                     executor=executor
                 )
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                for entry in sequential_entries:
+                    # It's very important that these sequential entries run init and then plan, and not all
+                    # the inits and then all the plans, because the symlink directories might share the same
+                    # real directories, and then running init multiple times in that directory will break
+                    # future applies. So run init and then the command immediately.
+                    self._execute_entries(
+                        command="init",
+                        entries=[entry],
+                        debug=debug,
+                        executor=executor
+                    )
+
+                    self._execute_entries(
+                        command=self.command,
+                        entries=[entry],
+                        debug=debug,
+                        executor=executor
+                    )
 
         print("Pipeline executed successfully.")
 
