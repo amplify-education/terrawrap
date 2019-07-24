@@ -35,7 +35,6 @@ from terrawrap.utils.dynamodb import DynamoDB
 
 LOCK_TIMEOUT = timedelta(minutes=60)
 MAX_COUNT = 5
-REGEX_MODULE_SOURCE = re.compile("source.*\"(.*?)\"", re.IGNORECASE|re.DOTALL)
 
 
 def does_command_get_variables(command, path, arguments):
