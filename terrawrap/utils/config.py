@@ -68,7 +68,7 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
     override those earlier in the list, and are merged with the default config and earlier files.
     :return: A WrapperConfig object representing the accumulated values of all the wrapper config files
     """
-    generated_wrapper_config = {}
+    generated_wrapper_config: Dict = {}
 
     for wrapper_config_path in wrapper_config_files:
         with open(wrapper_config_path) as wrapper_config_file:
@@ -144,7 +144,7 @@ def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
     :param variable_files: List of file paths to variable files. Variable files overwrite files before them.
     :return: A dictionary representing the contents of those variable files.
     """
-    variables = {}
+    variables: Dict = {}
 
     for variable_file in variable_files:
         with open(variable_file) as var_file:
