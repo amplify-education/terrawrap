@@ -1,11 +1,18 @@
 """Module containing the Pipeline class"""
 import csv
 import concurrent.futures
-
+from dataclasses import dataclass, field
+from typing import List
 from pathlib import Path
 from collections import defaultdict
 
 from terrawrap.models.pipeline_entry import PipelineEntry
+
+
+@dataclass
+class PipelineSequence:
+    parallel: List[PipelineEntry] = field(default_factory=list)
+    sequential: List[PipelineEntry] = field(default_factory=list)
 
 
 class Pipeline:
@@ -26,18 +33,19 @@ class Pipeline:
 
         with open(config_path) as config_file:
             reader = csv.DictReader(config_file)
-            entries = defaultdict(lambda: ([], []))
+            entries = defaultdict(PipelineSequence)
 
             for row in reader:
                 entry = PipelineEntry(
                     path=row['directory'],
                     variables=row['variables'].split(' ') if row['variables'] else []
                 )
+                seq = int(row['seq'])
                 path = Path(row['directory'])
                 if not path.is_symlink():
-                    entries[int(row['seq'])][0].append(entry)
+                    entries[seq].parallel.append(entry)
                 else:
-                    entries[int(row['seq'])][1].append(entry)
+                    entries[seq].sequential.append(entry)
 
         self.entries = entries
 
@@ -50,25 +58,23 @@ class Pipeline:
         """
         for sequence in sorted(self.entries.keys(), reverse=self.reverse_pipeline):
             print("Executing sequence %s" % sequence)
-            parallel_entries = self.entries[sequence][0]
-            sequential_entries = self.entries[sequence][1]
             with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
                 self._execute_entries(
                     command="init",
-                    entries=parallel_entries,
+                    entries=self.entries[sequence].sequential,
                     debug=debug,
                     executor=executor
                 )
 
                 self._execute_entries(
                     command=self.command,
-                    entries=parallel_entries,
+                    entries=self.entries[sequence].sequential,
                     debug=debug,
                     executor=executor
                 )
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                for entry in sequential_entries:
+                for entry in self.entries[sequence].parallel:
                     # It's very important that these sequential entries run init and then plan, and not all
                     # the inits and then all the plans, because the symlink directories might share the same
                     # real directories, and then running init multiple times in that directory will break
