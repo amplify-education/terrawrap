@@ -22,6 +22,7 @@ import re
 import sys
 import shutil
 from datetime import datetime, timedelta
+from typing import List, Dict, Tuple
 
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
