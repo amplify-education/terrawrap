@@ -4,7 +4,7 @@ from __future__ import print_function
 import subprocess
 import tempfile
 import logging
-from typing import List
+from typing import List, Tuple
 
 from amplify_aws_utils.resource_helper import Jitter
 
@@ -16,9 +16,17 @@ RETRIABLE_ERRORS = ['RequestError: send request failed', 'unexpected EOF', 'Thro
                     'failed to decode query XML error response']
 
 
-# pylint: disable=keyword-arg-before-vararg, too-many-locals
-def execute_command(args, print_output=True, capture_stderr=True, print_command=False,
-                    retry=False, timeout=15 * 60, *pargs, **kwargs):
+# pylint: too-many-locals
+def execute_command(
+        args: List[str],
+        print_output: bool = True,
+        capture_stderr: bool = True,
+        print_command: bool = False,
+        retry: bool = False,
+        timeout: int = 15 * 60,
+        *pargs,
+        **kwargs
+) -> Tuple[int, List[str]]:
     """
     Convenience function for executing a given command and optionally printing the output.
     :param args: List of arguments to execute.
@@ -59,7 +67,14 @@ def execute_command(args, print_output=True, capture_stderr=True, print_command=
     return exit_code, stdout
 
 
-def _execute_command(args, print_output, capture_stderr, print_command, *pargs, **kwargs):
+def _execute_command(
+        args: List[str],
+        print_output: bool,
+        capture_stderr: bool,
+        print_command: bool,
+        *pargs,
+        **kwargs
+):
     """
     Private function for executing a given command and optionally printing the output.
     :param args: List of arguments to execute.

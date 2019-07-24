@@ -38,7 +38,7 @@ LOCK_TIMEOUT = timedelta(minutes=60)
 MAX_COUNT = 5
 
 
-def does_command_get_variables(command: str, path: str, arguments: List[str]) -> bool:
+def does_command_get_variables(command: str, path: str, arguments: List[str]):
     commands_with_variables = ["init", "plan", "import", "refresh", "console", "destroy", "push", "validate"]
 
     if command == "apply":
@@ -51,7 +51,7 @@ def does_command_get_variables(command: str, path: str, arguments: List[str]) ->
     return command in commands_with_variables
 
 
-def resolve_terraform_arguments(variable_files: List[str], arguments: List[str]) -> List[str]:
+def resolve_terraform_arguments(variable_files: List[str], arguments: List[str]):
     tf_arguments = [
         "-var-file=%s" % variable_file
         for variable_file in variable_files
@@ -60,7 +60,14 @@ def resolve_terraform_arguments(variable_files: List[str], arguments: List[str])
     return tf_arguments + arguments
 
 
-def exec_tf_command(command: str, path: str, variable_files, variables, arguments, additional_envvars) -> None:
+def exec_tf_command(
+        command: str,
+        path: str,
+        variable_files: List[str],
+        variables: Dict[str, str],
+        arguments: List[str],
+        additional_envvars: Dict[str, str]
+):
     terraform_arguments = resolve_terraform_arguments(
         variable_files=variable_files,
         arguments=arguments
@@ -182,7 +189,7 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
         sys.exit(0)
 
 
-def handler() -> None:
+def handler():
     path, command, additional_arguments, should_resolve_envvars = process_arguments(sys.argv)
 
     tf_config_path = get_absolute_path(path=path)

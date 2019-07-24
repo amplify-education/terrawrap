@@ -1,4 +1,5 @@
 """Module for interacting with DynamoDB"""
+from typing import Any, Dict
 
 import boto3
 
@@ -6,10 +7,17 @@ import boto3
 class DynamoDB:
     """Class for operating with DynamoDB"""
 
-    def __init__(self, region, client=None):
+    def __init__(self, region: str, client=None):
         self.client = client or boto3.client('dynamodb', region_name=region)
 
-    def upsert_item(self, table_name, primary_key_name, primary_key_value, attribute_name, attribute_value):
+    def upsert_item(
+            self,
+            table_name: str,
+            primary_key_name: str,
+            primary_key_value: str,
+            attribute_name: str,
+            attribute_value: str
+    ) -> Dict[str, Any]:
         """
         Insert/update items in a DynamoDB table for a specific primary key value.
         The value inserted/updated is of type string.

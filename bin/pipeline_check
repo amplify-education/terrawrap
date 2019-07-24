@@ -73,7 +73,7 @@ def main():
         exit(1)
 
 
-def parse_config_file(config_dir):
+def parse_config_file(config_dir: str):
     config_path = os.path.join(config_dir, ".tf_wrapper")
     config = {}
 

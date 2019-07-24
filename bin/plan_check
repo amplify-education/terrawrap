@@ -48,13 +48,12 @@ class PlanExitCode(Enum):
     SUCCESS_WITH_DIFF = 2
 
 
-def get_subdirectories(root_dir: str)-> Tuple[List[str], List[str]]:
+def get_subdirectories(root_dir: str) -> Tuple[List[str], List[str]]:
     """
     Make a list of subdirectories (with '.tf' files) of the path provided as the argument
     :param root_dir: The directory to run the script on.
     :return: lists of regular and symlinked directories
     """
-
     regular_directories = []
     symlinked_directories = []
 
@@ -67,7 +66,12 @@ def get_subdirectories(root_dir: str)-> Tuple[List[str], List[str]]:
     return regular_directories, symlinked_directories
 
 
-def init_and_plan_directory(directory: str, skip_iam: bool, print_diff: bool, additional_envvars: Dict[str, str]) -> WrapperExitCode:
+def init_and_plan_directory(
+        directory: str,
+        skip_iam: bool,
+        print_diff: bool,
+        additional_envvars: Dict[str, str]
+) -> WrapperExitCode:
     """
     Run 'init' and 'plan' against the passed in directory
     :param directory: A directory with the terraform config
