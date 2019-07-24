@@ -21,11 +21,7 @@ import os
 import re
 import sys
 import shutil
-from tempfile import gettempdir
 from datetime import datetime, timedelta
-
-import pathlib
-from six import iteritems
 
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
