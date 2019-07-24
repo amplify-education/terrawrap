@@ -11,6 +11,7 @@ from terrawrap.models.pipeline_entry import PipelineEntry
 
 @dataclass
 class PipelineSequence:
+    """Class represents a pipeline sequence"""
     parallel: List[PipelineEntry] = field(default_factory=list)
     sequential: List[PipelineEntry] = field(default_factory=list)
 
