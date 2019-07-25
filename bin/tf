@@ -21,12 +21,7 @@ import os
 import re
 import sys
 import shutil
-from tempfile import gettempdir
 from datetime import datetime, timedelta
-
-import hcl
-import pathlib
-from six import iteritems
 from typing import List, Dict, Tuple
 
 from terrawrap.utils.cli import execute_command
@@ -74,21 +69,14 @@ def exec_tf_command(command: str, path: str, variable_files, variables, argument
     command_env = os.environ.copy()
     command_env.update(additional_envvars)
 
-    # We don't want to move to tmp if its the fmt command, because this command updates the files and it would
-    # be annoying to write logic for copying those files back into the directory. Same thing for upgrade.
-    if command in ["fmt", "0.12upgrade"]:
-        new_path = path
-    else:
-        new_path = move_to_tmp(config_path=path)
-
     if command == "init":
-        shutil.rmtree(os.path.join(new_path, ".terraform"), ignore_errors=True)
+        shutil.rmtree(os.path.join(path, ".terraform"), ignore_errors=True)
 
     try_count = 0
     while True:
         exit_code, stdout = execute_command(
             ["terraform", command] + terraform_arguments,
-            cwd=new_path,
+            cwd=path,
             capture_stderr=True,
             print_command=True,
             retry=True,
@@ -100,71 +88,13 @@ def exec_tf_command(command: str, path: str, variable_files, variables, argument
         if exit_code != 0 and try_count <= MAX_COUNT:
             error = ''.join([line for line in stdout])
             if 'Error locking state' in error:
-                if tf_unlock(error, new_path, LOCK_TIMEOUT):
+                if tf_unlock(error, path, LOCK_TIMEOUT):
                     continue
             elif 'state data in S3 does not have the expected content' in error:
                 if update_digest(error, path, variables):
                     continue
 
         sys.exit(exit_code)
-
-
-def move_to_tmp(config_path: str) -> str:
-    """
-    Function for moving the given config path to a location in a temp directory.
-    :param config_path: An absolute path to a terraform configuration directory.
-    :return: The new location of the config_path in a temp directory.
-    """
-    # We remove the first character of config_path here because os.path.join ignores paths that come before
-    # absolute directories, and config_path is guaranteed to be an absolute directory.
-    tmp_dir = os.path.join(gettempdir(), "terrawrap", config_path[1:])
-
-    for current_directory, sub_dirs, files in os.walk(config_path, followlinks=True):
-        if ".terraform" in current_directory:
-            # Do not copy anything in .terraform, it might overwrite important stuff in the new location
-            continue
-
-        future_directory = os.path.join(tmp_dir, current_directory[len(config_path)+1:])
-        pathlib.Path(future_directory).mkdir(parents=True, exist_ok=True)
-
-        # Remove files that no longer exist in the config directory to keep things up to date
-        for future_file in os.listdir(future_directory):
-            future_file_path = os.path.join(future_directory, future_file)
-            if os.path.isfile(future_file_path) and future_file not in files:
-                os.unlink(future_file_path)
-
-        for file in files:
-            current_location = os.path.join(current_directory, file)
-            future_location = os.path.join(future_directory, file)
-
-            if file.endswith(".tf"):
-                with open(current_location, 'r') as source:
-                    strings_to_replace = {}
-                    parsed_source = hcl.load(source)
-                    for module in parsed_source.get('module', {}).values():
-                        # join handles the case where the source attribute is an absolute directory by
-                        # dropping off the current_directory.
-                        joined_path = os.path.join(current_directory, module['source'])
-                        # This is just for convenience
-                        normalized_path = os.path.normpath(joined_path)
-                        # If the path exists, we must not have created some frankenstein monster of a URI,
-                        # git path, etc, so go ahead and replace it
-                        if os.path.exists(normalized_path):
-                            strings_to_replace['"%s"' % module['source']] = '"%s"' % normalized_path
-
-                with open(current_location, 'r') as source, open(future_location, 'w') as destination:
-                    for line in source.readlines():
-                        for needle, replacement in iteritems(strings_to_replace):
-                            line = line.replace(needle, replacement)
-                        destination.write(line)
-
-            else:
-                shutil.copy2(
-                    src=current_location,
-                    dst=future_location
-                )
-
-    return tmp_dir
 
 
 def tf_unlock(error: str, path: str, lock_timeout: timedelta) -> bool:
