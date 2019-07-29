@@ -26,9 +26,9 @@ def get_auto_vars(root_directory: str) -> Dict[str, Set[Variable]]:
             with open(current_dir + '/' + file_name, 'r') as file:
                 variables = hcl.load(file)
                 for key, value in variables.items():
-                    if type(value) == list:
+                    if isinstance(value, list):
                         value = tuple(value)
-                    if type(value) == dict:
+                    if isinstance(value, dict):
                         value = tuple(value.items())
                     auto_vars[os.path.join(current_dir, file_name)].add(Variable(key, value))
 
