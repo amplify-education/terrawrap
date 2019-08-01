@@ -259,20 +259,22 @@ def get_modified_subdirectories(root_directory: str) -> Tuple[List[str], List[st
     # filter out any directories that aren't under our root.
     # We may have got some while following symlinks and module links
     # some directories may also not exist if they were deleted. can't run plan on them
-    directories_to_check = {
+    directories_to_check_under_root = {
         directory
         for directory in directories_to_check
-        if directory.startswith(root_directory) and os.path.exists(directory)
+        # if the longest common path of two directories is one of the directories
+        # then the other directory must be a child of the first
+        if os.path.commonpath([root_directory, directory]) == root_directory and os.path.exists(directory)
     }
 
     # group directories into regular and symlink paths so downstream code can treat them differently
     regular_directories = [
-        directory for directory in directories_to_check
+        directory for directory in directories_to_check_under_root
         if not os.path.islink(directory)
     ]
 
     symlinked_directories = [
-        directory for directory in directories_to_check
+        directory for directory in directories_to_check_under_root
         if os.path.islink(directory)
     ]
 
