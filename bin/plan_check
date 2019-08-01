@@ -258,6 +258,8 @@ def get_modified_subdirectories(root_directory: str) -> Tuple[List[str], List[st
     directories_to_check_under_root = {
         directory
         for directory in directories_to_check
+        # if the longest common path of two directories is one of the directories
+        # then the other directory must be a child of the first
         if os.path.commonpath([root_directory, directory]) == root_directory and os.path.exists(directory)
     }
 
