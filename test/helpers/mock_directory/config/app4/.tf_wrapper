@@ -1,0 +1,4 @@
+envvars:
+  OVERWRITTEN_KEY:
+    source: text
+    value: OVERWRITTEN_VALUE

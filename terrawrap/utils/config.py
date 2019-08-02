@@ -9,7 +9,12 @@ import jsons
 import yaml
 from ssm_cache import SSMParameterGroup
 
-from terrawrap.models.wrapper_config import WrapperConfig, AbstractEnvVarConfig, SSMEnvVarConfig
+from terrawrap.models.wrapper_config import (
+    WrapperConfig,
+    AbstractEnvVarConfig,
+    SSMEnvVarConfig,
+    TextEnvVarConfig,
+)
 from terrawrap.utils.collection_utils import update
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
@@ -92,6 +97,8 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
     for envvar_name, envvar_config in envvar_configs.items():
         if isinstance(envvar_config, SSMEnvVarConfig):
             resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(envvar_config.path).value
+        if isinstance(envvar_config, TextEnvVarConfig):
+            resolved_envvars[envvar_name] = envvar_config.value
     return resolved_envvars
 
 

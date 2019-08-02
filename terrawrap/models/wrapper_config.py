@@ -10,6 +10,7 @@ import jsons
 # pylint: disable=missing-docstring
 class EnvVarSource(Enum):
     SSM = 'ssm'
+    TEXT = 'text'
 
 
 # pylint: disable=missing-docstring
@@ -23,6 +24,13 @@ class SSMEnvVarConfig(AbstractEnvVarConfig):
     def __init__(self, path: str):
         super().__init__(EnvVarSource.SSM)
         self.path = path
+
+
+# pylint: disable=missing-docstring
+class TextEnvVarConfig(AbstractEnvVarConfig):
+    def __init__(self, value: str):
+        super().__init__(EnvVarSource.TEXT)
+        self.value = value
 
 
 # pylint: disable=missing-docstring
@@ -46,6 +54,8 @@ def env_var_deserializer(obj_dict, cls, **kwargs):
     """convert a dict to a subclass of AbstractEnvVarConfig"""
     if obj_dict['source'] == EnvVarSource.SSM.value:
         return SSMEnvVarConfig(obj_dict['path'])
+    if obj_dict['source'] == EnvVarSource.TEXT.value:
+        return TextEnvVarConfig(obj_dict['value'])
 
     raise RuntimeError('Invalid Source')
 
