@@ -53,7 +53,7 @@ def does_command_get_variables(command: str, path: str, arguments: List[str]) ->
     return command in commands_with_variables
 
 
-def convert_variables_to_envvars(variables=Dict[str, str]):
+def convert_variables_to_envvars(variables:Dict[str, str]) -> Dict[str, str]:
     envvars = {}
 
     for key, value in variables.items():
