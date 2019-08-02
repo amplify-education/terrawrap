@@ -17,6 +17,8 @@ Examples:
     tf some/path/to/tf_files apply -var foo=bar -lock=True
 """
 from __future__ import print_function
+
+import json
 import os
 import re
 import sys
@@ -51,29 +53,30 @@ def does_command_get_variables(command: str, path: str, arguments: List[str]) ->
     return command in commands_with_variables
 
 
-def resolve_terraform_arguments(variable_files: List[str], arguments: List[str]) -> List[str]:
-    tf_arguments = [
-        "-var-file=%s" % variable_file
-        for variable_file in variable_files
-    ]
+def convert_variables_to_envvars(variables:Dict[str, str]) -> Dict[str, str]:
+    envvars = {}
 
-    return tf_arguments + arguments
+    for key, value in variables.items():
+        new_key = "TF_VAR_%s" % key
+        if not isinstance(value, str):
+            envvars[new_key] = json.dumps(value)
+        else:
+            envvars[new_key] = value
+
+    return envvars
 
 
 def exec_tf_command(
         command: str,
         path: str,
-        variable_files: List[str],
         variables: Dict[str, str],
         arguments: List[str],
         additional_envvars: Dict[str, str]
 ):
-    terraform_arguments = resolve_terraform_arguments(
-        variable_files=variable_files,
-        arguments=arguments
-    )
+    variable_envvars = convert_variables_to_envvars(variables=variables)
 
     command_env = os.environ.copy()
+    command_env.update(variable_envvars)
     command_env.update(additional_envvars)
 
     if command == "init":
@@ -82,7 +85,7 @@ def exec_tf_command(
     try_count = 0
     while True:
         exit_code, stdout = execute_command(
-            ["terraform", command] + terraform_arguments,
+            ["terraform", command] + arguments,
             cwd=path,
             capture_stderr=True,
             print_command=True,
@@ -230,7 +233,6 @@ def handler():
     exec_tf_command(
         command=command,
         path=tf_config_path,
-        variable_files=variable_files,
         variables=variables,
         arguments=additional_arguments,
         additional_envvars=additional_envvars
