@@ -43,7 +43,9 @@ def update(dict1: Dict, dict2: Dict) -> Dict:
         if isinstance(value, Dict):
             dict1[key] = update(dict1.get(key, {}), value)
         elif isinstance(value, List):
-            dict1[key] = dict1[key].extend(value)
+            original_value = dict1.get(key, [])
+            original_value.extend(value)
+            dict1[key] = original_value
         else:
             dict1[key] = value
     return dict1
