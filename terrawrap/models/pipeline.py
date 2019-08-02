@@ -1,6 +1,8 @@
 """Module containing the Pipeline class"""
 import csv
 import concurrent.futures
+from typing import Iterable, Optional
+
 from pathlib import Path
 from collections import defaultdict
 
@@ -10,21 +12,21 @@ from terrawrap.models.pipeline_entry import PipelineEntry
 class Pipeline:
     """Class for representing a pipeline."""
 
-    def __init__(self, command, config_path):
+    def __init__(self, command: str, pipeline_path: str):
         """
         :param command: The Terraform command that this pipeline should execute.
-        :param config_path: Path to the Terraform configuration file. Can be absolute or relative from where
+        :param pipeline_path: Path to the Terrawrap pipeline file. Can be absolute or relative from where
         the script is executed.
         """
         self.command = command
 
         self.reverse_pipeline = command == 'destroy'
 
-        if not config_path.endswith(".csv"):
+        if not pipeline_path.endswith(".csv"):
             raise RuntimeError("Config file '%s' doesn't appear to be a CSV file: Should end in .csv")
 
-        with open(config_path) as config_file:
-            reader = csv.DictReader(config_file)
+        with open(pipeline_path) as pipeline_file:
+            reader = csv.DictReader(pipeline_file)
             # Lambda function is needed here because the argument to defaultdict needs to be a function that
             # returns an object.
             entries = defaultdict(lambda: defaultdict(list))
@@ -43,7 +45,7 @@ class Pipeline:
 
         self.entries = entries
 
-    def execute(self, num_parallel=4, debug=False):
+    def execute(self, num_parallel: int = 4, debug: bool = False):
         """
         Function for executing the pipeline. Will execute each sequence separately, with the entries inside
         each sequence being executed in parallel, up to the limit given in num_parallel.
@@ -89,7 +91,13 @@ class Pipeline:
 
         print("Pipeline executed successfully.")
 
-    def _execute_entries(self, entries, executor, command=None, debug=False):
+    def _execute_entries(
+            self,
+            entries: Iterable[PipelineEntry],
+            executor: concurrent.futures.Executor,
+            command: Optional[str] = None,
+            debug: bool = False
+    ):
         """
         Convenience function for executing the given entries with the given command.
         :param entries: An iterable of Pipeline Entries to execute.

@@ -40,7 +40,7 @@ def handler():
             "Unable to parse number of parallel jobs, '%s' is not an integer." % args['--parallel-jobs']
         )
 
-    pipeline = Pipeline(operation, config_path=pipeline_file)
+    pipeline = Pipeline(operation, pipeline_path=pipeline_file)
 
     pipeline.execute(num_parallel=num_parallel, debug=args['--debug'])
 
