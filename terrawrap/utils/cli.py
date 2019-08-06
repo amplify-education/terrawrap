@@ -1,9 +1,9 @@
 """Module for containing CLI convenience functions"""
 from __future__ import print_function
 
+import logging
 import subprocess
 import tempfile
-import logging
 from typing import List, Tuple
 
 from amplify_aws_utils.resource_helper import Jitter
@@ -45,7 +45,7 @@ def execute_command(
     jitter = Jitter()
     time_passed = 0
     exit_code = 0
-    stdout = ''
+    stdout: List[str] = []
     while try_count < max_tries:
         exit_code, stdout = _execute_command(args, print_output, capture_stderr, print_command,
                                              *pargs, **kwargs)
@@ -74,7 +74,7 @@ def _execute_command(
         print_command: bool,
         *pargs,
         **kwargs
-):
+) -> Tuple[int, List[str]]:
     """
     Private function for executing a given command and optionally printing the output.
     :param args: List of arguments to execute.
@@ -91,11 +91,12 @@ def _execute_command(
     if print_command:
         print("Executing: %s" % " ".join(args))
 
+    kwargs['stdout'] = stdout_write
+    kwargs['stderr'] = stdout_write if capture_stderr else open('/dev/null', 'w')
+
     process = subprocess.Popen(
         args,
         *pargs,
-        stdout=stdout_write,
-        stderr=stdout_write if capture_stderr else open('/dev/null', 'w'),
         **kwargs
     )
 

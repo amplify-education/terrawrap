@@ -14,6 +14,7 @@ Options:
     -s, --skip-iam      Skip iam changes for this run.[default: False]
     --modified-only     Only run plan check on directories that were changed in git
     --print-diff        Print the diff for any directories with changed configurations. [default: False]
+    --with-colors       Print the diff with colors [default: False]
 """
 import os
 import re
@@ -70,6 +71,7 @@ def init_and_plan_directory(
         directory: str,
         skip_iam: bool,
         print_diff: bool,
+        with_colors: bool,
         additional_envvars: Dict[str, str]
 ) -> WrapperExitCode:
     """
@@ -77,11 +79,16 @@ def init_and_plan_directory(
     :param directory: A directory with the terraform config
     :param skip_iam: A boolean to skip iam changes check
     :param print_diff: A boolean to print diffs for changes
+    :param with_colors: A boolean to print diffs using ansi colors
     :param additional_envvars: A dictionary representing additional environment variables to supply
     :return: One of the WrapperExitCode enums
     """
 
-    arguments = ['-no-color', '-lock=false', '-input=false']
+    arguments = ['-lock=false', '-input=false']
+
+    if not with_colors:
+        arguments.append('-no-color')
+
     pr_checker_arguments = ['-var-file=pr_checker.tfvars']
     wrapper_py = os.path.join(SCRIPT_DIR, 'tf')
 
@@ -160,7 +167,8 @@ def execute_init_and_plan(
         regular_directories: List[str],
         symlinked_directories: List[str],
         skip_iam: bool,
-        print_diff: bool
+        print_diff: bool,
+        with_colors: bool
 ) -> WrapperExitCode:
     """
     Execute functions concurrently
@@ -168,6 +176,7 @@ def execute_init_and_plan(
     :param symlinked_directories: Symlinked directories to be processed one-by-one
     :param skip_iam: A boolean to skip iam changes check
     :param print_diff: A boolean to control printing diffs for changes
+    :param with_colors: A boolean to control printing diffs with ansi colors
     :return: exit code
     """
     worst_exit_code = WrapperExitCode.SUCCESS
@@ -187,6 +196,7 @@ def execute_init_and_plan(
                 directory,
                 skip_iam,
                 print_diff,
+                with_colors,
                 envvars,
             )
             future_exec[future] = directory
@@ -198,7 +208,7 @@ def execute_init_and_plan(
 
     for directory in symlinked_directories:
         envvars = directory_to_envvars[directory]
-        exit_code = init_and_plan_directory(directory, skip_iam, print_diff, envvars)
+        exit_code = init_and_plan_directory(directory, skip_iam, print_diff, with_colors, envvars)
         if exit_code != WrapperExitCode.SUCCESS:
             worst_exit_code = max(worst_exit_code, exit_code, key=attrgetter('value'))
 
@@ -287,6 +297,7 @@ def main():
     skip_iam = arguments['--skip-iam']
     modified_only = arguments['--modified-only']
     print_diff = arguments['--print-diff']
+    with_colors = arguments['--with-colors']
 
     # Get the directory with Terraform config passed to this script as an argument
     config_dir = arguments['<path>']
@@ -303,7 +314,7 @@ def main():
         % (regular_directories, symlinked_directories)
     )
 
-    exit_code = execute_init_and_plan(regular_directories, symlinked_directories, skip_iam, print_diff)
+    exit_code = execute_init_and_plan(regular_directories, symlinked_directories, skip_iam, print_diff, with_colors)
 
     if exit_code == WrapperExitCode.TERRAFORM_FAILURE:
         print("General Terraform failures detected. Check the output above and please resolve any issues.")
