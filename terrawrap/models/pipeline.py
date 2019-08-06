@@ -1,10 +1,9 @@
 """Module containing the Pipeline class"""
-import csv
 import concurrent.futures
-from typing import Iterable, Optional
-
-from pathlib import Path
+import csv
 from collections import defaultdict
+from pathlib import Path
+from typing import Iterable, Optional, List, DefaultDict
 
 from terrawrap.models.pipeline_entry import PipelineEntry
 
@@ -29,7 +28,8 @@ class Pipeline:
             reader = csv.DictReader(pipeline_file)
             # Lambda function is needed here because the argument to defaultdict needs to be a function that
             # returns an object.
-            entries = defaultdict(lambda: defaultdict(list))
+            entries: DefaultDict[int, DefaultDict[str, List[PipelineEntry]]] = \
+                defaultdict(lambda: defaultdict(list))
 
             for row in reader:
                 entry = PipelineEntry(
