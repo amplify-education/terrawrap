@@ -34,7 +34,7 @@ Learn more at <https://www.amplify.com>
 -   [Configuration](#configuration)
     -   [.tf_wrapper](#tf_wrapper)
     -   [Autovars](#autovars)
-    -   [Terraform S3 Remote State](#terraform-s3-remote-state)
+    -   [Backend Configuration](#backend-configuration)
 
 -   [Commands](#commands)
     -   [tf](#tf)
@@ -45,7 +45,7 @@ Learn more at <https://www.amplify.com>
 1.  `auto.tfvars` inheritance. Terrawrap makes it easier to share variables between Terraform directories through
     inheritance of `auto.tfvars` files.
 
-2.  Remote S3 backend generation. Terrawrap makes it easier to work with AWS S3 remote state backends by
+2.  Remote backend generation. Terrawrap makes it easier to work with remote state backends by
     generating configuration for them.
 
 3.  Repository level plan/apply. Terrawrap provides commands for running plan/apply recursively on a entire
@@ -158,12 +158,13 @@ terraform apply -var-file config/config.auto.tfvars \
     -var-file config/foo/bar/bar.auto.tfvars
 ```
 
-### Terraform S3 Remote State
+### Backend Configuration
 
-Terrawrap supports automatically configuring S3 remote backends. It will inject the appropriate `-backend-config`
+Terrawrap supports automatically configuring backends by injecting the appropriate `-backend-config`
 args when running `init`
 
-For example, the Terrawrap command `tf config/foo/bar init` will generate a Terraform command like 
+For example, the Terrawrap command `tf config/foo/bar init` will generate a Terraform command like below if using
+an AWS S3 remote state backend
 
 ```bash
 terraform init -reconfigure \
@@ -177,10 +178,13 @@ terraform init -reconfigure \
     -backend-config=skip_credentials_validation=true
 ```
 
-Terrawrap configures the backend by looking for `.tf_wrapper` files in the directory structure. The following
-options are supported. See the Terraform S3 backend documentation for information about each option. 
+Terrawrap configures the backend by looking for `.tf_wrapper` files in the directory structure. 
+Either `s3` or `gcs` are supported. See the relevant Terraform documentation for the options available
+for each type of backend: 
 <https://www.terraform.io/docs/backends/types/s3.html#configuration-variables>
+<https://www.terraform.io/docs/backends/types/gcs.html#configuration-variables>
 
+#### S3 Backend
 ```yml
 backends:
     s3:
@@ -199,6 +203,18 @@ backends:
 
 The S3 state file key name is generated from the directory name being used to run the terraform command. 
 For example, `tf config/foo/bar init` uses a state file with the key `config/foo/bar.tfstate` in S3
+
+#### GCS Backend
+```yml
+backends:
+    gcs:
+        bucket:
+        prefix:
+```
+| Option Name    | Required | Purpose                                                                              |
+| -------------- | -------- | ------------------------------------------------------------------------------------ |
+| bucket         | Yes      | Name of GCS Bucket                                                                   |
+| prefix         | Yes      | GCS prefix inside the bucket.                                                        |
 
 ## Commands
 
