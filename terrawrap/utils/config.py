@@ -14,7 +14,8 @@ from terrawrap.models.wrapper_config import (
     AbstractEnvVarConfig,
     SSMEnvVarConfig,
     TextEnvVarConfig,
-    BackendsConfig)
+    BackendsConfig
+)
 from terrawrap.utils.collection_utils import update
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
