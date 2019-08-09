@@ -203,7 +203,7 @@ def parse_backend_config_for_dir(path: str) -> Optional[BackendsConfig]:
         return next(backend for backend in backend_configs if backend is not None)
 
 
-def _parse_backend_config_for_file(file_path: str):
+def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
     with open(file_path) as tf_file:
         configs: Dict[str, Dict] = hcl.load(tf_file)
         terraform_config = configs.get('terraform', {})
