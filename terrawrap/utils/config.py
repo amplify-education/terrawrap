@@ -182,17 +182,13 @@ def parse_backend_config_for_dir(path: str) -> Optional[BackendsConfig]:
     :return: Backend config if a "terraform" resource exists, otherwise None
     """
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        tf_files = [
-            file_path for file_path in os.listdir(path)
-            if '.terraform' not in file_path and file_path.endswith('tf')
-        ]
-
         futures = [
             executor.submit(
                 _parse_backend_config_for_file,
-                file_path=tf_file,
+                file_path=file_path,
             )
-            for tf_file in tf_files
+            for file_path in os.listdir(path)
+            if '.terraform' not in file_path and file_path.endswith('tf')
         ]
 
         # get the first backend config that we find or else return None
