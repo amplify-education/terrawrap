@@ -175,19 +175,19 @@ def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
     return variables
 
 
-def parse_backend_config_for_dir(path: str) -> Optional[BackendsConfig]:
+def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
     """
     Parse tf files in a directory and try to get the state backend config from the "terraform" resource
-    :param path: Directory that has tf files
+    :param dir_path: Directory that has tf files
     :return: Backend config if a "terraform" resource exists, otherwise None
     """
     with concurrent.futures.ProcessPoolExecutor() as executor:
         futures = [
             executor.submit(
                 _parse_backend_config_for_file,
-                file_path=os.path.join(path, file_path),
+                file_path=os.path.join(dir_path, file_path),
             )
-            for file_path in os.listdir(path)
+            for file_path in os.listdir(dir_path)
             if '.terraform' not in file_path and file_path.endswith('tf')
         ]
 
