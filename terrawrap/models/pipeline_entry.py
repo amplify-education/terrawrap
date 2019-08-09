@@ -43,13 +43,20 @@ class PipelineEntry:
         # execute_command call below.
         args = ["tf", "--no-resolve-envvars", self.path, operation] + self.variables
 
+        # pylint: disable=unused-variable
         plan_file, plan_file_name = tempfile.mkstemp(
             suffix="plan.tfplan"
         )
 
         if operation in ["apply", "destroy"]:
             execute_command(
-                ["tf", "--no-resolve-envvars", self.path, "plan", "-out=%s" % plan_file_name] + self.variables,
+                [
+                    "tf",
+                    "--no-resolve-envvars",
+                    self.path,
+                    "plan",
+                    "-out=%s" % plan_file_name
+                ] + self.variables,
                 print_output=False,
                 capture_stderr=True,
                 env=command_env
