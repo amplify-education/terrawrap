@@ -51,6 +51,7 @@ class BackendsConfig:
         self.gcs = gcs
 
 
+# pylint: disable=unused-argument
 def env_var_deserializer(obj_dict, cls, **kwargs):
     """convert a dict to a subclass of AbstractEnvVarConfig"""
     if obj_dict['source'] == EnvVarSource.SSM.value:
