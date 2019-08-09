@@ -49,7 +49,7 @@ class PipelineEntry:
         )
 
         if operation in ["apply", "destroy"]:
-            execute_command(
+            plan_exit_code, plan_stdout = execute_command(
                 [
                     "tf",
                     "--no-resolve-envvars",
@@ -62,10 +62,18 @@ class PipelineEntry:
                 env=command_env
             )
             args += ["-auto-approve", plan_file_name]
+        else:
+            plan_exit_code = 0
+            plan_stdout = []
 
-        return execute_command(
+        if plan_exit_code != 0:
+            return plan_exit_code, plan_stdout
+
+        operation_exit_code, operation_stdout = execute_command(
             args,
             print_output=False,
             capture_stderr=True,
             env=command_env
         )
+
+        return operation_exit_code, plan_stdout + operation_stdout
