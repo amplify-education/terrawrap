@@ -35,7 +35,7 @@ from terrawrap.utils.config import (
     parse_wrapper_configs,
     calc_backend_config,
     parse_variable_files,
-    find_wrapper_config_files, resolve_envvars, parse_existing_backend_config)
+    find_wrapper_config_files, resolve_envvars, parse_backend_config_for_dir)
 from terrawrap.utils.dynamodb import DynamoDB
 from terrawrap.utils.path import get_absolute_path
 
@@ -227,7 +227,7 @@ def handler():
 
     if command == 'init' and wrapper_config.configure_backend:
         # insert extra backend specific arguments to the command if a backend has been defined in the config
-        existing_backend_config = parse_existing_backend_config(tf_config_path)
+        existing_backend_config = parse_backend_config_for_dir(tf_config_path)
         if existing_backend_config:
             backend_config = calc_backend_config(
                 path=tf_config_path,

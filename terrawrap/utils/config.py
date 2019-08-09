@@ -1,4 +1,5 @@
 """Holds config utilities"""
+import concurrent.futures
 import os
 import re
 import subprocess
@@ -174,21 +175,38 @@ def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
     return variables
 
 
-def parse_existing_backend_config(path: str) -> Optional[BackendsConfig]:
+def parse_backend_config_for_dir(path: str) -> Optional[BackendsConfig]:
     """
     Parse tf files in a directory and try to get the state backend config from the "terraform" resource
     :param path: Directory that has tf files
     :return: Backend config if a "terraform" resource exists, otherwise None
     """
-    configs: Dict[str, Dict] = {}
-    for file_path in os.listdir(path):
-        if '.terraform' in file_path or not file_path.endswith('tf'):
-            continue
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        tf_files = [
+            file_path for file_path in os.listdir(path)
+            if '.terraform' not in file_path and file_path.endswith('tf')
+        ]
 
-        with open(path + '/' + file_path) as tf_file:
-            configs.update(hcl.load(tf_file))
+        futures = [
+            executor.submit(
+                _parse_backend_config_for_file,
+                file_path=tf_file,
+            )
+            for tf_file in tf_files
+        ]
 
-    terraform_config = configs.get('terraform', {})
-    if 'backend' in terraform_config:
-        return jsons.load(terraform_config['backend'], BackendsConfig, strict=True)
-    return None
+        # get the first backend config that we find or else return None
+        backend_configs = [
+            config.result()
+            for config in concurrent.futures.as_completed(futures)
+        ]
+        return next(backend for backend in backend_configs if backend is not None)
+
+
+def _parse_backend_config_for_file(file_path: str):
+    with open(file_path) as tf_file:
+        configs: Dict[str, Dict] = hcl.load(tf_file)
+        terraform_config = configs.get('terraform', {})
+        if 'backend' in terraform_config:
+            return jsons.load(terraform_config['backend'], BackendsConfig, strict=True)
+        return None
