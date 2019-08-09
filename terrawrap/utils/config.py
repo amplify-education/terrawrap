@@ -196,11 +196,11 @@ def parse_backend_config_for_dir(path: str) -> Optional[BackendsConfig]:
         ]
 
         # get the first backend config that we find or else return None
-        backend_configs = [
-            config.result()
-            for config in concurrent.futures.as_completed(futures)
-        ]
-        return next(backend for backend in backend_configs if backend is not None)
+        return next(
+            backend.result()
+            for backend in concurrent.futures.as_completed(futures)
+            if backend.result() is not None
+        )
 
 
 def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
