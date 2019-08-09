@@ -9,7 +9,12 @@ import jsons
 import yaml
 from ssm_cache import SSMParameterGroup
 
-from terrawrap.models.wrapper_config import WrapperConfig, AbstractEnvVarConfig, SSMEnvVarConfig
+from terrawrap.models.wrapper_config import (
+    WrapperConfig,
+    AbstractEnvVarConfig,
+    SSMEnvVarConfig,
+    TextEnvVarConfig,
+)
 from terrawrap.utils.collection_utils import update
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
@@ -68,7 +73,7 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
     override those earlier in the list, and are merged with the default config and earlier files.
     :return: A WrapperConfig object representing the accumulated values of all the wrapper config files
     """
-    generated_wrapper_config = {}
+    generated_wrapper_config: Dict = {}
 
     for wrapper_config_path in wrapper_config_files:
         with open(wrapper_config_path) as wrapper_config_file:
@@ -92,6 +97,8 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
     for envvar_name, envvar_config in envvar_configs.items():
         if isinstance(envvar_config, SSMEnvVarConfig):
             resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(envvar_config.path).value
+        if isinstance(envvar_config, TextEnvVarConfig):
+            resolved_envvars[envvar_name] = envvar_config.value
     return resolved_envvars
 
 
@@ -144,7 +151,7 @@ def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
     :param variable_files: List of file paths to variable files. Variable files overwrite files before them.
     :return: A dictionary representing the contents of those variable files.
     """
-    variables = {}
+    variables: Dict = {}
 
     for variable_file in variable_files:
         with open(variable_file) as var_file:

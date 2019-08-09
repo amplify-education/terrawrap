@@ -10,9 +10,8 @@ Options:
 
     -h,--help                                   Display this message.
     -p PIPELINE --pipeline=PIPELINE             Path to the pipeline file to execute.
-    -o OPERATION --operation=OPERATION          Which operation to apply to the directories defined in the
-                                                pipeline file.
-                                                [allowed: [apply, destroy, plan, validate]]
+    -o OPERATION --operation=OPERATION          Which terraform command to run in the directories defined in
+                                                the pipeline file.
                                                 [default: plan]
     -j NUM_JOBS --parallel-jobs=NUM_JOBS        The number of Terraform operations to run in parallel.
                                                 [default: 4].
@@ -27,20 +26,12 @@ from terrawrap.version import __git_hash__, __version__
 from terrawrap.utils.path import get_absolute_path
 
 
-VALID_OPERATIONS = ['apply', 'destroy', 'plan', 'validate']
-
-
 def handler():
     args = docopt(__doc__, version="Terraform Wrapper %s (%s)" % (__version__, __git_hash__))
 
     pipeline_file = get_absolute_path(args['--pipeline'])
 
-    operation = args['--operation']
-
-    if operation not in VALID_OPERATIONS:
-        raise RuntimeError(
-            "Unable to execute operation '%s', must be one of: %s" % (operation, VALID_OPERATIONS)
-        )
+    operation = args['--operation'].strip()
 
     try:
         num_parallel = int(args['--parallel-jobs'])
@@ -49,7 +40,7 @@ def handler():
             "Unable to parse number of parallel jobs, '%s' is not an integer." % args['--parallel-jobs']
         )
 
-    pipeline = Pipeline(operation, config_path=pipeline_file)
+    pipeline = Pipeline(operation, pipeline_path=pipeline_file)
 
     pipeline.execute(num_parallel=num_parallel, debug=args['--debug'])
 

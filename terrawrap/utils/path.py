@@ -26,7 +26,7 @@ def get_symlinks(directory: str) -> Dict[str, Set[str]]:
     :param directory:
     :return: dict of symlink source to set of paths that link to that source
     """
-    links = defaultdict(set)
+    links: Dict[str, Set[str]] = defaultdict(set)
     # pylint: disable=unused-variable
     for current_dir, dirs, files in os.walk(directory, followlinks=True):
         if '.terraform' in current_dir:

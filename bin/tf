@@ -17,16 +17,14 @@ Examples:
     tf some/path/to/tf_files apply -var foo=bar -lock=True
 """
 from __future__ import print_function
+
+import json
 import os
 import re
 import sys
 import shutil
-from tempfile import gettempdir
 from datetime import datetime, timedelta
-
-import hcl
-import pathlib
-from six import iteritems
+from typing import List, Dict, Tuple
 
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
@@ -42,7 +40,7 @@ LOCK_TIMEOUT = timedelta(minutes=60)
 MAX_COUNT = 5
 
 
-def does_command_get_variables(command, path, arguments):
+def does_command_get_variables(command: str, path: str, arguments: List[str]) -> bool:
     commands_with_variables = ["init", "plan", "import", "refresh", "console", "destroy", "push", "validate"]
 
     if command == "apply":
@@ -55,39 +53,40 @@ def does_command_get_variables(command, path, arguments):
     return command in commands_with_variables
 
 
-def resolve_terraform_arguments(variable_files, arguments):
-    tf_arguments = [
-        "-var-file=%s" % variable_file
-        for variable_file in variable_files
-    ]
+def convert_variables_to_envvars(variables:Dict[str, str]) -> Dict[str, str]:
+    envvars = {}
 
-    return tf_arguments + arguments
+    for key, value in variables.items():
+        new_key = "TF_VAR_%s" % key
+        if not isinstance(value, str):
+            envvars[new_key] = json.dumps(value)
+        else:
+            envvars[new_key] = value
+
+    return envvars
 
 
-def exec_tf_command(command, path, variable_files, variables, arguments, additional_envvars):
-    terraform_arguments = resolve_terraform_arguments(
-        variable_files=variable_files,
-        arguments=arguments
-    )
+def exec_tf_command(
+        command: str,
+        path: str,
+        variables: Dict[str, str],
+        arguments: List[str],
+        additional_envvars: Dict[str, str]
+):
+    variable_envvars = convert_variables_to_envvars(variables=variables)
 
     command_env = os.environ.copy()
+    command_env.update(variable_envvars)
     command_env.update(additional_envvars)
 
-    # We don't want to move to tmp if its the fmt command, because this command updates the files and it would
-    # be annoying to write logic for copying those files back into the directory. Same thing for upgrade.
-    if command in ["fmt", "0.12upgrade"]:
-        new_path = path
-    else:
-        new_path = move_to_tmp(config_path=path)
-
     if command == "init":
-        shutil.rmtree(os.path.join(new_path, ".terraform"), ignore_errors=True)
+        shutil.rmtree(os.path.join(path, ".terraform"), ignore_errors=True)
 
     try_count = 0
     while True:
         exit_code, stdout = execute_command(
-            ["terraform", command] + terraform_arguments,
-            cwd=new_path,
+            ["terraform", command] + arguments,
+            cwd=path,
             capture_stderr=True,
             print_command=True,
             retry=True,
@@ -99,7 +98,7 @@ def exec_tf_command(command, path, variable_files, variables, arguments, additio
         if exit_code != 0 and try_count <= MAX_COUNT:
             error = ''.join([line for line in stdout])
             if 'Error locking state' in error:
-                if tf_unlock(error, new_path, LOCK_TIMEOUT):
+                if tf_unlock(error, path, LOCK_TIMEOUT):
                     continue
             elif 'state data in S3 does not have the expected content' in error:
                 if update_digest(error, path, variables):
@@ -108,66 +107,7 @@ def exec_tf_command(command, path, variable_files, variables, arguments, additio
         sys.exit(exit_code)
 
 
-def move_to_tmp(config_path):
-    # type (str) -> str
-    """
-    Function for moving the given config path to a location in a temp directory.
-    :param config_path: An absolute path to a terraform configuration directory.
-    :return: The new location of the config_path in a temp directory.
-    """
-    # We remove the first character of config_path here because os.path.join ignores paths that come before
-    # absolute directories, and config_path is guaranteed to be an absolute directory.
-    tmp_dir = os.path.join(gettempdir(), "terrawrap", config_path[1:])
-
-    for current_directory, sub_dirs, files in os.walk(config_path, followlinks=True):
-        if ".terraform" in current_directory:
-            # Do not copy anything in .terraform, it might overwrite important stuff in the new location
-            continue
-
-        future_directory = os.path.join(tmp_dir, current_directory[len(config_path)+1:])
-        pathlib.Path(future_directory).mkdir(parents=True, exist_ok=True)
-
-        # Remove files that no longer exist in the config directory to keep things up to date
-        for future_file in os.listdir(future_directory):
-            future_file_path = os.path.join(future_directory, future_file)
-            if os.path.isfile(future_file_path) and future_file not in files:
-                os.unlink(future_file_path)
-
-        for file in files:
-            current_location = os.path.join(current_directory, file)
-            future_location = os.path.join(future_directory, file)
-
-            if file.endswith(".tf"):
-                with open(current_location, 'r') as source:
-                    strings_to_replace = {}
-                    parsed_source = hcl.load(source)
-                    for module in parsed_source.get('module', {}).values():
-                        # join handles the case where the source attribute is an absolute directory by
-                        # dropping off the current_directory.
-                        joined_path = os.path.join(current_directory, module['source'])
-                        # This is just for convenience
-                        normalized_path = os.path.normpath(joined_path)
-                        # If the path exists, we must not have created some frankenstein monster of a URI,
-                        # git path, etc, so go ahead and replace it
-                        if os.path.exists(normalized_path):
-                            strings_to_replace['"%s"' % module['source']] = '"%s"' % normalized_path
-
-                with open(current_location, 'r') as source, open(future_location, 'w') as destination:
-                    for line in source.readlines():
-                        for needle, replacement in iteritems(strings_to_replace):
-                            line = line.replace(needle, replacement)
-                        destination.write(line)
-
-            else:
-                shutil.copy2(
-                    src=current_location,
-                    dst=future_location
-                )
-
-    return tmp_dir
-
-
-def tf_unlock(error, path, lock_timeout):
+def tf_unlock(error: str, path: str, lock_timeout: timedelta) -> bool:
     """
     Function to unlock terraform
     :param error: Error log text from stdout
@@ -195,7 +135,7 @@ def tf_unlock(error, path, lock_timeout):
     return False
 
 
-def update_digest(error, path, variables):
+def update_digest(error: str, path: str, variables: Dict[str, str]) -> bool:
     """
     Update DynamoDB table item with the Terraform suggested digest value
     :param error: Error log text from stdout
@@ -205,9 +145,16 @@ def update_digest(error, path, variables):
     """
     dynamodb = DynamoDB(region=variables['region'])
     digest = re.search(r'[\da-f]{32}', error).group()
-    lock_id = '{region}--mclass--terraform--{account}/{path}.tfstate-md5'.format(
-        region=variables['region'],
-        account=variables['account_short_name'],
+
+    default_terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
+        region=variables.get('region'),
+        account_short_name=variables.get('account_short_name')
+    )
+
+    terraform_bucket = variables.get('terraform_state_bucket', default_terraform_bucket)
+
+    lock_id = '{bucket_name}/{path}.tfstate-md5'.format(
+        bucket_name=terraform_bucket,
         path=re.sub('.*/terraform-config', 'terraform-config', path)
     )
     response = dynamodb.upsert_item(
@@ -223,7 +170,7 @@ def update_digest(error, path, variables):
     return False
 
 
-def process_arguments(args):
+def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
     try:
         resolve_envvars = True
 
@@ -286,7 +233,6 @@ def handler():
     exec_tf_command(
         command=command,
         path=tf_config_path,
-        variable_files=variable_files,
         variables=variables,
         arguments=additional_arguments,
         additional_envvars=additional_envvars

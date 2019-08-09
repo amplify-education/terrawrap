@@ -82,7 +82,7 @@ Terrawrap requires Python 3.6.0 or higher to run.
 This package can be installed using `pip`
 
 ```sh
-pip install terrawrap
+pip3 install terrawrap
 ```
 
 You should now be able to use the `tf` command.
@@ -128,8 +128,9 @@ pipeline_check: True # If true, require this directory to be in a pipeline file.
 
 envvars:
   <NAME_OF_ENVVAR>:
-    source: # The source of the envvar. Currently only `ssm` is supported.
+    source: # The source of the envvar. One of `['ssm', 'text']`.
     path: # If the source of the envvar is `ssm`, the SSM Parameter Store path to lookup the value of the environment variable from.
+    value: # if the source of the envvar is `text`, the string value to set as the environment variable.
 ```
 
 ### Autovars

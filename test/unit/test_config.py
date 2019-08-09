@@ -2,8 +2,15 @@
 import os
 from unittest import TestCase
 
+from unittest.mock import patch, MagicMock
+
 from terrawrap.models.wrapper_config import WrapperConfig, BackendsConfig, S3BackendConfig
-from terrawrap.utils.config import calc_backend_config
+from terrawrap.utils.config import (
+    calc_backend_config,
+    parse_wrapper_configs,
+    find_wrapper_config_files,
+    resolve_envvars,
+)
 
 ROLE_ARN = 'arn:aws:iam::1234567890:role/test_role'
 BUCKET = 'us-west-2--mclass--terraform--test'
@@ -94,3 +101,46 @@ class TestConfig(TestCase):
         ]
 
         self.assertEqual(expected_config, actual_config)
+
+    def test_find_wrapper_configs(self):
+        """Test find wrapper configs along a confir dir's path"""
+        actual_config_files = find_wrapper_config_files(
+            os.path.join(os.getcwd(), 'mock_directory/config/app4')
+        )
+        expected_config_files = [
+            os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
+            os.path.join(os.getcwd(), 'mock_directory/config/app4/.tf_wrapper'),
+        ]
+
+        self.assertEqual(expected_config_files, actual_config_files)
+
+    def test_parse_wrapper_config(self):
+        """Test parse wrapper configs and merge correctly"""
+        wrapper_config = parse_wrapper_configs(
+            wrapper_config_files=[
+                os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
+                os.path.join(os.getcwd(), 'mock_directory/config/app4/.tf_wrapper'),
+            ]
+        )
+
+        self.assertEqual("OVERWRITTEN_VALUE", wrapper_config.envvars["OVERWRITTEN_KEY"].value)
+        self.assertEqual("HARDCODED_VALUE", wrapper_config.envvars["HARDCODED_KEY"].value)
+        self.assertEqual("FAKE_SSM_PATH", wrapper_config.envvars["SSM_KEY"].path)
+
+    @patch("terrawrap.utils.config.SSM_ENVVAR_CACHE")
+    def test_resolve_envvars_from_wrapper_config(self, mock_ssm_cache):
+        """Test envvars can be resolved correctly"""
+        mock_ssm_cache.parameter.return_value = MagicMock(value="SSM_VALUE")
+        wrapper_config = parse_wrapper_configs(
+            wrapper_config_files=[
+                os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
+                os.path.join(os.getcwd(), 'mock_directory/config/app4/.tf_wrapper'),
+            ]
+        )
+
+        actual_envvars = resolve_envvars(wrapper_config.envvars)
+
+        self.assertEqual("OVERWRITTEN_VALUE", actual_envvars["OVERWRITTEN_KEY"])
+        self.assertEqual("HARDCODED_VALUE", actual_envvars["HARDCODED_KEY"])
+        self.assertEqual("SSM_VALUE", actual_envvars["SSM_KEY"])
+        mock_ssm_cache.parameter.assert_called_once_with("FAKE_SSM_PATH")

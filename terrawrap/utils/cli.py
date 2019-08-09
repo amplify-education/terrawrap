@@ -1,10 +1,10 @@
 """Module for containing CLI convenience functions"""
 from __future__ import print_function
 
+import logging
 import subprocess
 import tempfile
-import logging
-from typing import List
+from typing import List, Tuple
 
 from amplify_aws_utils.resource_helper import Jitter
 
@@ -16,18 +16,26 @@ RETRIABLE_ERRORS = ['RequestError: send request failed', 'unexpected EOF', 'Thro
                     'failed to decode query XML error response']
 
 
-# pylint: disable=keyword-arg-before-vararg, too-many-locals
-def execute_command(args, print_output=True, capture_stderr=True, print_command=False,
-                    retry=False, timeout=15 * 60, *pargs, **kwargs):
+# pylint: too-many-locals
+def execute_command(
+        args: List[str],
+        *pargs,
+        print_output: bool = True,
+        capture_stderr: bool = True,
+        print_command: bool = False,
+        retry: bool = False,
+        timeout: int = 15 * 60,
+        **kwargs
+) -> Tuple[int, List[str]]:
     """
     Convenience function for executing a given command and optionally printing the output.
     :param args: List of arguments to execute.
+    :param pargs: Any additional positional arguments to Popen.
     :param print_output: True if the output of the command should be printed immediately. Defaults to True.
     :param capture_stderr: True if stderr should be captured. Defaults to True.
     :param print_command: True if the command should be printed before executing. Defaults to False.
     :param timeout: Max amount of time to keep retrying to execute command. Defaults to 15 minutes.
     :param retry: Retry a number of times if network errors. Defaults to False.
-    :param pargs: Any additional positional arguments to Popen.
     :param kwargs: Any additional keyword arguments to Popen.
     :return: A tuple of the exit code and output of the command.
     """
@@ -37,7 +45,7 @@ def execute_command(args, print_output=True, capture_stderr=True, print_command=
     jitter = Jitter()
     time_passed = 0
     exit_code = 0
-    stdout = ''
+    stdout: List[str] = []
     while try_count < max_tries:
         exit_code, stdout = _execute_command(args, print_output, capture_stderr, print_command,
                                              *pargs, **kwargs)
@@ -59,7 +67,14 @@ def execute_command(args, print_output=True, capture_stderr=True, print_command=
     return exit_code, stdout
 
 
-def _execute_command(args, print_output, capture_stderr, print_command, *pargs, **kwargs):
+def _execute_command(
+        args: List[str],
+        print_output: bool,
+        capture_stderr: bool,
+        print_command: bool,
+        *pargs,
+        **kwargs
+) -> Tuple[int, List[str]]:
     """
     Private function for executing a given command and optionally printing the output.
     :param args: List of arguments to execute.
@@ -76,11 +91,12 @@ def _execute_command(args, print_output, capture_stderr, print_command, *pargs, 
     if print_command:
         print("Executing: %s" % " ".join(args))
 
+    kwargs['stdout'] = stdout_write
+    kwargs['stderr'] = stdout_write if capture_stderr else open('/dev/null', 'w')
+
     process = subprocess.Popen(
         args,
         *pargs,
-        stdout=stdout_write,
-        stderr=stdout_write if capture_stderr else open('/dev/null', 'w'),
         **kwargs
     )
 

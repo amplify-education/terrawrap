@@ -1,9 +1,9 @@
 """Utility functions for working with Terraform modules"""
+import concurrent.futures
+import os
 from collections import defaultdict
 from typing import Dict, Set, Tuple
-import concurrent.futures
 
-import os
 import hcl
 
 
@@ -13,7 +13,7 @@ def get_module_usage_map(root_directory: str) -> Dict[str, Set[str]]:
     :param root_directory: Directory to scan
     :return: Map of module path to list of directories that depend on each module
     """
-    module_map = defaultdict(set)
+    module_map: Dict[str, Set[str]] = defaultdict(set)
     future_list = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
         # pylint: disable=unused-variable
