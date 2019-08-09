@@ -185,7 +185,7 @@ def parse_backend_config_for_dir(path: str) -> Optional[BackendsConfig]:
         futures = [
             executor.submit(
                 _parse_backend_config_for_file,
-                file_path=file_path,
+                file_path=os.path.join(path, file_path),
             )
             for file_path in os.listdir(path)
             if '.terraform' not in file_path and file_path.endswith('tf')
