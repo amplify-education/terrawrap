@@ -114,7 +114,7 @@ def calc_backend_config(
     :param path: The path to the directory containing the Terraform config.
     :param variables: The variables derived from the auto.tfvars files.
     :param wrapper_config:
-    :param existing_backend_config:
+    :param existing_backend_config: Backend config object from parsing the terraform resource in the configs
     :return: A dictionary representing the backend configuration for the Terraform directory.
     """
     terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
@@ -130,32 +130,32 @@ def calc_backend_config(
         raise RuntimeError("Could not determine git repo name, are we in a git repo?")
 
     backend_config = ['-reconfigure']
+    options: Dict[str, str] = {}
+
+    # for backwards compatibility, include the default s3 backend options we used to automatically include
     if existing_backend_config.s3 is not None:
         options = {
             'dynamodb_table': variables.get('terraform_lock_table', 'terraform-locking'),
             'encrypt': 'true',
             'key': '%s/%s.tfstate' % (repo_name, path[path.index("/config") + 1:]),
-            'region': variables.get('region'),
+            'region': variables.get('region', ''),
             'bucket': variables.get('terraform_state_bucket', terraform_bucket),
             'skip_get_ec2_platforms': 'true',
             'skip_region_validation': 'true',
             'skip_credentials_validation': 'true'
         }
 
-        if wrapper_config.backends and wrapper_config.backends.s3:
+    # copy any backend options from the backend config
+    if wrapper_config.backends:
+        wrapper_options: Dict[str, Optional[str]] = {}
+        if existing_backend_config.gcs is not None and wrapper_config.backends.gcs is not None:
             # convert the object into a dict so we can append each field to the backend config dynamically
-            s3_vars = vars(wrapper_config.backends.s3)
-            s3_vars = {key: value for key, value in s3_vars.items() if value is not None}
-            options.update(s3_vars)
+            wrapper_options = vars(wrapper_config.backends.gcs)
+        if existing_backend_config.s3 is not None and wrapper_config.backends.s3 is not None:
+            wrapper_options = vars(wrapper_config.backends.s3)
+        options.update({key: value for key, value in wrapper_options.items() if value is not None})
 
-        backend_config.extend(['-backend-config=%s=%s' % (key, value) for key, value in options.items()])
-
-    if existing_backend_config.gcs is not None and wrapper_config.backends and wrapper_config.backends.gcs:
-        # convert the object into a dict so we can append each field to the backend config dynamically
-        gcs_vars = vars(wrapper_config.backends.gcs)
-        gcs_vars = {key: value for key, value in gcs_vars.items() if value is not None}
-        backend_config.extend(['-backend-config=%s=%s' % (key, value) for key, value in gcs_vars.items()])
-
+    backend_config.extend(['-backend-config=%s=%s' % (key, value) for key, value in options.items()])
     return backend_config
 
 
@@ -182,7 +182,7 @@ def parse_existing_backend_config(path: str) -> Optional[BackendsConfig]:
     """
     configs: Dict[str, Dict] = {}
     for file_path in os.listdir(path):
-        if '.terraform' in file_path:
+        if '.terraform' in file_path or not file_path.endswith('tf'):
             continue
 
         with open(path + '/' + file_path) as tf_file:

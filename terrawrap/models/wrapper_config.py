@@ -3,7 +3,7 @@
 # pylint: disable=missing-docstring
 
 from enum import Enum
-from typing import Dict
+from typing import Dict, Optional
 
 import jsons
 
@@ -46,7 +46,7 @@ class GCSBackendConfig:
 
 class BackendsConfig:
     # pylint: disable=invalid-name
-    def __init__(self, s3: S3BackendConfig = None, gcs: GCSBackendConfig = None):
+    def __init__(self, s3: Optional[S3BackendConfig] = None, gcs: Optional[GCSBackendConfig] = None):
         self.s3 = s3
         self.gcs = gcs
 
