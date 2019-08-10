@@ -118,23 +118,24 @@ def calc_backend_config(
     :param existing_backend_config: Backend config object from parsing the terraform resource in the configs
     :return: A dictionary representing the backend configuration for the Terraform directory.
     """
-    terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
-        region=variables.get('region'),
-        account_short_name=variables.get('account_short_name')
-    )
-
-    output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path).decode("utf-8")
-    match = re.search(GIT_REPO_REGEX, output)
-    if match:
-        repo_name = match.group(1)
-    else:
-        raise RuntimeError("Could not determine git repo name, are we in a git repo?")
 
     backend_config = ['-reconfigure']
     options: Dict[str, str] = {}
 
     # for backwards compatibility, include the default s3 backend options we used to automatically include
     if existing_backend_config.s3 is not None:
+        terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
+            region=variables.get('region'),
+            account_short_name=variables.get('account_short_name')
+        )
+
+        output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path).decode("utf-8")
+        match = re.search(GIT_REPO_REGEX, output)
+        if match:
+            repo_name = match.group(1)
+        else:
+            raise RuntimeError("Could not determine git repo name, are we in a git repo?")
+
         options = {
             'dynamodb_table': variables.get('terraform_lock_table', 'terraform-locking'),
             'encrypt': 'true',
