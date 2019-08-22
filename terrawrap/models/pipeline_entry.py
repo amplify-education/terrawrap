@@ -1,6 +1,7 @@
 """Module for containing Pipeline Entries"""
 import logging
 import os
+import tempfile
 from typing import List, Tuple
 
 from terrawrap.utils.cli import execute_command
@@ -40,14 +41,39 @@ class PipelineEntry:
         # We're using --no-resolve-envvars here because we've already resolved the environment variables in
         # the constructor. We are then passing in those environment variables explicitly in the
         # execute_command call below.
-        args = ['tf', '--no-resolve-envvars', self.path, operation] + self.variables
+        args = ["tf", "--no-resolve-envvars", self.path, operation] + self.variables
+
+        # pylint: disable=unused-variable
+        plan_file, plan_file_name = tempfile.mkstemp(
+            suffix="plan.tfplan"
+        )
 
         if operation in ["apply", "destroy"]:
-            args += ["-auto-approve"]
+            plan_exit_code, plan_stdout = execute_command(
+                [
+                    "tf",
+                    "--no-resolve-envvars",
+                    self.path,
+                    "plan",
+                    "-out=%s" % plan_file_name
+                ] + self.variables,
+                print_output=False,
+                capture_stderr=True,
+                env=command_env
+            )
+            args += ["-auto-approve", plan_file_name]
+        else:
+            plan_exit_code = 0
+            plan_stdout = []
 
-        return execute_command(
+        if plan_exit_code != 0:
+            return plan_exit_code, plan_stdout
+
+        operation_exit_code, operation_stdout = execute_command(
             args,
             print_output=False,
             capture_stderr=True,
             env=command_env
         )
+
+        return operation_exit_code, plan_stdout + operation_stdout

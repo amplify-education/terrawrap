@@ -4,7 +4,7 @@ import os
 from collections import defaultdict, namedtuple
 from typing import Dict, Set, Tuple, Union
 
-import hcl
+import hcl2
 
 Variable = namedtuple('Variable', ['name', 'value'])
 
@@ -24,7 +24,7 @@ def get_auto_vars(root_directory: str) -> Dict[str, Set[Variable]]:
         vars_files = [file_name for file_name in files if file_name.endswith('.tfvars')]
         for file_name in vars_files:
             with open(current_dir + '/' + file_name, 'r') as file:
-                variables = hcl.load(file)
+                variables = hcl2.load(file)
                 for key, value in variables.items():
                     if isinstance(value, list):
                         value = tuple(value)
@@ -43,10 +43,11 @@ def get_nondefault_variables_for_file(file_path: str) -> Set[str]:
     """
     variables = set()
     with open(file_path, 'r') as file:
-        tf_info = hcl.load(file)
-        for variable_name, var_config in tf_info.get('variable', {}).items():
-            if not var_config.get('default'):
-                variables.add(variable_name)
+        tf_info = hcl2.load(file)
+        for variable in tf_info.get('variable', []):
+            for variable_name, var_config in variable.items():
+                if not var_config.get('default'):
+                    variables.add(variable_name)
 
     return variables
 

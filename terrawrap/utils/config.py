@@ -5,7 +5,7 @@ import re
 import subprocess
 from typing import Dict, List, Optional
 
-import hcl
+import hcl2
 import jsons
 import yaml
 from ssm_cache import SSMParameterGroup
@@ -171,7 +171,8 @@ def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
 
     for variable_file in variable_files:
         with open(variable_file) as var_file:
-            variables.update(hcl.load(var_file))
+            flat_vars = {key: values[0] for key, values in hcl2.load(var_file).items()}
+            variables.update(flat_vars)
 
     return variables
 

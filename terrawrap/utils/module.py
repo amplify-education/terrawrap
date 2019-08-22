@@ -4,7 +4,7 @@ import os
 from collections import defaultdict
 from typing import Dict, Set, Tuple
 
-import hcl
+import hcl2
 
 
 def get_module_usage_map(root_directory: str) -> Dict[str, Set[str]]:
@@ -45,8 +45,9 @@ def _get_modules_for_file(directory: str, file_name: str) -> Tuple[str, Set[str]
     """
     modules = set()
     with open(directory + '/' + file_name, 'r') as file:
-        tf_info = hcl.load(file)
-        for module_config in tf_info.get('module', {}).values():
-            modules.add(os.path.normpath(module_config['source']))
+        tf_info = hcl2.load(file)
+        for module in tf_info.get('module', []):
+            for module_config in module.values():
+                modules.add(os.path.normpath(module_config['source'][0]))
 
     return directory, modules
