@@ -153,6 +153,7 @@ def calc_backend_config(
         if existing_backend_config.gcs is not None and wrapper_config.backends.gcs is not None:
             # convert the object into a dict so we can append each field to the backend config dynamically
             wrapper_options = vars(wrapper_config.backends.gcs)
+            wrapper_options['prefix'] = '%s/%s'
         if existing_backend_config.s3 is not None and wrapper_config.backends.s3 is not None:
             wrapper_options = vars(wrapper_config.backends.s3)
         options.update({key: value for key, value in wrapper_options.items() if value is not None})
@@ -193,18 +194,25 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
             if '.terraform' not in file_path and file_path.endswith('tf')
         ]
 
-        # get the first backend config that we find or else return None
-        return next(
+        #  get the first backend config that we find or else return None
+        return next((
             backend.result()
             for backend in concurrent.futures.as_completed(futures)
             if backend.result() is not None
-        )
+        ), None)
 
 
 def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
+    print(file_path)
     with open(file_path) as tf_file:
-        configs: Dict[str, Dict] = hcl.load(tf_file)
-        terraform_config = configs.get('terraform', {})
-        if 'backend' in terraform_config:
-            return jsons.load(terraform_config['backend'], BackendsConfig, strict=True)
-        return None
+        try:
+            configs: Dict[str, Dict] = hcl2.load(tf_file)
+
+            terraform_config_blocks = configs.get('terraform', [])
+            for terraform_config in terraform_config_blocks:
+                if 'backend' in terraform_config:
+                    return jsons.load(terraform_config['backend'][0], BackendsConfig, strict=True)
+            return None
+        except Exception:
+            print('Error while parsing file %s', file_path)
+            raise
