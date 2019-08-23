@@ -1,1 +1,1 @@
-foo="cat"
+foo = "cat"

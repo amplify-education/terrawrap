@@ -1,2 +1,2 @@
-baz="bat"
-bar="bye"
+baz = "bat"
+bar = "bye"
