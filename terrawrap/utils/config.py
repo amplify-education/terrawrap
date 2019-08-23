@@ -203,7 +203,6 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
 
 
 def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
-    print(file_path)
     with open(file_path) as tf_file:
         try:
             configs: Dict[str, Dict] = hcl2.load(tf_file)
