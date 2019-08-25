@@ -122,19 +122,19 @@ def calc_backend_config(
     backend_config = ['-reconfigure']
     options: Dict[str, str] = {}
 
+    output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path).decode("utf-8")
+    match = re.search(GIT_REPO_REGEX, output)
+    if match:
+        repo_name = match.group(1)
+    else:
+        raise RuntimeError("Could not determine git repo name, are we in a git repo?")
+
     # for backwards compatibility, include the default s3 backend options we used to automatically include
     if existing_backend_config.s3 is not None:
         terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
             region=variables.get('region'),
             account_short_name=variables.get('account_short_name')
         )
-
-        output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path).decode("utf-8")
-        match = re.search(GIT_REPO_REGEX, output)
-        if match:
-            repo_name = match.group(1)
-        else:
-            raise RuntimeError("Could not determine git repo name, are we in a git repo?")
 
         options = {
             'dynamodb_table': variables.get('terraform_lock_table', 'terraform-locking'),
@@ -153,7 +153,7 @@ def calc_backend_config(
         if existing_backend_config.gcs is not None and wrapper_config.backends.gcs is not None:
             # convert the object into a dict so we can append each field to the backend config dynamically
             wrapper_options = vars(wrapper_config.backends.gcs)
-            wrapper_options['prefix'] = '%s/%s'
+            wrapper_options['prefix'] = '%s/%s' % (repo_name, path[path.index("/config") + 1:])
         if existing_backend_config.s3 is not None and wrapper_config.backends.s3 is not None:
             wrapper_options = vars(wrapper_config.backends.s3)
         options.update({key: value for key, value in wrapper_options.items() if value is not None})
@@ -213,5 +213,5 @@ def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
                     return jsons.load(terraform_config['backend'][0], BackendsConfig, strict=True)
             return None
         except Exception:
-            print('Error while parsing file %s', file_path)
+            print('Error while parsing file %s' % file_path)
             raise
