@@ -39,9 +39,8 @@ class S3BackendConfig:
 
 
 class GCSBackendConfig:
-    def __init__(self, bucket: str, prefix: str):
+    def __init__(self, bucket: str):
         self.bucket = bucket
-        self.prefix = prefix
 
 
 class BackendsConfig:
