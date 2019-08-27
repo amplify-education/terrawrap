@@ -205,9 +205,9 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
 def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
     with open(file_path) as tf_file:
         try:
-            configs: Dict[str, Dict] = hcl2.load(tf_file)
+            configs: Dict[str, List] = hcl2.load(tf_file)
 
-            terraform_config_blocks = configs.get('terraform', [])
+            terraform_config_blocks: List[Dict] = configs.get('terraform', [])
             for terraform_config in terraform_config_blocks:
                 if 'backend' in terraform_config:
                     return jsons.load(terraform_config['backend'][0], BackendsConfig, strict=True)
