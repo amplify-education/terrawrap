@@ -26,6 +26,10 @@ def get_auto_vars(root_directory: str) -> Dict[str, Set[Variable]]:
             with open(current_dir + '/' + file_name, 'r') as file:
                 variables = hcl2.load(file)
                 for key, value in variables.items():
+                    # python-hcl2 will always return a list for each variable value in case
+                    # a variable is defined multiple times in the same time
+                    # We will just use the last appearance of a variable
+                    value = value[-1]
                     if isinstance(value, list):
                         value = tuple(value)
                     if isinstance(value, dict):

@@ -6,4 +6,4 @@ gitpython>=2.1.10
 pyyaml>=3.13,<4
 ssm-cache>=2.7,<3
 jsons>=0.8.9,<1
-python_hcl2>=0.1.0,<0.2.0
+python-hcl2>=0.1.1,<0.2.0
