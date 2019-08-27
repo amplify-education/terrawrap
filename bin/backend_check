@@ -61,7 +61,10 @@ def main():
 def does_file_define_backend(file_path: str):
     with open(file_path, "r") as file_source:
         parsed_file_source = hcl2.load(file_source)
-    return parsed_file_source.get("terraform", {}).get("backend")
+    terraform_blocks = parsed_file_source.get("terraform", [])
+    for terraform_config in terraform_blocks:
+        if 'backend' in terraform_config:
+            return terraform_config['backend']
 
 
 def check_directory_for_backend(dir_path: str, dir_files: List[str]):
