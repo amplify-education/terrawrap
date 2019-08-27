@@ -209,12 +209,10 @@ For example, `tf config/foo/bar init` uses a state file with the key `config/foo
 backends:
     gcs:
         bucket:
-        prefix:
 ```
 | Option Name    | Required | Purpose                                                                              |
 | -------------- | -------- | ------------------------------------------------------------------------------------ |
 | bucket         | Yes      | Name of GCS Bucket                                                                   |
-| prefix         | Yes      | GCS prefix inside the bucket.                                                        |
 
 ## Commands
 
