@@ -17,7 +17,7 @@ import os
 import sys
 from typing import List
 
-import hcl
+import hcl2
 from docopt import docopt
 
 from terrawrap.version import __version__
@@ -60,7 +60,7 @@ def main():
 
 def does_file_define_backend(file_path: str):
     with open(file_path, "r") as file_source:
-        parsed_file_source = hcl.load(file_source)
+        parsed_file_source = hcl2.load(file_source)
     return parsed_file_source.get("terraform", {}).get("backend")
 
 
