@@ -29,8 +29,7 @@ def get_version():
         result = VERSION_REGEX.search(lines)
         if result:
             return result.groupdict()["version"]
-        else:
-            raise ValueError("Unable to determine __version__")
+        raise ValueError("Unable to determine __version__")
 
 
 def get_requirements():
