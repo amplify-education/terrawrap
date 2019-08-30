@@ -1,8 +1,9 @@
 """Holds config utilities"""
+import concurrent.futures
 import os
 import re
 import subprocess
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import hcl2
 import jsons
@@ -14,6 +15,7 @@ from terrawrap.models.wrapper_config import (
     AbstractEnvVarConfig,
     SSMEnvVarConfig,
     TextEnvVarConfig,
+    BackendsConfig
 )
 from terrawrap.utils.collection_utils import update
 
@@ -102,18 +104,23 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
     return resolved_envvars
 
 
-def calc_backend_config(path: str, variables: Dict[str, str], wrapper_config: WrapperConfig) -> List[str]:
+def calc_backend_config(
+        path: str,
+        variables: Dict[str, str],
+        wrapper_config: WrapperConfig,
+        existing_backend_config: BackendsConfig
+) -> List[str]:
     """
     Convenience function for calculating the backend config of the given Terraform directory.
     :param path: The path to the directory containing the Terraform config.
     :param variables: The variables derived from the auto.tfvars files.
     :param wrapper_config:
+    :param existing_backend_config: Backend config object from parsing the terraform resource in the configs
     :return: A dictionary representing the backend configuration for the Terraform directory.
     """
-    terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
-        region=variables.get('region'),
-        account_short_name=variables.get('account_short_name')
-    )
+
+    backend_config = ['-reconfigure']
+    options: Dict[str, str] = {}
 
     output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path).decode("utf-8")
     match = re.search(GIT_REPO_REGEX, output)
@@ -122,26 +129,36 @@ def calc_backend_config(path: str, variables: Dict[str, str], wrapper_config: Wr
     else:
         raise RuntimeError("Could not determine git repo name, are we in a git repo?")
 
-    options = {
-        'dynamodb_table': variables.get('terraform_lock_table', 'terraform-locking'),
-        'encrypt': 'true',
-        'key': '%s/%s.tfstate' % (repo_name, path[path.index("/config") + 1:]),
-        'region': variables.get('region'),
-        'bucket': variables.get('terraform_state_bucket', terraform_bucket),
-        'skip_get_ec2_platforms': 'true',
-        'skip_region_validation': 'true',
-        'skip_credentials_validation': 'true'
-    }
+    # for backwards compatibility, include the default s3 backend options we used to automatically include
+    if existing_backend_config.s3 is not None:
+        terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
+            region=variables.get('region'),
+            account_short_name=variables.get('account_short_name')
+        )
 
-    if wrapper_config.backends and wrapper_config.backends.s3:
-        # convert the object into a dict so we can append each field to the backend config dynamically
-        s3_vars = vars(wrapper_config.backends.s3)
-        s3_vars = {key: value for key, value in s3_vars.items() if value is not None}
-        options.update(s3_vars)
+        options = {
+            'dynamodb_table': variables.get('terraform_lock_table', 'terraform-locking'),
+            'encrypt': 'true',
+            'key': '%s/%s.tfstate' % (repo_name, path[path.index("/config") + 1:]),
+            'region': variables.get('region', ''),
+            'bucket': variables.get('terraform_state_bucket', terraform_bucket),
+            'skip_get_ec2_platforms': 'true',
+            'skip_region_validation': 'true',
+            'skip_credentials_validation': 'true'
+        }
 
-    backend_config = ['-reconfigure']
+    # copy any backend options from the backend config
+    if wrapper_config.backends:
+        wrapper_options: Dict[str, Optional[str]] = {}
+        if existing_backend_config.gcs is not None and wrapper_config.backends.gcs is not None:
+            # convert the object into a dict so we can append each field to the backend config dynamically
+            wrapper_options = vars(wrapper_config.backends.gcs)
+            wrapper_options['prefix'] = '%s/%s' % (repo_name, path[path.index("/config") + 1:])
+        if existing_backend_config.s3 is not None and wrapper_config.backends.s3 is not None:
+            wrapper_options = vars(wrapper_config.backends.s3)
+        options.update({key: value for key, value in wrapper_options.items() if value is not None})
+
     backend_config.extend(['-backend-config=%s=%s' % (key, value) for key, value in options.items()])
-
     return backend_config
 
 
@@ -159,3 +176,42 @@ def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
             variables.update(flat_vars)
 
     return variables
+
+
+def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
+    """
+    Parse tf files in a directory and try to get the state backend config from the "terraform" resource
+    :param dir_path: Directory that has tf files
+    :return: Backend config if a "terraform" resource exists, otherwise None
+    """
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures = [
+            executor.submit(
+                _parse_backend_config_for_file,
+                file_path=os.path.join(dir_path, file_path),
+            )
+            for file_path in os.listdir(dir_path)
+            if '.terraform' not in file_path and file_path.endswith('tf')
+        ]
+
+        #  get the first backend config that we find or else return None
+        return next((
+            backend.result()
+            for backend in concurrent.futures.as_completed(futures)
+            if backend.result() is not None
+        ), None)
+
+
+def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
+    with open(file_path) as tf_file:
+        try:
+            configs: Dict[str, List] = hcl2.load(tf_file)
+
+            terraform_config_blocks: List[Dict] = configs.get('terraform', [])
+            for terraform_config in terraform_config_blocks:
+                if 'backend' in terraform_config:
+                    return jsons.load(terraform_config['backend'][0], BackendsConfig, strict=True)
+            return None
+        except Exception:
+            print('Error while parsing file %s' % file_path)
+            raise

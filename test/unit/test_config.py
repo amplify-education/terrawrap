@@ -27,10 +27,14 @@ class TestConfig(TestCase):
 
     def test_calc_backend_config(self):
         """Test that correct backend config is generated"""
-        actual_config = calc_backend_config('mock_directory/config/app1', {
-            'region': REGION,
-            'account_short_name': 'test',
-        }, WrapperConfig())
+        actual_config = calc_backend_config(
+            'mock_directory/config/app1', {
+                'region': REGION,
+                'account_short_name': 'test',
+            },
+            WrapperConfig(),
+            BackendsConfig(s3=S3BackendConfig(bucket=BUCKET, region=REGION))
+        )
 
         expected_config = [
             '-reconfigure',
@@ -57,7 +61,12 @@ class TestConfig(TestCase):
             )
         )
 
-        actual_config = calc_backend_config('mock_directory/config/app1', {}, wrapper_config)
+        actual_config = calc_backend_config(
+            'mock_directory/config/app1',
+            {},
+            wrapper_config,
+            BackendsConfig(s3=S3BackendConfig(bucket=BUCKET, region=REGION))
+        )
 
         expected_config = [
             '-reconfigure',
@@ -85,7 +94,12 @@ class TestConfig(TestCase):
             )
         )
 
-        actual_config = calc_backend_config('mock_directory/config/app1', {}, wrapper_config)
+        actual_config = calc_backend_config(
+            'mock_directory/config/app1',
+            {},
+            wrapper_config,
+            BackendsConfig(s3=S3BackendConfig(bucket=BUCKET, region=REGION))
+        )
 
         expected_config = [
             '-reconfigure',

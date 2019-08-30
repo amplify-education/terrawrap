@@ -21,20 +21,26 @@ from __future__ import print_function
 import json
 import os
 import re
-import sys
 import shutil
+import sys
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
 
+import jsons
+
+from terrawrap.models.wrapper_config import BackendsConfig
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
     find_variable_files,
     parse_wrapper_configs,
     calc_backend_config,
     parse_variable_files,
-    find_wrapper_config_files, resolve_envvars)
-from terrawrap.utils.path import get_absolute_path
+    find_wrapper_config_files,
+    resolve_envvars,
+    parse_backend_config_for_dir
+)
 from terrawrap.utils.dynamodb import DynamoDB
+from terrawrap.utils.path import get_absolute_path
 
 LOCK_TIMEOUT = timedelta(minutes=60)
 MAX_COUNT = 5
@@ -53,7 +59,7 @@ def does_command_get_variables(command: str, path: str, arguments: List[str]) ->
     return command in commands_with_variables
 
 
-def convert_variables_to_envvars(variables:Dict[str, str]) -> Dict[str, str]:
+def convert_variables_to_envvars(variables: Dict[str, str]) -> Dict[str, str]:
     envvars = {}
 
     for key, value in variables.items():
@@ -223,12 +229,16 @@ def handler():
     variables = parse_variable_files(variable_files=variable_files)
 
     if command == 'init' and wrapper_config.configure_backend:
-        backend_config = calc_backend_config(
-            path=tf_config_path,
-            variables=variables,
-            wrapper_config=wrapper_config
-        )
-        additional_arguments = backend_config + additional_arguments
+        # insert extra backend specific arguments to the command if a backend has been defined in the config
+        existing_backend_config = parse_backend_config_for_dir(tf_config_path)
+        if existing_backend_config:
+            backend_config = calc_backend_config(
+                path=tf_config_path,
+                variables=variables,
+                wrapper_config=wrapper_config,
+                existing_backend_config=existing_backend_config
+            )
+            additional_arguments = backend_config + additional_arguments
 
     exec_tf_command(
         command=command,

@@ -15,11 +15,10 @@ Options:
 import concurrent.futures
 import os
 import sys
-from typing import List
 
-import hcl2
 from docopt import docopt
 
+from terrawrap.utils.config import parse_backend_config_for_dir
 from terrawrap.version import __version__
 
 
@@ -39,7 +38,6 @@ def main():
             executor.submit(
                 check_directory_for_backend,
                 dir_path=config_dir,
-                dir_files=files,
             ): config_dir
             for config_dir, files in config_dirs.items()
         }
@@ -58,20 +56,9 @@ def main():
         sys.exit(1)
 
 
-def does_file_define_backend(file_path: str):
-    with open(file_path, "r") as file_source:
-        parsed_file_source = hcl2.load(file_source)
-    terraform_blocks = parsed_file_source.get("terraform", [])
-    for terraform_config in terraform_blocks:
-        if 'backend' in terraform_config:
-            return terraform_config['backend']
-
-
-def check_directory_for_backend(dir_path: str, dir_files: List[str]):
-    return any(
-        does_file_define_backend(file_path=os.path.join(dir_path, file))
-        for file in dir_files
-    )
+def check_directory_for_backend(dir_path: str) -> bool:
+    backend_config = parse_backend_config_for_dir(dir_path)
+    return backend_config is not None
 
 
 if __name__ == '__main__':
