@@ -142,7 +142,6 @@ def calc_backend_config(
             'key': '%s/%s.tfstate' % (repo_name, path[path.index("/config") + 1:]),
             'region': variables.get('region', ''),
             'bucket': variables.get('terraform_state_bucket', terraform_bucket),
-            'skip_get_ec2_platforms': 'true',
             'skip_region_validation': 'true',
             'skip_credentials_validation': 'true'
         }
