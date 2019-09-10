@@ -43,7 +43,6 @@ class TestConfig(TestCase):
             '-backend-config=key=terrawrap/config/app1.tfstate',
             ('-backend-config=region=%s' % REGION),
             ('-backend-config=bucket=%s' % BUCKET),
-            '-backend-config=skip_get_ec2_platforms=true',
             '-backend-config=skip_region_validation=true',
             '-backend-config=skip_credentials_validation=true'
         ]
@@ -75,7 +74,6 @@ class TestConfig(TestCase):
             '-backend-config=key=terrawrap/config/app1.tfstate',
             '-backend-config=region=%s' % REGION,
             '-backend-config=bucket=%s' % BUCKET,
-            '-backend-config=skip_get_ec2_platforms=true',
             '-backend-config=skip_region_validation=true',
             '-backend-config=skip_credentials_validation=true'
         ]
@@ -108,7 +106,6 @@ class TestConfig(TestCase):
             '-backend-config=key=terrawrap/config/app1.tfstate',
             '-backend-config=region=%s' % REGION,
             '-backend-config=bucket=%s' % BUCKET,
-            '-backend-config=skip_get_ec2_platforms=true',
             '-backend-config=skip_region_validation=true',
             '-backend-config=skip_credentials_validation=true',
             '-backend-config=role_arn=%s' % ROLE_ARN

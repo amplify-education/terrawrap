@@ -173,7 +173,6 @@ terraform init -reconfigure \
     -backend-config=key=config/foo/bar.tfstate \
     -backend-config=region=<region name> \
     -backend-config=bucket=<state bucket name> \
-    -backend-config=skip_get_ec2_platforms=true \
     -backend-config=skip_region_validation=true \
     -backend-config=skip_credentials_validation=true
 ```
