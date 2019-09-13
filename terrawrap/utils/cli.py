@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 5
 RETRIABLE_ERRORS = ['RequestError: send request failed', 'unexpected EOF', 'Throttling',
                     'timeout while waiting for state', 'ServiceUnavailable: Service Unavailable',
-                    'failed to decode query XML error response']
+                    'failed to decode query XML error response', 'connection reset by peer']
 
 
 # pylint: too-many-locals
