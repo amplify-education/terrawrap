@@ -22,12 +22,12 @@ Options:
 from docopt import docopt
 
 from terrawrap.models.pipeline import Pipeline
-from terrawrap.version import __git_hash__, __version__
+from terrawrap.version import __version__
 from terrawrap.utils.path import get_absolute_path
 
 
 def handler():
-    args = docopt(__doc__, version="Terraform Wrapper %s (%s)" % (__version__, __git_hash__))
+    args = docopt(__doc__, version=__version__)
 
     pipeline_file = get_absolute_path(args['--pipeline'])
 

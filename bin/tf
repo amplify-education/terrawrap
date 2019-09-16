@@ -26,9 +26,7 @@ import sys
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
 
-import jsons
-
-from terrawrap.models.wrapper_config import BackendsConfig
+from terrawrap.version import __version__
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
     find_variable_files,
@@ -182,6 +180,10 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
 
         if args[1] in ["-h", "--help"]:
             print(__doc__)
+            sys.exit(0)
+
+        if args[1] in ["--version"]:
+            print(__version__)
             sys.exit(0)
 
         if args[1] in ["--no-resolve-envvars"]:

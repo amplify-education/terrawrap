@@ -3,8 +3,10 @@ from __future__ import print_function
 
 import os
 import csv
+import sys
 
 from terrawrap.utils.config import find_wrapper_config_files, parse_wrapper_configs
+from terrawrap.version import __version__
 
 PROJECT_ROOT_DIR = os.path.abspath(os.getcwd())
 CONFIG_DIR = os.path.abspath(os.path.join(PROJECT_ROOT_DIR, "config"))
@@ -12,6 +14,9 @@ PIPELINE_DIR = os.path.abspath(os.path.join(PROJECT_ROOT_DIR, "pipelines"))
 
 
 def main():
+    if sys.argv[1] in ["--version"]:
+        print(__version__)
+        sys.exit(0)
 
     config_directories = {
         current_dir[len(PROJECT_ROOT_DIR) + 1:]  # Remove project root to make comparisons easier
