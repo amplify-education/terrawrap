@@ -77,8 +77,10 @@ def get_cache(cache_file_path: str) -> Dict[str, Any]:
     try:
         with open(cache_file_path, "r") as cache_file:
             data = json.load(cache_file)
-            # It's unclear why mypy thinks fromisoformat isn't a thing, but it does, and it is.
-            data["timestamp"] = datetime.fromisoformat(data["timestamp"])  # type: ignore
+            data["timestamp"] = datetime.strptime(
+                data["timestamp"],
+                "%Y-%m-%dT%H:%M:%S.%f",
+            )
             return data
     except json.decoder.JSONDecodeError:
         return {}
