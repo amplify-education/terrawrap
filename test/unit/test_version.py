@@ -69,8 +69,8 @@ class TestVersion(TestCase):
         )
 
     @patch("requests.get")
-    def test_get_latest_version_valid_cache(self, mock_get):
-        """VersionUtils get latest version with valid cache"""
+    def test_get_latest_version_happy(self, mock_get):
+        """VersionUtils get latest version happy path"""
         current_version = "1.0.0"
         latest_version = "1.0.1"
         mock_get.return_value.json.return_value = {
