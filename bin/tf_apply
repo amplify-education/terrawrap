@@ -3,7 +3,7 @@
 Terraform Wrapper Apply
 
 Usage:
-    tf_apply --pipeline=PIPELINE [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug]
+    tf_apply --pipeline=PIPELINE [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug] [--print-only-changes]
     tf_apply --version
 
 Options:
@@ -16,6 +16,7 @@ Options:
     -j NUM_JOBS --parallel-jobs=NUM_JOBS        The number of Terraform operations to run in parallel.
                                                 [default: 4].
     -v,--debug                                  Turns on debug logging.
+    --print-only-changes                        Only print output for directories that have changes.
     --version                                   Display the current version of Terraform Wrapper.
 """
 
@@ -42,7 +43,11 @@ def handler():
 
     pipeline = Pipeline(operation, pipeline_path=pipeline_file)
 
-    pipeline.execute(num_parallel=num_parallel, debug=args['--debug'])
+    pipeline.execute(
+        num_parallel=num_parallel,
+        debug=args['--debug'],
+        print_only_changes=args['--print-only-changes'],
+    )
 
 
 if __name__ == "__main__":

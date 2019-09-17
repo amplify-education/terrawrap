@@ -45,28 +45,23 @@ class Pipeline:
 
         self.entries = entries
 
-    def execute(self, num_parallel: int = 4, debug: bool = False):
+    def execute(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
         """
         Function for executing the pipeline. Will execute each sequence separately, with the entries inside
         each sequence being executed in parallel, up to the limit given in num_parallel.
         :param num_parallel: The number of pipeline entries to run in parallel.
         :param debug: True if Terraform debugging should be turned on.
+        :param print_only_changes: True if only directories which contained changes should be printed.
         """
         for sequence in sorted(self.entries.keys(), reverse=self.reverse_pipeline):
             print("Executing sequence %s" % sequence)
             with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
                 self._execute_entries(
-                    command="init",
-                    entries=self.entries[sequence]['parallel'],
-                    debug=debug,
-                    executor=executor
-                )
-
-                self._execute_entries(
                     command=self.command,
                     entries=self.entries[sequence]['parallel'],
                     debug=debug,
-                    executor=executor
+                    executor=executor,
+                    print_only_changes=print_only_changes,
                 )
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -76,17 +71,11 @@ class Pipeline:
                     # real directories, and then running init multiple times in that directory will break
                     # future applies. So run init and then the command immediately.
                     self._execute_entries(
-                        command="init",
-                        entries=[entry],
-                        debug=debug,
-                        executor=executor
-                    )
-
-                    self._execute_entries(
                         command=self.command,
                         entries=[entry],
                         debug=debug,
-                        executor=executor
+                        executor=executor,
+                        print_only_changes=print_only_changes,
                     )
 
         print("Pipeline executed successfully.")
@@ -96,7 +85,8 @@ class Pipeline:
             entries: Iterable[PipelineEntry],
             executor: concurrent.futures.Executor,
             command: Optional[str] = None,
-            debug: bool = False
+            debug: bool = False,
+            print_only_changes: bool = False,
     ):
         """
         Convenience function for executing the given entries with the given command.
@@ -105,6 +95,7 @@ class Pipeline:
         :param command: The Terraform command to execute. If not provided, defaults to the command for the
         pipeline.
         :param debug: True if Terraform debugging should be printed.
+        :param print_only_changes: True if only directories which contained changes should be printed.
         """
         command = command or self.command
         futures_to_paths = {}
@@ -116,8 +107,11 @@ class Pipeline:
             futures_to_paths[future] = entry.path
 
         for future in concurrent.futures.as_completed(futures_to_paths):
-            exit_code, stdout = future.result()
+            exit_code, stdout, changes_detected = future.result()
             path = futures_to_paths[future]
+
+            if print_only_changes and not changes_detected:
+                stdout = ["No changes detected.\n"]
 
             print("\nFinished executing %s %s ..." % (path, command))
             print("Output:\n\n%s\n" % "".join(stdout).strip())
