@@ -25,12 +25,13 @@ class PipelineEntry:
         self.envvars = resolve_envvars(wrapper_config.envvars)
         self.variables = variables
 
-    def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str]]:
+    # pylint: disable=too-many-locals
+    def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
         """
         Function for executing this pipeline entry.
         :param operation: The Terraform operation to execute. IE: apply, plan
         :param debug: True if Terraform debug info should be printed.
-        :return: A tuple of the exit code and output of the command.
+        :return: A tuple of the exit code, output of the command, and whether changes were detected.
         """
         command_env = os.environ.copy()
         command_env.update(self.envvars)
@@ -38,42 +39,67 @@ class PipelineEntry:
         if debug:
             command_env["TF_LOG"] = "DEBUG"
 
+        # pylint: disable=unused-variable
+        plan_file, plan_file_name = tempfile.mkstemp(
+            suffix=".tfplan"
+        )
+
         # We're using --no-resolve-envvars here because we've already resolved the environment variables in
         # the constructor. We are then passing in those environment variables explicitly in the
         # execute_command call below.
-        args = ["tf", "--no-resolve-envvars", self.path, operation] + self.variables
+        base_args = [
+            "tf",
+            "--no-resolve-envvars",
+            self.path
+        ]
+        init_args = base_args + ["init"] + self.variables
+        plan_args = base_args + [
+            "plan",
+            "-detailed-exitcode",
+            "-out=%s" % plan_file_name
+        ] + self.variables
+        operation_args = base_args + [operation] + self.variables
 
-        # pylint: disable=unused-variable
-        plan_file, plan_file_name = tempfile.mkstemp(
-            suffix="plan.tfplan"
+        init_exit_code, init_stdout = execute_command(
+            init_args,
+            print_output=False,
+            capture_stderr=True,
+            env=command_env,
         )
+
+        if init_exit_code != 0:
+            return init_exit_code, init_stdout, True
 
         if operation in ["apply", "destroy"]:
             plan_exit_code, plan_stdout = execute_command(
-                [
-                    "tf",
-                    "--no-resolve-envvars",
-                    self.path,
-                    "plan",
-                    "-out=%s" % plan_file_name
-                ] + self.variables,
+                plan_args,
                 print_output=False,
                 capture_stderr=True,
                 env=command_env
             )
-            args += ["-auto-approve", plan_file_name]
+            operation_args += ["-auto-approve", plan_file_name]
         else:
             plan_exit_code = 0
             plan_stdout = []
 
-        if plan_exit_code != 0:
-            return plan_exit_code, plan_stdout
+        changes_detected = plan_exit_code != 0
+
+        if plan_exit_code != 2:
+            return (
+                plan_exit_code,
+                init_stdout + ["\n"] + plan_stdout,
+                changes_detected,
+            )
 
         operation_exit_code, operation_stdout = execute_command(
-            args,
+            operation_args,
             print_output=False,
             capture_stderr=True,
             env=command_env
         )
 
-        return operation_exit_code, plan_stdout + operation_stdout
+        return (
+            operation_exit_code,
+            init_stdout + ["\n"] + plan_stdout + ["\n"] + operation_stdout,
+            changes_detected,
+        )
