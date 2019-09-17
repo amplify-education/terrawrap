@@ -23,11 +23,13 @@ Options:
 from docopt import docopt
 
 from terrawrap.models.pipeline import Pipeline
+from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 from terrawrap.utils.path import get_absolute_path
 
 
 def handler():
+    version_check(current_version=__version__)
     args = docopt(__doc__, version=__version__)
 
     pipeline_file = get_absolute_path(args['--pipeline'])

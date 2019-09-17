@@ -6,6 +6,7 @@ import csv
 import sys
 
 from terrawrap.utils.config import find_wrapper_config_files, parse_wrapper_configs
+from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
 PROJECT_ROOT_DIR = os.path.abspath(os.getcwd())
@@ -14,6 +15,8 @@ PIPELINE_DIR = os.path.abspath(os.path.join(PROJECT_ROOT_DIR, "pipelines"))
 
 
 def main():
+    version_check(current_version=__version__)
+
     if sys.argv[1] in ["--version"]:
         print(__version__)
         sys.exit(0)
