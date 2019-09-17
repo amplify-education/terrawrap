@@ -13,7 +13,7 @@ ONE_DAY_IN_SECONDS = 60 * 60 * 24
 cache = Cache(os.path.join(tempfile.gettempdir(), "terrawrap_version_cache"))
 
 
-def version_check(current_version: str):
+def version_check(current_version: str) -> bool:
     """
     Print a warning message if a stale version of Terrawrap is detected.
     :param current_version: The currently installed version of Terrawrap.
