@@ -33,7 +33,7 @@ def version_check(current_version: str) -> bool:
             sep="\n",
             file=sys.stderr,
         )
-        sleep(5)
+        sleep(1)
         return True
     except Exception as exp:
         print(
