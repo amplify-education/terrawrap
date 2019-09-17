@@ -171,6 +171,7 @@ class TestVersion(TestCase):
     @patch("json.dump")
     def test_set_cache(self, mock_dump, mock_datetime):
         """VersionUtils set cache"""
+        # pylint: disable=unused-variable
         cache_file, cache_file_path = tempfile.mkstemp()
         current_version = "1.0.0"
         latest_version = "1.0.1"
