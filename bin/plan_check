@@ -295,7 +295,7 @@ def get_modified_subdirectories(root_directory: str) -> Tuple[List[str], List[st
 
 
 def main():
-    arguments = docopt(__doc__, version=__version__)
+    arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
 
     skip_iam = arguments['--skip-iam']
     modified_only = arguments['--modified-only']

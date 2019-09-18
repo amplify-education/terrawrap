@@ -14,9 +14,12 @@ PIPELINE_DIR = os.path.abspath(os.path.join(PROJECT_ROOT_DIR, "pipelines"))
 
 
 def main():
-    if sys.argv[1] in ["--version"]:
-        print(__version__)
-        sys.exit(0)
+    try:
+        if sys.argv[1] in ["--version"]:
+            print("Terrawrap %s" % __version__)
+            sys.exit(0)
+    except IndexError:
+        pass
 
     config_directories = {
         current_dir[len(PROJECT_ROOT_DIR) + 1:]  # Remove project root to make comparisons easier
