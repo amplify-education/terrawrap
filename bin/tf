@@ -183,7 +183,7 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
             sys.exit(0)
 
         if args[1] in ["--version"]:
-            print(__version__)
+            print("Terrawrap %s" % __version__)
             sys.exit(0)
 
         if args[1] in ["--no-resolve-envvars"]:
