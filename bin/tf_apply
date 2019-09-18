@@ -30,7 +30,7 @@ from terrawrap.utils.path import get_absolute_path
 
 def handler():
     version_check(current_version=__version__)
-    args = docopt(__doc__, version=__version__)
+    args = docopt(__doc__, version="Terrawrap %s" % __version__)
 
     pipeline_file = get_absolute_path(args['--pipeline'])
 
