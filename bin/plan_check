@@ -26,6 +26,7 @@ from typing import Tuple, List, Dict
 
 from docopt import docopt
 
+from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.collection_utils import pick_dict_values_by_substring, flatten_collection
@@ -295,6 +296,7 @@ def get_modified_subdirectories(root_directory: str) -> Tuple[List[str], List[st
 
 
 def main():
+    version_check(current_version=__version__)
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
 
     skip_iam = arguments['--skip-iam']

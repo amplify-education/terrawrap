@@ -19,10 +19,12 @@ import sys
 from docopt import docopt
 
 from terrawrap.utils.config import parse_backend_config_for_dir
+from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
 
 def main():
+    version_check(current_version=__version__)
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
     target_dir = arguments["PATH"] if arguments["PATH"] else os.getcwd()
 

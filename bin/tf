@@ -26,6 +26,7 @@ import sys
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
 
+from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
@@ -201,6 +202,7 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
 
 
 def handler():
+    version_check(current_version=__version__)
     path, command, additional_arguments, should_resolve_envvars = process_arguments(sys.argv)
 
     tf_config_path = get_absolute_path(path=path)
