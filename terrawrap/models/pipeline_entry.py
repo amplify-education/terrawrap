@@ -60,6 +60,9 @@ class PipelineEntry:
         ] + self.variables
         operation_args = base_args + [operation] + self.variables
 
+        if operation in ["apply", "destroy"]:
+            operation_args += ["-auto-approve"]
+
         init_exit_code, init_stdout = execute_command(
             init_args,
             print_output=False,
@@ -70,14 +73,14 @@ class PipelineEntry:
         if init_exit_code != 0:
             return init_exit_code, init_stdout, True
 
-        if operation in ["apply", "destroy"]:
+        if operation in ["apply"]:
             plan_exit_code, plan_stdout = execute_command(
                 plan_args,
                 print_output=False,
                 capture_stderr=True,
                 env=command_env
             )
-            operation_args += ["-auto-approve", plan_file_name]
+            operation_args += [plan_file_name]
         else:
             plan_exit_code = 0
             plan_stdout = []
