@@ -1,46 +1,78 @@
 #!/usr/bin/env python
-from __future__ import print_function
+"""
+This script checks that all terraform directories under the directory provided contain backend configs.
 
+Usage:
+    pipeline_check [options] [PATHS...]
+
+Arguments:
+    PATHS    If provided, this check is confined to the provided paths.
+
+Options:
+    -h, --help                      Show this message and exit.
+    --version                       Show the version.
+    --pipeline-dir PIPELINE_DIR     The directory that contains the pipeline files.
+    --config-dir CONFIG_DIR         The directory that contains the config directories.
+"""
 import os
 import csv
-import sys
+
+from docopt import docopt
 
 from terrawrap.utils.config import find_wrapper_config_files, parse_wrapper_configs
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
-PROJECT_ROOT_DIR = os.path.abspath(os.getcwd())
-CONFIG_DIR = os.path.abspath(os.path.join(PROJECT_ROOT_DIR, "config"))
-PIPELINE_DIR = os.path.abspath(os.path.join(PROJECT_ROOT_DIR, "pipelines"))
-
 
 def main():
     version_check(current_version=__version__)
-  
-    try:
-        if sys.argv[1] in ["--version"]:
-            print("Terrawrap %s" % __version__)
-            sys.exit(0)
-    except IndexError:
-        pass
+    arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
 
-    config_directories = {
-        current_dir[len(PROJECT_ROOT_DIR) + 1:]  # Remove project root to make comparisons easier
-        for current_dir, dirs, files in os.walk(CONFIG_DIR, followlinks=True)
-        if ".terraform" not in current_dir
-           and any(entry.endswith(".tf") for entry in files)
+    if os.path.isabs(arguments["--config-dir"]):
+        root_config_dir = arguments["--config-dir"]
+    else:
+        root_config_dir = os.path.join(os.getcwd(), arguments["--config-dir"])
+
+    project_root_dir = os.path.dirname(root_config_dir)
+
+    if os.path.isabs(arguments["--pipeline-dir"]):
+        pipeline_dir = arguments["--pipeline-dir"]
+    else:
+        pipeline_dir = os.path.join(os.getcwd(), arguments["--pipeline-dir"])
+
+    provided_directories = {
+        path if os.path.isdir(path) else os.path.dirname(path)
+        for path in arguments["PATHS"]
     }
 
-    duplicate_pipeline_directories = set()
+    config_directories = set()
 
+    for current_dir, dirs, files in os.walk(root_config_dir, followlinks=True):
+        config_dir = current_dir[len(project_root_dir) + 1:]  # Remove root to make comparisons easier
+
+        if provided_directories and config_dir not in provided_directories:
+            continue
+
+        if ".terraform" in current_dir:
+            continue
+
+        if not any(entry.endswith(".tf") for entry in files):
+            continue
+
+        config_directories.add(config_dir)
+
+    duplicate_pipeline_directories = set()
     pipeline_directories = set()
-    pipelines = os.listdir(PIPELINE_DIR)
+    pipelines = os.listdir(pipeline_dir)
 
     for pipeline in pipelines:
-        with open(os.path.join(PIPELINE_DIR, pipeline), "r") as pipeline_file:
+        with open(os.path.join(pipeline_dir, pipeline), "r") as pipeline_file:
             csv_reader = csv.DictReader(pipeline_file)
             for row in csv_reader:
                 directory = row['directory']
+                if provided_directories and directory not in provided_directories:
+                    continue
+
                 if directory in pipeline_directories:
                     duplicate_pipeline_directories.add(directory)
                 else:
@@ -49,7 +81,7 @@ def main():
     config_directories_not_in_pipelines = config_directories - pipeline_directories
 
     for config_dir in config_directories_not_in_pipelines.copy():
-        wrapper_config_files = find_wrapper_config_files(path=os.path.join(PROJECT_ROOT_DIR, config_dir))
+        wrapper_config_files = find_wrapper_config_files(path=os.path.join(project_root_dir, config_dir))
         wrapper_config = parse_wrapper_configs(wrapper_config_files=wrapper_config_files)
         if not wrapper_config.pipeline_check:
             config_directories_not_in_pipelines.remove(config_dir)
