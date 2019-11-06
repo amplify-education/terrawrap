@@ -3,10 +3,10 @@
 This script checks that all terraform directories under the directory provided contain backend configs.
 
 Usage:
-    backend_check [options] [PATH]
+    backend_check [options] PATHS...
 
 Arguments:
-    PATH    The path of the directory to check. Defaults to the current working directory.
+    PATHS   Paths to check.
 
 Options:
     -h, --help          Show this message and exit.
@@ -26,13 +26,10 @@ from terrawrap.version import __version__
 def main():
     version_check(current_version=__version__)
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
-    target_dir = arguments["PATH"] if arguments["PATH"] else os.getcwd()
 
     config_dirs = {
-        current_dir: [file for file in files if file.endswith(".tf")]
-        for current_dir, dirs, files in os.walk(target_dir, followlinks=True)
-        if ".terraform" not in current_dir
-           and any(entry.endswith(".tf") for entry in files)
+        path if os.path.isdir(path) else os.path.dirname(path)
+        for path in arguments["PATHS"]
     }
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -41,7 +38,7 @@ def main():
                 check_directory_for_backend,
                 dir_path=config_dir,
             ): config_dir
-            for config_dir, files in config_dirs.items()
+            for config_dir in config_dirs
         }
 
         config_dirs_without_terraform_backend = {
