@@ -6,7 +6,7 @@ Usage:
     backend_check [options] PATHS...
 
 Arguments:
-    PATHS    Paths to check.
+    PATHS   Paths to check.
 
 Options:
     -h, --help          Show this message and exit.
