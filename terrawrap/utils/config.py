@@ -1,5 +1,4 @@
 """Holds config utilities"""
-import concurrent.futures
 import os
 import re
 import subprocess
@@ -183,22 +182,17 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
     :param dir_path: Directory that has tf files
     :return: Backend config if a "terraform" resource exists, otherwise None
     """
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        futures = [
-            executor.submit(
-                _parse_backend_config_for_file,
-                file_path=os.path.join(dir_path, file_path),
-            )
-            for file_path in os.listdir(dir_path)
-            if '.terraform' not in file_path and file_path.endswith('tf')
-        ]
+    for file_path in os.listdir(dir_path):
+        if '.terraform' in file_path or not file_path.endswith('tf'):
+            continue
 
-        #  get the first backend config that we find or else return None
-        return next((
-            backend.result()
-            for backend in concurrent.futures.as_completed(futures)
-            if backend.result() is not None
-        ), None)
+        result = _parse_backend_config_for_file(
+            file_path=os.path.join(dir_path, file_path),
+        )
+        if result:
+            return result
+
+    return None
 
 
 def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
