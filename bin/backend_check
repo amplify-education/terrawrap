@@ -3,10 +3,10 @@
 This script checks that all terraform directories under the directory provided contain backend configs.
 
 Usage:
-    backend_check [options] [PATHS...]
+    backend_check [options] PATHS...
 
 Arguments:
-    PATHS    Paths to check, recursively. Defaults to the current working directory.
+    PATHS    Paths to check.
 
 Options:
     -h, --help          Show this message and exit.
