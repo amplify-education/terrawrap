@@ -17,6 +17,7 @@ from terrawrap.models.wrapper_config import (
     BackendsConfig
 )
 from terrawrap.utils.collection_utils import update
+from terrawrap.utils.path import get_absolute_path
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
 DEFAULT_REGION = 'us-west-2'
@@ -84,6 +85,46 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
 
     wrapper_config_obj: WrapperConfig = jsons.load(generated_wrapper_config, WrapperConfig, strict=True)
     return wrapper_config_obj
+
+
+def parse_dependencies(wrapper_config_file) -> List:
+    """
+    Function for parsing the Terraform wrapper config file for dependencies.
+    :param wrapper_config_file: A file path to a wrapper config file.
+    :return: dependencies - A list of dependencies for the given wrapper config file.
+    """
+    with open(wrapper_config_file) as wrapper_config_file:
+        wrapper_config = yaml.safe_load(wrapper_config_file)
+    dependencies = []
+    try:
+
+        wrapper_dependencies = wrapper_config['dependencies']
+        for path in wrapper_dependencies:
+            path = get_absolute_path(path)
+            dependencies.append(path)
+        return dependencies
+    except TypeError:
+        return dependencies
+
+
+def recursive_wrapper_file_dependencies(wrapperfile, dependencies, graph):
+    """
+
+    :param wrapperfile:
+    :param dependencies:
+    :param graph:
+    :return:
+    """
+    if wrapperfile not in graph:
+        graph.add_node(wrapperfile)
+    for dependency in dependencies:
+        if dependency not in graph:
+            graph.add_node(dependency)
+        if not (graph.has_edge(dependency,wrapperfile)):
+            graph.add_edge(dependency, wrapperfile)
+        inner_dependencies = parse_dependencies(dependency)
+        if inner_dependencies:
+            recursive_wrapper_file_dependencies(dependency, inner_dependencies, graph)
 
 
 def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, str]:
