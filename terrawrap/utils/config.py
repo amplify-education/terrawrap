@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 from typing import Dict, List, Optional
+import networkx
 
 import hcl2
 import jsons
@@ -18,6 +19,7 @@ from terrawrap.models.wrapper_config import (
 )
 from terrawrap.utils.collection_utils import update
 from terrawrap.utils.path import get_absolute_path
+from terrawrap.utils.graph import find_source_nodes
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
 DEFAULT_REGION = 'us-west-2'
@@ -87,45 +89,275 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
     return wrapper_config_obj
 
 
-def parse_dependencies(wrapper_config_file) -> List:
+def parse_dependencies(directory) -> List:
     """
     Function for parsing the Terraform wrapper config file for dependencies.
     :param wrapper_config_file: A file path to a wrapper config file.
     :return: dependencies - A list of dependencies for the given wrapper config file.
     """
-    with open(wrapper_config_file) as wrapper_config_file:
-        wrapper_config = yaml.safe_load(wrapper_config_file)
+    has_tfwrapper = False
     dependencies = []
+    for file_name in os.listdir(directory):
+        if file_name.endswith('.tf_wrapper'):
+            file_name = os.path.join(directory, file_name)
+            wrapper_config_file = file_name
+            with open(wrapper_config_file) as wrapper_config_file:
+                wrapper_config = yaml.safe_load(wrapper_config_file)
+            try:
+                if wrapper_config.get("depends_on"):
+                    wrapper_dependencies = wrapper_config['depends_on']
+                    for path in wrapper_dependencies:
+                        path = get_absolute_path(path)
+                        dependencies.append(path)
+                    return dependencies
+            except TypeError:
+                return dependencies
+    if not has_tfwrapper:
+        return dependencies
+
+def get_child_nodes(graph):
+    child_nodes = []
+    for node in graph:
+        successors = list(graph.successors(node))
+        if successors:
+            continue
+        else:
+            child_nodes.append(node)
+    return child_nodes
+
+def add_to_graph(graph, node, child_nodes):
+    graph.add_node(node)
+    for child in child_nodes:
+        graph.add_edge(child,node)
+
+
+# def get_dependencies(config_dir):
+#     wrapper_files = find_wrapper_config_files(config_dir)
+#     outer_graph = networkx.DiGraph()
+#     for wrapper_file in wrapper_files:
+#         with open(wrapper_file) as wrapper_file:
+#             wrapper_config = yaml.safe_load(wrapper_file)
+#             config = wrapper_config.get(config_dir) == False
+#             depends_on = wrapper_config.get('depends_on')
+#             wrapper_dir = os.path.dirname(wrapper_file)
+#         try:
+#             if config == False and depends_on == None:
+#                 continue
+#             elif config and depends_on == None:
+#                 if os.listdir(wrapper_dir) not in outer_graph.nodes:
+#                     add_to_graph(outer_graph,wrapper_dir)
+#                 continue
+#             elif config == False:
+#                 if wrapper_dir in outer_graph:
+#                     continue
+#                 else:
+#                     minigraph = networkx.DiGraph()
+#                     smart_parse_depenedencies(wrapper_dir,wrapper_config['dependencies'], outer_graph, minigraph)
+#                     sources = find_source_nodes(minigraph)
+#                     for source in sources:
+#                         add_to_graph(outer_graph, source)
+
+
+def is_config(directory):
+    wrapper_file = os.path.join(directory, ".tf_wrapper")
+    with open(wrapper_file) as wrapper_file:
+        wrapper_config = yaml.safe_load(wrapper_file)
+        try:
+            # print("checking config")
+            # print(directory)
+            # print(wrapper_config.get("config"))
+            return wrapper_config.get("config") is None
+        except AttributeError:
+            return True
+
+def has_depends_on(directory):
+    wrapper_file = os.path.join(directory, ".tf_wrapper")
+    with open(wrapper_file) as wrapper_file:
+        wrapper_config = yaml.safe_load(wrapper_file)
+        try:
+            # print("checking config")
+            # print(directory)
+            # print(wrapper_config.get("config"))
+            return wrapper_config.get("depends_on") is not None
+        except AttributeError:
+            return False
+
+def smart_parse_depenedencies(dir,dependencies,  outer_graph, graph):
+        if dir not in graph:
+            graph.add_node(dir)
+        for dependency in dependencies:
+            if dependency in outer_graph:
+                continue
+            if dependency not in graph:
+                graph.add_node(dependency)
+            if not (graph.has_edge(dependency,dir)):
+                graph.add_edge(dependency, dir)
+            inner_dependencies = parse_dependencies(dependency)
+            if inner_dependencies:
+                smart_parse_depenedencies(dependency, inner_dependencies, graph)
+def non_recure_dep(dir, outergraph):
+    wrapper_files = find_wrapper_config_files(dir)
+    for wrapper_file in wrapper_files:
+        wrapper_dir = os.path.dirname(wrapper_file)
+        child_nodes = get_child_nodes(outergraph)
+        try:
+            dependencies = parse_dependencies(wrapper_dir)
+
+        except AttributeError:
+            dependencies = None
+        if dependencies:
+            for dependency in dependencies:
+                minigraph = networkx.DiGraph()
+                # minigraph.add_node(wrapper_dir)
+                # minigraph.add_node(dependency)
+                # minigraph.add_edge(dependency, wrapper_dir)
+                if dependency not in outergraph and not dependency == dir:
+                    find_inherited_dependencies(dependency, minigraph)
+                    for source in find_source_nodes(minigraph):
+                        if source not in outergraph:
+                            add_to_graph(outergraph, source, child_nodes)
+                    networkx.compose(outergraph, minigraph)
+        child_nodes = get_child_nodes(outergraph)
+
+    if is_config(dir):
+        if dir not in outergraph:
+            add_to_graph(outergraph, dir, child_nodes)
+
+
+def apply_graph(starting_dir):
+    graph_list = []
+    for root,dirs,files in os.walk(starting_dir):
+        for name in dirs:
+            for file in os.listdir(os.path.join(root, name)):
+                if file.endswith(".tf_wrapper"):
+                    print(os.path.join(root, name))
+                    sub_graph = networkx.DiGraph()
+                    visited = []
+                    non_recure_dep(os.path.join(root, name), sub_graph)
+                    print("subgraph")
+                    for node in sub_graph:
+                        print(node)
+                    graph_list.append(sub_graph)
+    print("apply_graph")
+    print(graph_list)
+    apply = networkx.compose_all(graph_list)
+    return apply
+
+def find_inherited_dependencies(dir, outergraph):
+    wrapper_files = find_wrapper_config_files(dir)
+    for wrapper_file in wrapper_files:
+        wrapper_dir = os.path.dirname(wrapper_file)
+     #   print(wrapper_file)
+        child_nodes = get_child_nodes(outergraph)
+        try:
+            #print("dependencies for %s" % wrapper_dir)
+            dependencies = parse_dependencies(wrapper_dir)
+
+        except AttributeError:
+            dependencies = None
+        if dependencies:
+            for dependency in dependencies:
+                minigraph = networkx.DiGraph()
+                if dependency not in outergraph and not dependency == dir:
+                    minigraph = networkx.DiGraph()
+                    # minigraph.add_node(wrapper_dir)
+                    # minigraph.add_node(dependency)
+                    # minigraph.add_edge(dependency, wrapper_dir)
+                    find_inherited_dependencies(dependency, minigraph)
+                    print(minigraph.nodes)
+                    for source in find_source_nodes(minigraph):
+                        #print("source")
+                        #print(source)
+                        if source not in outergraph:
+                          #  print("adding node %s", source)
+                            add_to_graph(outergraph, source, child_nodes)
+                    networkx.compose(outergraph, minigraph)
+        child_nodes = get_child_nodes(outergraph)
+       # print(child_nodes)
+
+        if is_config(dir):
+           # print(dir)
+            if dir not in outergraph:
+              #  print("adding node %s", wrapper_dir)
+                add_to_graph(outergraph, dir, child_nodes)
+
+
+# def new_way(dir):
+#     wrapper_files = find_wrapper_config_files(dir)
+#     dep_list = []
+#     for wrapper_file in wrapper_files:
+#         wrapper_dir = os.path.dirname(wrapper_file)
+#         try:
+#             #print("dependencies for %s" % wrapper_dir)
+#             dependencies = parse_dependencies(wrapper_dir)
+#
+#         except AttributeError:
+#             dependencies = []
+#         if dependencies:
+#             for dependency in dependencies:
+#                 minigraph = networkx.DiGraph()
+#                 if dependency not in outergraph and not dependency == dir:
+#         if is_config(wrapper_dir):
+#             dep_list.append(wrapper_dir)
+# def recursive_wrapper_file_dependencies(dir, dependencies, graph):
+#     """
+#
+#     :param wrapperfile:
+#     :param dependencies:
+#     :param graph:
+#     :return:
+#     """
+#     if dir not in graph:
+#         graph.add_node(dir)
+#     for dependency in dependencies:
+#         if dependency not in graph:
+#             graph.add_node(dependency)
+#         if not (graph.has_edge(dependency,dir)):
+#             graph.add_edge(dependency, dir)
+#         inner_dependencies = parse_dependencies(dependency)
+#         if inner_dependencies:
+#             recursive_wrapper_file_dependencies(dependency, inner_dependencies, graph)
+
+def i_hate_my_life(dir, graph, visited):
+    if dir in visited:
+        return
+    visited.append(dir)
+    if dir not in graph and is_config(dir):
+        graph.add_node(dir)
+        print("this is config", dir)
     try:
-
-        wrapper_dependencies = wrapper_config['dependencies']
-        for path in wrapper_dependencies:
-            path = get_absolute_path(path)
-            dependencies.append(path)
-        return dependencies
-    except TypeError:
-        return dependencies
-
-
-def recursive_wrapper_file_dependencies(wrapperfile, dependencies, graph):
-    """
-
-    :param wrapperfile:
-    :param dependencies:
-    :param graph:
-    :return:
-    """
-    if wrapperfile not in graph:
-        graph.add_node(wrapperfile)
-    for dependency in dependencies:
-        if dependency not in graph:
-            graph.add_node(dependency)
-        if not (graph.has_edge(dependency,wrapperfile)):
-            graph.add_edge(dependency, wrapperfile)
-        inner_dependencies = parse_dependencies(dependency)
-        if inner_dependencies:
-            recursive_wrapper_file_dependencies(dependency, inner_dependencies, graph)
-
+        tf_dependencies = parse_dependencies(dir)
+    except AttributeError:
+        tf_dependencies = []
+    for dep in tf_dependencies:
+        if dep not in graph and is_config(dep):
+            print("this is config tf dep", dep)
+            graph.add_node(dep)
+        if dir in graph and not graph.has_edge(dep,dir):
+            graph.add_edge(dep, dir)
+            print(" Adding edge from dep", dep, " to ", dir)
+    wrappers = find_wrapper_config_files(dir)
+    wrappers.reverse()
+    for wrapper in wrappers:
+        wrapper_dir = os.path.dirname(wrapper)
+        if wrapper_dir == dir:
+            continue
+        if has_depends_on(wrapper_dir):
+            print(wrapper_dir, " should not = ", dir)
+            closest_inheritance = wrapper_dir
+            inherit_deps = parse_dependencies(closest_inheritance)
+            for dep in inherit_deps:
+                if dep == dir:
+                    continue
+                if dep not in graph and is_config(dep):
+                    print("this is config inherit dep", dep)
+                    graph.add_node(dep)
+                if dir in graph and not graph.has_edge(dep,dir):
+                    graph.add_edge(dep, dir)
+                    print(" Adding edge from", dep, " to ", dir)
+            break
+    for pred in list(graph.predecessors(dir)):
+        i_hate_my_life(pred, graph, visited)
 
 def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, str]:
     """

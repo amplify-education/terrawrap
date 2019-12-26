@@ -27,7 +27,7 @@ from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
 from terrawrap.utils.config import (parse_wrapper_configs, find_wrapper_config_files, resolve_envvars,
-                                    parse_dependencies, recursive_wrapper_file_dependencies)
+                                    parse_dependencies, find_inherited_dependencies, non_recure_dep, apply_graph, i_hate_my_life)
 from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize
 
 
@@ -52,10 +52,26 @@ def main():
     configs = find_wrapper_config_files(config_dir)
 
     if only_dependencies:
-        print("Dependencies for %s:" % configs[-1])
-        dependencies = parse_dependencies(configs[-1])
-        for dependency in dependencies:
+        print("Dependencies for %s:" % config_dir)
+        graph = networkx.DiGraph()
+        visited = []
+        dependencies = i_hate_my_life(config_dir, graph, visited)
+       # print("we out this")# parse_dependencies(config_dir)
+        for dependency in graph:
             print("> %s" % dependency.replace(os.getcwd(), ""))
+            print(list(graph.successors(dependency)))
+        apply = apply_graph("/Users/dcox/git/terraform-config/config/aws/litco-dev/us-west-2/build")
+        for dependency in apply:
+            print("> %s" % dependency.replace(os.getcwd(), ""))
+            print(list(apply.successors(dependency)))
+        sources = find_source_nodes(apply)
+        print(sources)
+        dependencies =generate_dependencies(sources,apply)
+        visualize(dependencies,0)
+        print(list(networkx.dfs_preorder_nodes(apply, sources[0])))
+        networkx.draw(graph, with_labels=True)
+        p.show()
+
         exit(0)
 
     print(
@@ -65,9 +81,10 @@ def main():
 
     visualization_graphs = []
     for wrapper_file in configs:
-        dependencies = parse_dependencies(wrapper_file)
+        wrapper_directory = os.path.dirname(wrapper_file)
+        dependencies = parse_dependencies(wrapper_directory)
         graph = networkx.DiGraph()
-        recursive_wrapper_file_dependencies(wrapper_file, dependencies, graph)
+        recursive_wrapper_file_dependencies(wrapper_directory, dependencies, graph)
         visualization_graphs.append(graph)
 
     count = 0
