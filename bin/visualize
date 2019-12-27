@@ -53,24 +53,24 @@ def main():
 
     if only_dependencies:
         print("Dependencies for %s:" % config_dir)
-        graph = networkx.DiGraph()
-        visited = []
-        dependencies = i_hate_my_life(config_dir, graph, visited)
+        # graph = networkx.DiGraph()
+        # visited = []
+        # dependencies = i_hate_my_life(config_dir, graph, visited)
        # print("we out this")# parse_dependencies(config_dir)
-        for dependency in graph:
-            print("> %s" % dependency.replace(os.getcwd(), ""))
-            print(list(graph.successors(dependency)))
+       #  for dependency in graph:
+       #      print("> %s" % dependency.replace(os.getcwd(), ""))
+       #      print(list(graph.successors(dependency)))
         apply = apply_graph("/Users/dcox/git/terraform-config/config/aws/litco-dev/us-west-2/build")
-        for dependency in apply:
-            print("> %s" % dependency.replace(os.getcwd(), ""))
-            print(list(apply.successors(dependency)))
+        # for dependency in apply:
+            # print("> %s" % dependency.replace(os.getcwd(), ""))
+            # print(list(apply.successors(dependency)))
         sources = find_source_nodes(apply)
-        print(sources)
+        # print(sources)
         dependencies =generate_dependencies(sources,apply)
         visualize(dependencies,0)
-        print(list(networkx.dfs_preorder_nodes(apply, sources[0])))
-        networkx.draw(graph, with_labels=True)
-        p.show()
+        # print(list(networkx.dfs_preorder_nodes(apply, sources[0])))
+        # networkx.draw(graph, with_labels=True)
+        # p.show()
 
         exit(0)
 

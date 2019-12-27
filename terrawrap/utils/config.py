@@ -223,6 +223,10 @@ def non_recure_dep(dir, outergraph):
         if dir not in outergraph:
             add_to_graph(outergraph, dir, child_nodes)
 
+def is_cyclic(graph):
+    sources = find_source_nodes(graph)
+    if not sources:
+        return True
 
 def apply_graph(starting_dir):
     graph_list = []
@@ -230,13 +234,16 @@ def apply_graph(starting_dir):
         for name in dirs:
             for file in os.listdir(os.path.join(root, name)):
                 if file.endswith(".tf_wrapper"):
+                    if not is_config(os.path.join(root, name)):
+                        continue
+                    print("ive found one")
                     print(os.path.join(root, name))
                     sub_graph = networkx.DiGraph()
                     visited = []
-                    non_recure_dep(os.path.join(root, name), sub_graph)
+                    i_hate_my_life(os.path.join(root, name), sub_graph, visited)
                     print("subgraph")
-                    for node in sub_graph:
-                        print(node)
+                    # for node in sub_graph:
+                    #     print(node)
                     graph_list.append(sub_graph)
     print("apply_graph")
     print(graph_list)
@@ -319,23 +326,24 @@ def find_inherited_dependencies(dir, outergraph):
 #             recursive_wrapper_file_dependencies(dependency, inner_dependencies, graph)
 
 def i_hate_my_life(dir, graph, visited):
+    print("calling on dir", dir)
     if dir in visited:
         return
     visited.append(dir)
     if dir not in graph and is_config(dir):
         graph.add_node(dir)
-        print("this is config", dir)
+    #    print("this is config", dir)
     try:
         tf_dependencies = parse_dependencies(dir)
     except AttributeError:
         tf_dependencies = []
     for dep in tf_dependencies:
         if dep not in graph and is_config(dep):
-            print("this is config tf dep", dep)
+        #    print("this is config tf dep", dep)
             graph.add_node(dep)
         if dir in graph and not graph.has_edge(dep,dir):
             graph.add_edge(dep, dir)
-            print(" Adding edge from dep", dep, " to ", dir)
+       #     print(" Adding edge from dep", dep, " to ", dir)
     wrappers = find_wrapper_config_files(dir)
     wrappers.reverse()
     for wrapper in wrappers:
@@ -343,18 +351,18 @@ def i_hate_my_life(dir, graph, visited):
         if wrapper_dir == dir:
             continue
         if has_depends_on(wrapper_dir):
-            print(wrapper_dir, " should not = ", dir)
+        #    print(wrapper_dir, " should not = ", dir)
             closest_inheritance = wrapper_dir
             inherit_deps = parse_dependencies(closest_inheritance)
             for dep in inherit_deps:
                 if dep == dir:
                     continue
                 if dep not in graph and is_config(dep):
-                    print("this is config inherit dep", dep)
+             #       print("this is config inherit dep", dep)
                     graph.add_node(dep)
                 if dir in graph and not graph.has_edge(dep,dir):
                     graph.add_edge(dep, dir)
-                    print(" Adding edge from", dep, " to ", dir)
+              #      print(" Adding edge from", dep, " to ", dir)
             break
     for pred in list(graph.predecessors(dir)):
         i_hate_my_life(pred, graph, visited)
