@@ -1,8 +1,9 @@
 """ Holds graph utilities"""
 import os
-import networkx
 
 from typing import List, Tuple, Any
+
+import networkx
 
 
 def has_cycle(graph: networkx.DiGraph) -> bool:
@@ -14,6 +15,8 @@ def has_cycle(graph: networkx.DiGraph) -> bool:
     sources = find_source_nodes(graph)
     if not sources:
         return True
+
+    return False
 
 
 def find_source_nodes(graph: networkx.DiGraph) -> List[str]:
@@ -60,12 +63,12 @@ def generate_dependencies(nodes: List[str], graph: networkx.DiGraph) -> List[Any
         node_successors = successors(depth, node, graph)
         path.append(node_successors)
         if node_successors[1]:
-            recursive_dependencies(node_successors[2], graph, depth+1, path)
+            generate_helper(node_successors[2], graph, depth+1, path)
         dependencies.append(path)
     return dependencies
 
 
-def recursive_dependencies(nodes: List[str], graph: networkx.DiGraph, depth: int, path: List[str]) -> List[str]:
+def generate_helper(nodes: List[str], graph: networkx.DiGraph, depth: int, path: List[str]) -> List[str]:
     """
     The recursive helper function for generate_dependencies
     :param nodes: A list of nodes
@@ -78,7 +81,7 @@ def recursive_dependencies(nodes: List[str], graph: networkx.DiGraph, depth: int
         node_successors = successors(depth, node, graph)
         path.append(node_successors)
         if node_successors[1]:
-            recursive_dependencies(node_successors[2], graph, depth+1, path)
+            generate_helper(node_successors[2], graph, depth+1, path)
     return path
 
 

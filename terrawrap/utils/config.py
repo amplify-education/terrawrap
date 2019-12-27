@@ -19,7 +19,6 @@ from terrawrap.models.wrapper_config import (
 )
 from terrawrap.utils.collection_utils import update
 from terrawrap.utils.path import get_absolute_path
-from terrawrap.utils.graph import find_source_nodes
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
 DEFAULT_REGION = 'us-west-2'
@@ -99,9 +98,6 @@ def is_config(directory: str) -> bool:
     with open(wrapper_file) as wrapper_file:
         wrapper_config = yaml.safe_load(wrapper_file)
         try:
-            # print("checking config")
-            # print(directory)
-            # print(wrapper_config.get("config"))
             return wrapper_config.get("config") is not False
         except AttributeError:
             return True
@@ -117,9 +113,6 @@ def has_depends_on(directory: str) -> bool:
     with open(wrapper_file) as wrapper_file:
         wrapper_config = yaml.safe_load(wrapper_file)
         try:
-            # print("checking config")
-            # print(directory)
-            # print(wrapper_config.get("config"))
             return wrapper_config.get("depends_on") is not None
         except AttributeError:
             return False
@@ -131,7 +124,6 @@ def parse_dependencies(directory: str) -> List[str]:
     :param directory: A directory containing a tf_wrapper.
     :return: dependencies - A list of dependencies for the given directory.
     """
-    has_tfwrapper = False
     dependencies = []
 
     for file_name in os.listdir(directory):
@@ -150,9 +142,7 @@ def parse_dependencies(directory: str) -> List[str]:
                     return dependencies
             except TypeError:
                 return dependencies
-
-    if not has_tfwrapper:
-        return dependencies
+    return dependencies
 
 
 def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, visited: List[str]):
@@ -208,7 +198,7 @@ def directory_dependency_grapher(starting_dir: str) -> networkx.DiGraph:
     """
     graph_list = []
 
-    for root,dirs,files in os.walk(starting_dir):
+    for root, dirs, files in os.walk(starting_dir):
         for name in dirs:
             dir_path = os.path.join(root, name)
             for file in os.listdir(dir_path):
