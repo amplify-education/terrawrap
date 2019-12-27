@@ -11,24 +11,20 @@ Arguments:
 Options:
     -h, --help          Show this message and exit.[default: False]
     -d, --dependencies  Show dependency info for a single wrapper file.[default: False]
+    -s, --show          Show a visual graph for this command.[default: False]
 """
 
 import os
 import networkx
 import matplotlib.pylab as p
-import concurrent.futures
-from operator import attrgetter
-from enum import Enum
-from typing import Tuple, List, Dict
 
 from docopt import docopt
 
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
-from terrawrap.utils.config import (parse_wrapper_configs, find_wrapper_config_files, resolve_envvars,
-                                    parse_dependencies, directory_dependency_grapher, single_config_dependency_grapher)
-from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize
+from terrawrap.utils.config import directory_dependency_grapher, single_config_dependency_grapher
+from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize, has_cycle
 
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -40,6 +36,7 @@ def main():
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
 
     only_dependencies = arguments['--dependencies']
+    show = arguments['--show']
 
     # Get the directory with Terraform config passed to this script as an argument
     config_dir = arguments['<path>']
@@ -49,65 +46,33 @@ def main():
     if not os.path.isdir:
         config_dir = os.path.dirname(config_dir)
 
-    configs = find_wrapper_config_files(config_dir)
-
     if only_dependencies:
         print("Dependencies for %s:" % config_dir)
-        # graph = networkx.DiGraph()
-        # visited = []
-        # dependencies = i_hate_my_life(config_dir, graph, visited)
-       # print("we out this")# parse_dependencies(config_dir)
-       #  for dependency in graph:
-       #      print("> %s" % dependency.replace(os.getcwd(), ""))
-       #      print(list(graph.successors(dependency)))
-        apply = directory_dependency_grapher("/Users/dcox/git/terraform-config/config/aws/litco-dev/us-west-2/build")
-        # for dependency in apply:
-            # print("> %s" % dependency.replace(os.getcwd(), ""))
-            # print(list(apply.successors(dependency)))
-        sources = find_source_nodes(apply)
-        # print(sources)
-        dependencies =generate_dependencies(sources,apply)
-        visualize(dependencies,0)
-        # print(list(networkx.dfs_preorder_nodes(apply, sources[0])))
-        # networkx.draw(graph, with_labels=True)
-        # p.show()
-
+        graph = networkx.DiGraph()
+        visited = []
+        single_config_dependency_grapher(config_dir, graph, visited)
+        if has_cycle(graph):
+            exit(1)
+        sources = find_source_nodes(graph)
+        dependencies = generate_dependencies(sources, graph)
+        visualize(dependencies)
+        if show:
+            networkx.draw(graph, with_labels=True)
+            p.show()
         exit(0)
 
     print(
         "Visualizing Dependencies for: %s"
         % config_dir
     )
-
-    # visualization_graphs = []
-    # for wrapper_file in configs:
-    #     wrapper_directory = os.path.dirname(wrapper_file)
-    #     dependencies = parse_dependencies(wrapper_directory)
-    #     graph = networkx.DiGraph()
-    #     recursive_wrapper_file_dependencies(wrapper_directory, dependencies, graph)
-    #     visualization_graphs.append(graph)
-    #
-    # count = 0
-    # for graph in visualization_graphs:
-    #     # networkx.draw(graph, with_labels=True)
-    #     # p.show()
-    #     sources = find_source_nodes(graph)
-    #     dependencies = generate_dependencies(sources, graph)
-    #     #print(dependencies)
-    #     visualize(dependencies, count)
-    #     count += 1
-
+    directory_graph = directory_dependency_grapher(config_dir)
+    sources = find_source_nodes(directory_graph)
+    dependencies = generate_dependencies(sources, directory_graph)
+    visualize(dependencies)
+    if show:
+        networkx.draw(directory_graph, with_labels=True)
+        p.show()
     exit(0)
-
-    #exit_code = execute_init_and_plan(regular_directories, symlinked_directories, skip_iam, print_diff, with_colors)
-
-   # if exit_code == WrapperExitCode.TERRAFORM_FAILURE:
-      #  print("General Terraform failures detected. Check the output above and please resolve any issues.")
-
-   # if exit_code == WrapperExitCode.IAM_CHANGES:
-   #     print("IAM changes have been detected. If these changes are intended, please contact the devops team to merge.")
-
-   # exit(exit_code.value)
 
 
 if __name__ == '__main__':

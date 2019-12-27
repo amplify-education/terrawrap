@@ -82,12 +82,12 @@ def recursive_dependencies(nodes: List[str], graph: networkx.DiGraph, depth: int
     return path
 
 
-def visualize(dependencies: List[List[str]], depth: int):
+def visualize(dependencies: List[List[str]]):
     """
     For a given graph, generate a human readable output
     :param dependencies: A list of paths for a graph
-    :param depth: The depth of the graph
     """
+    depth = 0
     for path in dependencies:
         for node in path:
             tab_spacing = int(node[0]) -1 + depth
