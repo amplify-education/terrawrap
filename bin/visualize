@@ -27,7 +27,7 @@ from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
 from terrawrap.utils.config import (parse_wrapper_configs, find_wrapper_config_files, resolve_envvars,
-                                    parse_dependencies, find_inherited_dependencies, non_recure_dep, apply_graph, i_hate_my_life)
+                                    parse_dependencies, directory_dependency_grapher, single_config_dependency_grapher)
 from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize
 
 
@@ -60,7 +60,7 @@ def main():
        #  for dependency in graph:
        #      print("> %s" % dependency.replace(os.getcwd(), ""))
        #      print(list(graph.successors(dependency)))
-        apply = apply_graph("/Users/dcox/git/terraform-config/config/aws/litco-dev/us-west-2/build")
+        apply = directory_dependency_grapher("/Users/dcox/git/terraform-config/config/aws/litco-dev/us-west-2/build")
         # for dependency in apply:
             # print("> %s" % dependency.replace(os.getcwd(), ""))
             # print(list(apply.successors(dependency)))
@@ -79,23 +79,23 @@ def main():
         % config_dir
     )
 
-    visualization_graphs = []
-    for wrapper_file in configs:
-        wrapper_directory = os.path.dirname(wrapper_file)
-        dependencies = parse_dependencies(wrapper_directory)
-        graph = networkx.DiGraph()
-        recursive_wrapper_file_dependencies(wrapper_directory, dependencies, graph)
-        visualization_graphs.append(graph)
-
-    count = 0
-    for graph in visualization_graphs:
-        # networkx.draw(graph, with_labels=True)
-        # p.show()
-        sources = find_source_nodes(graph)
-        dependencies = generate_dependencies(sources, graph)
-        #print(dependencies)
-        visualize(dependencies, count)
-        count += 1
+    # visualization_graphs = []
+    # for wrapper_file in configs:
+    #     wrapper_directory = os.path.dirname(wrapper_file)
+    #     dependencies = parse_dependencies(wrapper_directory)
+    #     graph = networkx.DiGraph()
+    #     recursive_wrapper_file_dependencies(wrapper_directory, dependencies, graph)
+    #     visualization_graphs.append(graph)
+    #
+    # count = 0
+    # for graph in visualization_graphs:
+    #     # networkx.draw(graph, with_labels=True)
+    #     # p.show()
+    #     sources = find_source_nodes(graph)
+    #     dependencies = generate_dependencies(sources, graph)
+    #     #print(dependencies)
+    #     visualize(dependencies, count)
+    #     count += 1
 
     exit(0)
 
