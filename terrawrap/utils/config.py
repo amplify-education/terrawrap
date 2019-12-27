@@ -155,7 +155,7 @@ def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, v
     if config_dir in visited:
         return
     visited.append(config_dir)
-    if config_dir not in graph and is_config(config_dir):
+    if is_config(config_dir):
         graph.add_node(config_dir)
 
     try:
@@ -163,9 +163,9 @@ def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, v
     except AttributeError:
         tf_dependencies = []
     for dependency in tf_dependencies:
-        if dependency not in graph and is_config(dependency):
+        if is_config(dependency):
             graph.add_node(dependency)
-        if config_dir in graph and not graph.has_edge(dependency, config_dir):
+        if config_dir in graph:
             graph.add_edge(dependency, config_dir)
 
     wrappers = find_wrapper_config_files(config_dir)
@@ -180,9 +180,9 @@ def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, v
             for dependency in inherited_dependencies:
                 if dependency == config_dir:
                     continue
-                if dependency not in graph and is_config(dependency):
+                if is_config(dependency):
                     graph.add_node(dependency)
-                if config_dir in graph and not graph.has_edge(dependency, config_dir):
+                if config_dir in graph:
                     graph.add_edge(dependency, config_dir)
             break  # we only need the closest, the recursion will handle anything higher
 
