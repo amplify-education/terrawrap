@@ -1,8 +1,6 @@
 """ Holds graph utilities"""
 import os
-
 from typing import List, Tuple, Any
-
 import networkx
 
 
