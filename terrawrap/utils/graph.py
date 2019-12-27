@@ -3,6 +3,8 @@ import os
 from typing import List, Tuple, Any
 import networkx
 
+print("is this print statement invalid too")
+
 
 def find_source_nodes(graph: networkx.DiGraph) -> List[str]:
     """
