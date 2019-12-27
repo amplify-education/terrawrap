@@ -6,19 +6,6 @@ from typing import List, Tuple, Any
 import networkx
 
 
-def has_cycle(graph: networkx.DiGraph) -> bool:
-    """
-    Checks if a graph contains a cycle.
-    :param graph: The graph to check
-    :return: A boolean true if there is a cycle.
-    """
-    sources = find_source_nodes(graph)
-    if not sources:
-        return True
-
-    return False
-
-
 def find_source_nodes(graph: networkx.DiGraph) -> List[str]:
     """
     For a given graph return a list of source nodes (Nodes with no predecessors)
@@ -34,6 +21,19 @@ def find_source_nodes(graph: networkx.DiGraph) -> List[str]:
             source_nodes.append(node)
 
     return source_nodes
+
+
+def has_cycle(graph: networkx.DiGraph) -> bool:
+    """
+    Checks that a graph does not contain a cycle.
+    :param graph: The graph to check
+    :return: A boolean true if there is a cycle.
+    """
+    sources = find_source_nodes(graph)
+    if not sources:
+        return True
+
+    return False
 
 
 def successors(depth: int, node: str, graph: networkx.DiGraph) -> Tuple[int, str, List[str]]:
