@@ -163,8 +163,7 @@ def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, v
     except AttributeError:
         tf_dependencies = []
     for dependency in tf_dependencies:
-        if is_config(dependency):
-            graph.add_node(dependency)
+        graph.add_node(dependency)
         if config_dir in graph:
             graph.add_edge(dependency, config_dir)
 
@@ -180,8 +179,7 @@ def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, v
             for dependency in inherited_dependencies:
                 if dependency == config_dir:
                     continue
-                if is_config(dependency):
-                    graph.add_node(dependency)
+                graph.add_node(dependency)
                 if config_dir in graph:
                     graph.add_edge(dependency, config_dir)
             break  # we only need the closest, the recursion will handle anything higher
