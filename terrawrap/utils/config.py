@@ -198,7 +198,7 @@ def directory_dependency_grapher(starting_dir: str) -> networkx.DiGraph:
     """
     graph_list = []
 
-    for root, dirs, files in os.walk(starting_dir):
+    for root, dirs, _ in os.walk(starting_dir):
         for name in dirs:
             dir_path = os.path.join(root, name)
             for file in os.listdir(dir_path):
