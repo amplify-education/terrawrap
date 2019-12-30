@@ -112,10 +112,7 @@ def has_depends_on(directory: str) -> bool:
     wrapper_file = os.path.join(directory, ".tf_wrapper")
     with open(wrapper_file) as wrapper_file:
         wrapper_config = yaml.safe_load(wrapper_file)
-        try:
-            return wrapper_config.get("depends_on") is not None
-        except AttributeError:
-            return False
+        return "depends_on" in wrapper_config
 
 
 def parse_dependencies(directory: str) -> List[str]:
@@ -176,13 +173,16 @@ def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, v
         if has_depends_on(wrapper_dir):
             closest_inheritance = wrapper_dir
             inherited_dependencies = parse_dependencies(closest_inheritance)
+            added = False
             for dependency in inherited_dependencies:
                 if dependency == config_dir:
                     continue
+                added = True
                 graph.add_node(dependency)
                 if config_dir in graph:
                     graph.add_edge(dependency, config_dir)
-            break  # we only need the closest, the recursion will handle anything higher
+            if added:
+                break  # we only need the closest, the recursion will handle anything higher
 
     for predecessor in list(graph.predecessors(config_dir)):
         single_config_dependency_grapher(predecessor, graph, visited)
