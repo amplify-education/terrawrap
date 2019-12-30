@@ -155,10 +155,7 @@ def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, v
     if is_config(config_dir):
         graph.add_node(config_dir)
 
-    try:
-        tf_dependencies = parse_dependencies(config_dir)
-    except AttributeError:
-        tf_dependencies = []
+    tf_dependencies = parse_dependencies(config_dir)
     for dependency in tf_dependencies:
         graph.add_node(dependency)
         if config_dir in graph:
@@ -204,7 +201,7 @@ def directory_dependency_grapher(starting_dir: str) -> networkx.DiGraph:
                     if not is_config(dir_path):
                         continue
                     single_config_dependency_graph = networkx.DiGraph()
-                    visited = []
+                    visited: List[str] = []
                     single_config_dependency_grapher(dir_path, single_config_dependency_graph, visited)
                     graph_list.append(single_config_dependency_graph)
 

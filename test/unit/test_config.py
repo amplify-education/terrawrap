@@ -34,7 +34,9 @@ class TestConfig(TestCase):
         """ Test dependency graph for a single directory"""
         actual_graph = networkx.DiGraph()
         visited = []
-        current_dir = os.path.join(os.getcwd(),'mock_graph_directory/config/account_level/regional_level_2/app2')
+        current_dir = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/app2'
+        )
         single_config_dependency_grapher(
             current_dir,
             actual_graph,
@@ -52,14 +54,24 @@ class TestConfig(TestCase):
 
     def test_directory_dependency_grapher(self):
         """test dependency graph for a recursive dependency"""
-        starting_dir = os.path.join(os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2')
+        starting_dir = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2'
+        )
         actual_graph = directory_dependency_grapher(starting_dir)
 
         expected_graph = networkx.DiGraph()
-        app1 = os.path.join(os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_1/app1')
-        app2 = os.path.join(os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/app2')
-        app4 = os.path.join(os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/app4')
-        app5 = os.path.join(os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/team/app5')
+        app1 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_1/app1'
+        )
+        app2 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/app2'
+        )
+        app4 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/app4'
+        )
+        app5 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/team/app5'
+        )
         expected_graph.add_nodes_from([app1, app2, app4, app5])
         expected_graph.add_edge(app4, app5)
         expected_graph.add_edge(app2, app4)
@@ -68,8 +80,11 @@ class TestConfig(TestCase):
         self.assertTrue(networkx.is_isomorphic(actual_graph, expected_graph))
 
     def test_has_no_depends_on(self):
-        dir = os.path.join(os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_1')
-        self.assertFalse(has_depends_on(dir))
+        """ Tests that we can detect if a file has not depends_on field"""
+        directory = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_1'
+        )
+        self.assertFalse(has_depends_on(directory))
 
     def test_calc_backend_config(self):
         """Test that correct backend config is generated"""

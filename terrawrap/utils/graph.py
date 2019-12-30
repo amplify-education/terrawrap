@@ -4,8 +4,6 @@ import os
 from typing import List, Tuple, Any
 import networkx
 
-print("is this print statement invalid too")
-
 
 def find_source_nodes(graph: networkx.DiGraph) -> List[str]:
     """
@@ -18,8 +16,7 @@ def find_source_nodes(graph: networkx.DiGraph) -> List[str]:
         preds = list(graph.predecessors(node))
         if preds:
             continue
-        else:
-            source_nodes.append(node)
+        source_nodes.append(node)
 
     return source_nodes
 
@@ -64,12 +61,12 @@ def generate_dependencies(nodes: List[str], graph: networkx.DiGraph) -> List[Any
         node_successors = successors(depth, node, graph)
         path.append(node_successors)
         if node_successors[1]:
-            generate_helper(node_successors[2], graph, depth+1, path)
+            generate_helper(node_successors[2], graph, depth + 1, path)
         dependencies.append(path)
     return dependencies
 
 
-def generate_helper(nodes: List[str], graph: networkx.DiGraph, depth: int, path: List[str]) -> List[str]:
+def generate_helper(nodes: List[str], graph: networkx.DiGraph, depth: int, path: List[Any]) -> List[str]:
     """
     The recursive helper function for generate_dependencies
     :param nodes: A list of nodes
@@ -82,7 +79,7 @@ def generate_helper(nodes: List[str], graph: networkx.DiGraph, depth: int, path:
         node_successors = successors(depth, node, graph)
         path.append(node_successors)
         if node_successors[1]:
-            generate_helper(node_successors[2], graph, depth+1, path)
+            generate_helper(node_successors[2], graph, depth + 1, path)
     return path
 
 
@@ -94,9 +91,9 @@ def visualize(dependencies: List[List[str]]):
     depth = 0
     for path in dependencies:
         for node in path:
-            tab_spacing = int(node[0]) -1 + depth
+            tab_spacing = int(node[0]) - 1 + depth
             if depth > 0:
                 print()
             relative_node = node[1].replace(os.getcwd(), "")
-            print(("\t"*tab_spacing)+">", relative_node)
+            print(("\t" * tab_spacing) + ">", relative_node)
         depth += 1
