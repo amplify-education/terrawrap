@@ -126,6 +126,7 @@ The following options are supported in `.tf_wrapper`:
 ```yaml
 configure_backend: True # If true, automatically configure Terraform backends.
 pipeline_check: True # If true, require this directory to be in a pipeline file.
+backend_check: True # If true, require this directory to have a terraform backend configured
 
 envvars:
   <NAME_OF_ENVVAR>:
