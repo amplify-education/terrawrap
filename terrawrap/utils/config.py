@@ -198,7 +198,6 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
 def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
     with open(file_path) as tf_file:
         try:
-            print(tf_file)
             configs: Dict[str, List] = hcl2.load(tf_file)
 
             terraform_config_blocks: List[Dict] = configs.get('terraform', [])
