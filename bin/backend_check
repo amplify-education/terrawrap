@@ -18,7 +18,10 @@ import sys
 
 from docopt import docopt
 
-from terrawrap.utils.config import parse_backend_config_for_dir
+from terrawrap.utils.config import (
+    parse_backend_config_for_dir, find_wrapper_config_files,
+    parse_wrapper_configs
+)
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
@@ -56,6 +59,12 @@ def main():
 
 
 def check_directory_for_backend(dir_path: str) -> bool:
+    wrapper_config_files = find_wrapper_config_files(path=os.path.abspath(dir_path))
+    wrapper_config = parse_wrapper_configs(wrapper_config_files=wrapper_config_files)
+    # return True if backend_check is disabled for a directory
+    if not wrapper_config.backend_check:
+        return True
+
     backend_config = parse_backend_config_for_dir(dir_path)
     return backend_config is not None
 
