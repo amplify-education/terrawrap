@@ -131,8 +131,8 @@ def parse_dependencies(directory: str) -> List[str]:
                 wrapper_config = yaml.safe_load(wrapper_config_file)
 
             try:
-                if wrapper_config.get("depends_on"):
-                    wrapper_dependencies = wrapper_config['depends_on']
+                wrapper_dependencies = wrapper_config.get('depends_on')
+                if wrapper_dependencies:
                     for path in wrapper_dependencies:
                         path = get_absolute_path(path)
                         dependencies.append(path)
