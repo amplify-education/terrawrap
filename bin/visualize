@@ -46,19 +46,26 @@ def main():
     if not os.path.isdir:
         config_dir = os.path.dirname(config_dir)
 
+    post_graph = []
     print("Visualizing Dependencies for %s:" % config_dir)
     if only_dependencies:
         graph = networkx.DiGraph()
         visited = []
         single_config_dependency_grapher(config_dir, graph, visited)
     else:
-        graph = directory_dependency_grapher(config_dir)
+        graph, post_graph = directory_dependency_grapher(config_dir)
+
     if has_cycle(graph):
         print("Terrawrap has detected a cycle. There is no source dependency for apply")
         exit(1)
+
     sources = find_source_nodes(graph)
     dependencies = generate_dependencies(sources, graph)
     visualize(dependencies)
+    if post_graph:
+        print("The following files have not been configured and will be run in parallel after the graph has run.")
+        print(post_graph)
+
     if show:
         networkx.draw(graph, with_labels=True)
         p.show()

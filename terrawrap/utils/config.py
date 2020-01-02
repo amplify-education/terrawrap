@@ -2,7 +2,7 @@
 import os
 import re
 import subprocess
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import networkx
 
 import hcl2
@@ -185,14 +185,14 @@ def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, v
         single_config_dependency_grapher(predecessor, graph, visited)
 
 
-def directory_dependency_grapher(starting_dir: str) -> networkx.DiGraph:
+def directory_dependency_grapher(starting_dir: str) -> Tuple[networkx.DiGraph, List[str]]:
     """
     Given a starting directory, walks it and returns all dependency info.
     :param starting_dir: The starting directory
     :return: directory_graph: A graph composed of all dependency information for a directory
     """
     graph_list = []
-
+    post_graph_runs = []
     for root, dirs, _ in os.walk(starting_dir):
         for name in dirs:
             dir_path = os.path.join(root, name)
@@ -200,13 +200,16 @@ def directory_dependency_grapher(starting_dir: str) -> networkx.DiGraph:
                 if file.endswith(".tf_wrapper"):
                     if not is_config(dir_path):
                         continue
+                    if not has_depends_on(dir_path):
+                        post_graph_runs.append(dir_path)
+                        continue
                     single_config_dependency_graph = networkx.DiGraph()
                     visited: List[str] = []
                     single_config_dependency_grapher(dir_path, single_config_dependency_graph, visited)
                     graph_list.append(single_config_dependency_graph)
 
     directory_graph = networkx.compose_all(graph_list)
-    return directory_graph
+    return directory_graph, post_graph_runs
 
 
 def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, str]:

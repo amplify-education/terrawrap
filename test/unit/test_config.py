@@ -57,7 +57,7 @@ class TestConfig(TestCase):
         starting_dir = os.path.join(
             os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2'
         )
-        actual_graph = directory_dependency_grapher(starting_dir)
+        actual_graph, actual_post_graph = directory_dependency_grapher(starting_dir)
 
         expected_graph = networkx.DiGraph()
         app1 = os.path.join(
@@ -76,8 +76,10 @@ class TestConfig(TestCase):
         expected_graph.add_edge(app4, app5)
         expected_graph.add_edge(app2, app4)
         expected_graph.add_edge(app1, app2)
+        expected_post_graph = []
 
         self.assertTrue(networkx.is_isomorphic(actual_graph, expected_graph))
+        self.assertEqual(actual_post_graph, expected_post_graph)
 
     def test_has_no_depends_on(self):
         """ Tests that we can detect if a file has not depends_on field"""
