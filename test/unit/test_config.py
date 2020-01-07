@@ -12,8 +12,8 @@ from terrawrap.utils.config import (
     parse_wrapper_configs,
     find_wrapper_config_files,
     resolve_envvars,
-    single_config_dependency_grapher,
-    directory_dependency_grapher,
+    graph_wrapper_dependencies,
+    walk_and_graph_directory,
     has_depends_on,
 )
 
@@ -29,16 +29,18 @@ class TestConfig(TestCase):
     def setUp(self):
         self.prev_dir = os.getcwd()
         os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
+        self.config_dict = {}
 
-    def test_single_config_dependency_grapher(self):
+    def test_graph_wrapper_dependencies(self):
         """ Test dependency graph for a single directory"""
         actual_graph = networkx.DiGraph()
         visited = []
         current_dir = os.path.join(
             os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/app2'
         )
-        single_config_dependency_grapher(
+        graph_wrapper_dependencies(
             current_dir,
+            self.config_dict,
             actual_graph,
             visited
         )
@@ -52,12 +54,12 @@ class TestConfig(TestCase):
 
         self.assertTrue(networkx.is_isomorphic(actual_graph, expected_graph))
 
-    def test_directory_dependency_grapher(self):
+    def test_walk_and_graph_directory(self):
         """test dependency graph for a recursive dependency"""
         starting_dir = os.path.join(
             os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2'
         )
-        actual_graph, actual_post_graph = directory_dependency_grapher(starting_dir)
+        actual_graph, actual_post_graph = walk_and_graph_directory(starting_dir, self.config_dict)
 
         expected_graph = networkx.DiGraph()
         app1 = os.path.join(
@@ -76,7 +78,9 @@ class TestConfig(TestCase):
         expected_graph.add_edge(app4, app5)
         expected_graph.add_edge(app2, app4)
         expected_graph.add_edge(app1, app2)
-        expected_post_graph = []
+        expected_post_graph = [
+            os.path.join(os.getcwd(), "mock_graph_directory/config/account_level/regional_level_2/app7")
+        ]
 
         self.assertTrue(networkx.is_isomorphic(actual_graph, expected_graph))
         self.assertEqual(actual_post_graph, expected_post_graph)

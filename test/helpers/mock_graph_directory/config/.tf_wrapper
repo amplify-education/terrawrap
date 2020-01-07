@@ -11,5 +11,3 @@ envvars:
 
 depends_on:
     - mock_graph_directory/config/account_level/regional_level_1/app1
-
-config: False

@@ -115,6 +115,12 @@ def has_depends_on(directory: str) -> bool:
 
 
 def create_wrapper_config_obj(config_dir):
+    """
+    Given a config dir containing a tf_wrapper.
+    Parses the tf_wrapper for dependencies and makes a a wrapper config object.
+    :param config_dir: A tf directory containing a tf_wrapper.
+    :return: wrapper_config_obj: a wrapper config object
+    """
     wrapper_file = os.path.join(config_dir, ".tf_wrapper")
     wrapper_config_obj: WrapperConfig = parse_wrapper_configs([wrapper_file])
     if wrapper_config_obj.depends_on:
@@ -142,9 +148,10 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
             dir_path = os.path.join(root, name)
             for file in os.listdir(dir_path):
                 if file.endswith(".tf_wrapper"):
-                    if not is_config_directory(dir_path):
+                    wrapper_config_obj = create_wrapper_config_obj(dir_path)
+                    if not wrapper_config_obj.config:
                         continue
-                    if not has_depends_on(dir_path):
+                    if wrapper_config_obj.depends_on is None:
                         post_graph_runs.append(dir_path)
                         continue
                     single_config_dependency_graph = networkx.DiGraph()
@@ -156,6 +163,7 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
     return directory_graph, post_graph_runs
 
 
+# pylint: disable=R0912
 def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiGraph, visited: List[str]):
     """
     Given a directory, recursively finds all other directories it depends on and builds a graph.
@@ -192,7 +200,7 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
     wrappers.reverse()  # we want the closest wrapper file that gives inherited dependencies
     for wrapper in wrappers:
         wrapper_dir = os.path.dirname(wrapper)
-        if config_dict.get(wrapper_dir): # add to dictionary so we only read the file once
+        if config_dict.get(wrapper_dir):  # add to dictionary so we only read the file once
             new_wrapper_config_obj = config_dict.get(wrapper_dir)
         else:
             new_wrapper_config_obj = create_wrapper_config_obj(wrapper_dir)
@@ -201,7 +209,6 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
         if wrapper_dir == config_dir:
             continue
         if new_wrapper_config_obj.depends_on is not None:
-            closest_inheritance = wrapper_dir
             inherited_dependencies = new_wrapper_config_obj.depends_on
             added = False
             for dependency in inherited_dependencies:

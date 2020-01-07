@@ -3,4 +3,4 @@ envvars:
     source: text
     value: OVERWRITTEN_VALUE
 
-depends_on:
+depends_on: []
