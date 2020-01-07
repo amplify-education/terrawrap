@@ -54,7 +54,8 @@ def main():
         graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
 
     if has_cycle(graph):
-        print("Terrawrap has detected a cycle. There is no source dependency for apply")
+        print("Terrawrap has detected a dependency cycle. "
+              "There is a circular dependency between the tf_wrapper files listed above")
         exit(1)
 
     sources = find_source_nodes(graph)

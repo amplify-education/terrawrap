@@ -37,9 +37,14 @@ class TestConfig(TestCase):
         cycle = has_cycle(self.graph)
         self.assertFalse(cycle)
 
-    def test_has_cycle(self):
-        """ Tests we can detect a cycle in a graph"""
+    def test_has_source_cycle(self):
+        """ Tests we can detect a source cycle in a graph"""
         self.graph.add_edges_from([("5", "1"), ("4", "3")])
+        self.assertTrue(has_cycle(self.graph))
+
+    def test_has_non_source_cycle(self):
+        """ Tests we can find a non source cycle"""
+        self.graph.add_edges_from([("6", "4"), ("4", "6")])
         self.assertTrue(has_cycle(self.graph))
 
     def test_successors(self):
