@@ -11,19 +11,17 @@ Arguments:
 Options:
     -h, --help          Show this message and exit.[default: False]
     -d, --dependencies  Show dependency info for a single wrapper file.[default: False]
-    -s, --show          Show a visual graph for this command.[default: False]
 """
 
 import os
 import networkx
-import matplotlib.pylab as p
 
 from docopt import docopt
 
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
-from terrawrap.utils.config import directory_dependency_grapher, single_config_dependency_grapher
+from terrawrap.utils.config import graph_wrapper_dependencies, walk_and_graph_directory
 from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize, has_cycle
 
 
@@ -36,7 +34,6 @@ def main():
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
 
     only_dependencies = arguments['--dependencies']
-    show = arguments['--show']
 
     # Get the directory with Terraform config passed to this script as an argument
     config_dir = arguments['<path>']
@@ -47,13 +44,14 @@ def main():
         config_dir = os.path.dirname(config_dir)
 
     post_graph = []
+    wrapper_config_dict = {}
     print("Visualizing Dependencies for %s:" % config_dir)
     if only_dependencies:
         graph = networkx.DiGraph()
         visited = []
-        single_config_dependency_grapher(config_dir, graph, visited)
+        graph_wrapper_dependencies(config_dir, wrapper_config_dict, graph, visited)
     else:
-        graph, post_graph = directory_dependency_grapher(config_dir)
+        graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
 
     if has_cycle(graph):
         print("Terrawrap has detected a cycle. There is no source dependency for apply")
@@ -65,11 +63,6 @@ def main():
     if post_graph:
         print("The following files have not been configured and will be run in parallel after the graph has run.")
         print(post_graph)
-
-    if show:
-        networkx.draw(graph, with_labels=True)
-        p.show()
-    exit(0)
 
 
 if __name__ == '__main__':

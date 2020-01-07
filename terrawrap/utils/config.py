@@ -1,6 +1,7 @@
 """Holds config utilities"""
 import os
 import re
+import sys
 import subprocess
 from typing import Dict, List, Optional, Tuple
 import networkx
@@ -88,19 +89,17 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
     return wrapper_config_obj
 
 
-def is_config(directory: str) -> bool:
+def is_config_directory(directory: str) -> bool:
     """
     Checks if a wrapper file directory is a config_directory
     :param directory: A wrapper files directory
     :return: A boolean True if the config section of the wrapper file is not False or doesn't exist.
     """
-    wrapper_file = os.path.join(directory, ".tf_wrapper")
-    with open(wrapper_file) as wrapper_file:
-        wrapper_config = yaml.safe_load(wrapper_file)
-        try:
-            return wrapper_config.get("config") is not False
-        except AttributeError:
-            return True
+    config = False
+    for file in os.listdir(directory):
+        if file.endswith(".tf"):
+            config = True
+    return config
 
 
 def has_depends_on(directory: str) -> bool:
@@ -115,47 +114,75 @@ def has_depends_on(directory: str) -> bool:
         return "depends_on" in wrapper_config
 
 
-def parse_dependencies(directory: str) -> List[str]:
+def create_wrapper_config_obj(config_dir):
+    wrapper_file = os.path.join(config_dir, ".tf_wrapper")
+    wrapper_config_obj: WrapperConfig = parse_wrapper_configs([wrapper_file])
+    if wrapper_config_obj.depends_on:
+        depends_on = []
+        for dependency in wrapper_config_obj.depends_on:
+            dependency = get_absolute_path(dependency)
+            depends_on.append(dependency)
+        wrapper_config_obj.depends_on = depends_on
+    if not is_config_directory(os.path.dirname(wrapper_file)):
+        wrapper_config_obj.config = False
+    return wrapper_config_obj
+
+
+def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.DiGraph, List[str]]:
     """
-    Function for parsing the Terraform wrapper config file for dependencies.
-    :param directory: A directory containing a tf_wrapper.
-    :return: dependencies - A list of dependencies for the given directory.
+    Given a starting directory, walks it and returns all dependency info.
+    :param starting_dir: The starting directory
+    :param config_dict: A dictionary containing wrapper config objects for each seen directory
+    :return: directory_graph: A graph composed of all dependency information for a directory
     """
-    dependencies = []
+    graph_list = []
+    post_graph_runs = []
+    for root, dirs, _ in os.walk(starting_dir):
+        for name in dirs:
+            dir_path = os.path.join(root, name)
+            for file in os.listdir(dir_path):
+                if file.endswith(".tf_wrapper"):
+                    if not is_config_directory(dir_path):
+                        continue
+                    if not has_depends_on(dir_path):
+                        post_graph_runs.append(dir_path)
+                        continue
+                    single_config_dependency_graph = networkx.DiGraph()
+                    visited: List[str] = []
+                    graph_wrapper_dependencies(dir_path, config_dict, single_config_dependency_graph, visited)
+                    graph_list.append(single_config_dependency_graph)
 
-    for file_name in os.listdir(directory):
-        if file_name.endswith('.tf_wrapper'):
-            file_name = os.path.join(directory, file_name)
-            wrapper_config_file = file_name
-            with open(wrapper_config_file) as wrapper_config_file:
-                wrapper_config = yaml.safe_load(wrapper_config_file)
-
-            try:
-                wrapper_dependencies = wrapper_config.get('depends_on')
-                if wrapper_dependencies:
-                    for path in wrapper_dependencies:
-                        path = get_absolute_path(path)
-                        dependencies.append(path)
-                    return dependencies
-            except TypeError:
-                return dependencies
-    return dependencies
+    directory_graph = networkx.compose_all(graph_list)
+    return directory_graph, post_graph_runs
 
 
-def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, visited: List[str]):
+def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiGraph, visited: List[str]):
     """
     Given a directory, recursively finds all other directories it depends on and builds a graph.
     :param config_dir: The config directory to obtain a dependency graph for
+    :param config_dict: A dictionary containing wrapper config objects for each seen directory
     :param graph: The graph to add dependency info to. Empty at first, reused in recursion.
     :param visited: A list of visited nodes. Empty at first, reused in recursion
     """
     if config_dir in visited:
         return
     visited.append(config_dir)
-    if is_config(config_dir):
+
+    if config_dict.get(config_dir):  # add to dictionary so we only read the file once
+        wrapper_config_obj = config_dict.get(config_dir)
+    else:
+        wrapper_config_obj = create_wrapper_config_obj(config_dir)
+        config_dict[config_dir] = wrapper_config_obj
+
+    if wrapper_config_obj.config:
         graph.add_node(config_dir)
 
-    tf_dependencies = parse_dependencies(config_dir)
+    tf_dependencies = wrapper_config_obj.depends_on
+
+    if tf_dependencies is None:
+        print("Cannot list a dependency without tf_wrapper dependency configuration:", config_dir)
+        sys.exit(1)
+
     for dependency in tf_dependencies:
         graph.add_node(dependency)
         if config_dir in graph:
@@ -165,11 +192,17 @@ def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, v
     wrappers.reverse()  # we want the closest wrapper file that gives inherited dependencies
     for wrapper in wrappers:
         wrapper_dir = os.path.dirname(wrapper)
+        if config_dict.get(wrapper_dir): # add to dictionary so we only read the file once
+            new_wrapper_config_obj = config_dict.get(wrapper_dir)
+        else:
+            new_wrapper_config_obj = create_wrapper_config_obj(wrapper_dir)
+            config_dict[wrapper_dir] = new_wrapper_config_obj
+
         if wrapper_dir == config_dir:
             continue
-        if has_depends_on(wrapper_dir):
+        if new_wrapper_config_obj.depends_on is not None:
             closest_inheritance = wrapper_dir
-            inherited_dependencies = parse_dependencies(closest_inheritance)
+            inherited_dependencies = new_wrapper_config_obj.depends_on
             added = False
             for dependency in inherited_dependencies:
                 if dependency == config_dir:
@@ -182,34 +215,7 @@ def single_config_dependency_grapher(config_dir: str, graph: networkx.DiGraph, v
                 break  # we only need the closest, the recursion will handle anything higher
 
     for predecessor in list(graph.predecessors(config_dir)):
-        single_config_dependency_grapher(predecessor, graph, visited)
-
-
-def directory_dependency_grapher(starting_dir: str) -> Tuple[networkx.DiGraph, List[str]]:
-    """
-    Given a starting directory, walks it and returns all dependency info.
-    :param starting_dir: The starting directory
-    :return: directory_graph: A graph composed of all dependency information for a directory
-    """
-    graph_list = []
-    post_graph_runs = []
-    for root, dirs, _ in os.walk(starting_dir):
-        for name in dirs:
-            dir_path = os.path.join(root, name)
-            for file in os.listdir(dir_path):
-                if file.endswith(".tf_wrapper"):
-                    if not is_config(dir_path):
-                        continue
-                    if not has_depends_on(dir_path):
-                        post_graph_runs.append(dir_path)
-                        continue
-                    single_config_dependency_graph = networkx.DiGraph()
-                    visited: List[str] = []
-                    single_config_dependency_grapher(dir_path, single_config_dependency_graph, visited)
-                    graph_list.append(single_config_dependency_graph)
-
-    directory_graph = networkx.compose_all(graph_list)
-    return directory_graph, post_graph_runs
+        graph_wrapper_dependencies(predecessor, config_dict, graph, visited)
 
 
 def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, str]:
