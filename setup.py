@@ -73,6 +73,7 @@ setup(
         'bin/backend_check',
         'bin/pipeline_check',
         'bin/plan_check',
-        'bin/visualize'
+        'bin/visualize',
+        'bin/graph_apply'
     ],
 )

@@ -177,10 +177,12 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
     visited.append(config_dir)
 
     if config_dict.get(config_dir):  # add to dictionary so we only read the file once
-        wrapper_config_obj = config_dict.get(config_dir)
+        wrapper_config_obj = config_dict[config_dir].get("wrapper_config")
     else:
         wrapper_config_obj = create_wrapper_config_obj(config_dir)
-        config_dict[config_dir] = wrapper_config_obj
+        config_dict[config_dir] = {
+            "wrapper_config": wrapper_config_obj
+        }
 
     if wrapper_config_obj.config:
         graph.add_node(config_dir)
@@ -201,10 +203,12 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
     for wrapper in wrappers:
         wrapper_dir = os.path.dirname(wrapper)
         if config_dict.get(wrapper_dir):  # add to dictionary so we only read the file once
-            new_wrapper_config_obj = config_dict.get(wrapper_dir)
+            new_wrapper_config_obj = config_dict[wrapper_dir].get("wrapper_config")
         else:
             new_wrapper_config_obj = create_wrapper_config_obj(wrapper_dir)
-            config_dict[wrapper_dir] = new_wrapper_config_obj
+            config_dict[wrapper_dir] = {
+                "wrapper_config": new_wrapper_config_obj
+            }
 
         if wrapper_dir == config_dir:
             continue
