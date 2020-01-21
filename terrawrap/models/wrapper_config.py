@@ -69,10 +69,14 @@ class WrapperConfig:
             self,
             configure_backend: bool = True,
             pipeline_check: bool = True,
+            backend_check: bool = True,
+            plan_check: bool = True,
             envvars: Dict[str, AbstractEnvVarConfig] = None,
             backends: BackendsConfig = None
     ):
         self.configure_backend = configure_backend
         self.pipeline_check = pipeline_check
+        self.backend_check = backend_check
+        self.plan_check = plan_check
         self.envvars = envvars or {}
         self.backends = backends
