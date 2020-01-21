@@ -5,6 +5,7 @@ from collections import defaultdict, namedtuple
 from typing import Dict, Set, Tuple, Union
 
 import hcl2
+from lark import Token
 
 Variable = namedtuple('Variable', ['name', 'value'])
 
@@ -30,13 +31,19 @@ def get_auto_vars(root_directory: str) -> Dict[str, Set[Variable]]:
                     # a variable is defined multiple times in the same time
                     # We will just use the last appearance of a variable
                     value = value[-1]
-                    if isinstance(value, list):
-                        value = tuple(value)
-                    if isinstance(value, dict):
-                        value = tuple(value.items())
-                    auto_vars[os.path.join(current_dir, file_name)].add(Variable(key, value))
+                    auto_vars[os.path.join(current_dir, file_name)].add(Variable(key, _make_hashable(value)))
 
     return dict(auto_vars)
+
+
+def _make_hashable(input_value):
+    if isinstance(input_value, list):
+        return tuple(_make_hashable(item) for item in input_value)
+    if isinstance(input_value, dict):
+        return tuple((_make_hashable(key), _make_hashable(value)) for key, value in input_value.items())
+    if isinstance(input_value, Token):
+        return str(input_value)
+    return input_value
 
 
 def get_nondefault_variables_for_file(file_path: str) -> Set[str]:
