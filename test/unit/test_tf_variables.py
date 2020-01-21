@@ -3,8 +3,13 @@ from unittest import TestCase
 
 import os
 
-from terrawrap.utils.tf_variables import get_auto_vars, get_nondefault_variables_for_file, \
-    get_source_for_variable, get_auto_var_usages, Variable
+from terrawrap.utils.tf_variables import (
+    get_auto_vars,
+    get_nondefault_variables_for_file,
+    get_source_for_variable,
+    get_auto_var_usages,
+    Variable,
+)
 
 
 class TestTerraformVariables(TestCase):
@@ -20,10 +25,24 @@ class TestTerraformVariables(TestCase):
         """test getting dict of tfvars files and their variables"""
         actual = get_auto_vars('config')
         self.assertEqual(actual, {
-            'config/global.auto.tfvars': {Variable('foo', 'bar'), Variable('dog', 'cat')},
-            'config/app1/app.auto.tfvars': {Variable('bar', 'bye'), Variable('baz', 'bat')},
-            'config/app3/app.auto.tfvars': {Variable('bar', 'bye'), Variable('baz', 'bat')},
-            'config/team/team.auto.tfvars': {Variable('foo', 'cat')}
+            'config/global.auto.tfvars': {
+                Variable('foo', 'bar'),
+                Variable('dog', 'cat'),
+            },
+            'config/app1/app.auto.tfvars': {
+                Variable('bar', 'bye'),
+                Variable('baz', 'bat'),
+            },
+            'config/app3/app.auto.tfvars': {
+                Variable('bar', 'bye'),
+                Variable('baz', 'bat'),
+            },
+            'config/team/team.auto.tfvars': {
+                Variable('foo', 'cat'),
+            },
+            'config/app5/app.auto.tfvars': {
+                Variable('foo', ((('key', 'value'),),)),
+            },
         })
 
     def test_get_variables_for_file(self):
