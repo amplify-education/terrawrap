@@ -29,17 +29,6 @@ SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 CURRENT_DIRECTORY = os.getcwd()
 
 
-# def apply_dependencies(dependency_list):
-#     for path in dependency_list:
-#         print(path)
-#         print("help")
-#         # for node in path:
-#         #     relative_node = node[1].replace(os.getcwd(), "")
-#         #     successors_node = node[2]
-#         #     print(relative_node)
-#         #     print(successors_node)
-
-
 def main():
     version_check(current_version=__version__)
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
@@ -56,7 +45,7 @@ def main():
 
     post_graph = []
     wrapper_config_dict = {}
-    print("Visualizing Dependencies for %s:" % config_dir)
+    print("Visualizing Dependencies for %s:" % config_dir.replace(os.getcwd(), ""))
     if only_dependencies:
         graph = networkx.DiGraph()
         visited = []
@@ -74,9 +63,11 @@ def main():
     visualize(dependencies)
     if post_graph:
         print("The following files have not been configured and will be run in parallel after the graph has run.")
-        print(post_graph)
-
-    #apply_dependencies(dependencies)
+        relative_post_graph = []
+        for directory in post_graph:
+            relative_path = directory.replace(os.getcwd(), "")
+            relative_post_graph.append(relative_path)
+        print(relative_post_graph)
 
 
 if __name__ == '__main__':
