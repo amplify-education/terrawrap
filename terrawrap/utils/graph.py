@@ -6,22 +6,6 @@ import networkx
 from pathlib import Path
 
 
-def find_source_nodes(graph: networkx.DiGraph) -> List[str]:
-    """
-    For a given graph return a list of source nodes (Nodes with no predecessors)
-    :param graph: The graph to look for source nodes in.
-    :return: source_nodes -  a list of nodes (str) in the graph with no predecessors
-    """
-    source_nodes = []
-    for node in graph:
-        preds = list(graph.predecessors(node))
-        if preds:
-            continue
-        source_nodes.append(node)
-
-    return source_nodes
-
-
 def has_cycle(graph: networkx.DiGraph) -> bool:
     """
     Checks that a graph does not contain a cycle.
@@ -42,6 +26,22 @@ def has_cycle(graph: networkx.DiGraph) -> bool:
         return False
 
     return False
+
+
+def find_source_nodes(graph: networkx.DiGraph) -> List[str]:
+    """
+    For a given graph return a list of source nodes (Nodes with no predecessors)
+    :param graph: The graph to look for source nodes in.
+    :return: source_nodes -  a list of nodes (str) in the graph with no predecessors
+    """
+    source_nodes = []
+    for node in graph:
+        preds = list(graph.predecessors(node))
+        if preds:
+            continue
+        source_nodes.append(node)
+
+    return source_nodes
 
 
 def successors(depth: int, node: str, graph: networkx.DiGraph) -> Tuple[int, str, List[str]]:
