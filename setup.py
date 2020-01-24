@@ -74,5 +74,6 @@ setup(
         'bin/pipeline_check',
         'bin/plan_check',
         'bin/visualize',
+        'bin/graph_apply'
     ],
 )

@@ -3,6 +3,7 @@
 import os
 from typing import List, Tuple, Any
 import networkx
+from pathlib import Path
 
 
 def find_source_nodes(graph: networkx.DiGraph) -> List[str]:
@@ -106,3 +107,22 @@ def visualize(dependencies: List[List[str]]):
             relative_node = node[1].replace(os.getcwd(), "")
             print(("\t" * tab_spacing) + ">", relative_node)
         depth += 1
+
+
+def find_symlink_directories(graph):
+    symlinks = []
+
+    for node in graph:
+        path = Path(node)
+        if path.is_symlink():
+            symlinks.append(path)
+
+    return symlinks
+
+
+def find_symlink_children(symlinks, graph):
+    dependencies = generate_dependencies(symlinks, graph)
+    children_list = []
+    for path in dependencies:
+        for node in path:
+            children_list.append(node)
