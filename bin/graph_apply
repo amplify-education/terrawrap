@@ -22,8 +22,9 @@ from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
 from terrawrap.utils.config import graph_wrapper_dependencies, walk_and_graph_directory
-from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize, has_cycle
+from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize, has_cycle, connect_symlinks
 from terrawrap.models.graph import ApplyGraph
+from terrawrap.utils.path import get_symlinks
 
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -54,8 +55,25 @@ def main():
               ", or no starting point could be found")
         exit(1)
 
-    apply = ApplyGraph("apply", graph)
-    apply.apply_graph()
+    syms_dict = get_symlinks(config_dir)
+
+    connect_symlinks(graph, syms_dict)
+
+    sources = find_source_nodes(graph)
+    dependencies = generate_dependencies(sources, graph)
+    visualize(dependencies)
+    if post_graph:
+        print("The following files have not been configured and will be run in parallel after the graph has run.")
+        relative_post_graph = []
+        for directory in post_graph:
+            relative_path = directory.replace(os.getcwd(), "")
+            relative_post_graph.append(relative_path)
+        print(relative_post_graph)
+    # if the current node is a symlink, and the symlinked dir is has not been run yet just have it wait, have all symlink dirs add their children to the list
+    # just make sure symlinks are not run at the same time
+    # make them serial by having the first symlink depend on the real dir, the second symlink depend on the first symlink, so on and so forth.
+    #  apply = ApplyGraph("apply", graph)
+    #  apply.apply_graph()
     #sources = find_source_nodes(graph)
     #dependencies = generate_dependencies(sources, graph)
 

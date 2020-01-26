@@ -120,9 +120,14 @@ def find_symlink_directories(graph):
     return symlinks
 
 
-def find_symlink_children(symlinks, graph):
-    dependencies = generate_dependencies(symlinks, graph)
-    children_list = []
-    for path in dependencies:
-        for node in path:
-            children_list.append(node)
+def connect_symlinks(graph, symlink_dict):
+    for symlink in symlink_dict.keys():
+        current = symlink
+        secondary = 0
+        links = list(symlink_dict[symlink])
+        while secondary is not len(links):
+            secondary_link = links[secondary]
+            print("adding edge from %s to %s" % (current, secondary_link))
+            graph.add_edge(current, secondary_link)
+            current = secondary_link
+            secondary += 1
