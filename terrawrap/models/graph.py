@@ -3,7 +3,6 @@ import concurrent.futures
 from typing import Iterable, Optional, List, DefaultDict
 
 
-from terrawrap.models.pipeline_entry import PipelineEntry
 from terrawrap.utils.graph import find_source_nodes
 from terrawrap.models.graph_entry import GraphEntry
 
@@ -11,122 +10,23 @@ from terrawrap.models.graph_entry import GraphEntry
 class ApplyGraph:
     """Class for representing a pipeline."""
 
-    def __init__(self, command: str, graph):
+    def __init__(self, command: str, graph, post_graph, prefix):
         """
         :param command: The Terraform command that this pipeline should execute.
         :param pipeline_path: Path to the Terrawrap pipeline file. Can be absolute or relative from where
         the script is executed.
         """
         self.command = command
-        self.graph = graph
         self.reverse_pipeline = command == 'destroy'
+        self.graph = graph
         self.graph_dict = {}
-
-    def apply_graph(self):
-        sources = find_source_nodes(self.graph)
-        futures_to_paths = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            for source in sources:
-                if self.graph_dict.get(source):
-                    entry = self.graph_dict.get(source)
-                else:
-                    entry = GraphEntry(source, [])
-                    self.graph_dict[source] = entry
-
-                future = executor.submit(entry.test_execute)
-                futures_to_paths[future] = entry.path
-            for future in concurrent.futures.as_completed(futures_to_paths):
-                #exit_code, stdout, changes_detected = future.result()
-                path = futures_to_paths[future]
-                # print("executed in first", path)
-                successors = list(self.graph.successors(path))
-                if successors: #and no failure
-                    # print("these are the", successors)
-                    self.recursive_applier(executor, successors)
-        for node in self.graph:
-            item = self.graph_dict.get(node)
-            print(item.path)
-            print(item.state)
-            #if print_only_changes and not changes_detected:
-            #stdout = ["No changes detected.\n"]
-
-            #print("\nFinished executing %s %s ..." % (path, command))
-            #print("Output:\n\n%s\n" % "".join(stdout).strip())
-
-            # if exit_code != 0:
-            #     failures.append(path)
-
-    def recursive_applier(self, executor, successors):
-        futures_to_paths = {}
-        for node in successors:
-            if self.graph_dict.get(node):
-                entry = self.graph_dict.get(node)
-            else:
-                entry = GraphEntry(node, [])
-                self.graph_dict[node] = entry
-            if entry.state is not "Pending":
-                #  print("this already success", entry.path)
-                continue
-            if not self.can_be_applied(node):
-                print("node %s is waiting" % node)
-                continue
-            #print("Executing %s ..." % entry.path)
-            else:
-                future = executor.submit(entry.test_execute)
-                futures_to_paths[future] = entry.path
-
-        for future in concurrent.futures.as_completed(futures_to_paths):
-            path = futures_to_paths[future]
-            # if self.graph_dict.get(path):
-            #  print("executed in second", path)
-            next_successors = list(self.graph.successors(path))
-            if next_successors: #and no failure
-                #    print("%s successors are %s" %(path,next_successors))
-                self.recursive_applier(executor, next_successors)
-            # print("finished executing")
-
-    def can_be_applied(self, node):
-        entry = self.graph_dict.get(node)
-        if entry:
-            path = entry.path
-            predecessors = list(self.graph.predecessors(path))
-            for predecessor in predecessors:
-                pred_entry = self.graph_dict.get(predecessor)
-                if pred_entry:
-                    print(entry.path, "pred", pred_entry.path, pred_entry.state)
-                    if pred_entry.state is not "Success":
-                        print(pred_entry.path, "is not success")
-                        return False
-                else:
-                    print(pred_entry, "is not in dict")
-                    return False
-        else:
-            print(entry, "is not in dict")
-            return False
-        return True
-
-    # def apply(self, graph, nodes, executor, config_dict, debug: bool = False, print_only_changes: bool = False):
-    #
-    #     for node in nodes
-    #         try:
-    #             self._execute_entries(
-    #                 command=self.command,
-    #                 entries=nodes,
-    #                 debug=debug,
-    #                 executor=executor,
-    #                 print_only_changes=print_only_changes,
-    #             )
-    #         except RuntimeError: #this is the if failed
-    #             print("this one failed")
-    #
-    #         for node in nodes:
-    #             successors = list(graph.successors(node))
-    #             if successors:
-    #                 self.apply(graph,successors,executor, debug, print_only_changes)
-    #
+        self.post_graph = post_graph
+        self.prefix = prefix
+        self.not_applied = set()
+        self.failures = []
 
 
-    def execute(self, graph, node, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
+    def apply_graph(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
         """
         Function for executing the pipeline. Will execute each sequence separately, with the entries inside
         each sequence being executed in parallel, up to the limit given in num_parallel.
@@ -134,75 +34,167 @@ class ApplyGraph:
         :param debug: True if Terraform debugging should be turned on.
         :param print_only_changes: True if only directories which contained changes should be printed.
         """
-        for sequence in sorted(self.entries.keys(), reverse=self.reverse_pipeline):
-            print("Executing sequence %s" % sequence)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
-                self._execute_entries(
-                    command=self.command,
-                    entries=self.entries[sequence]['parallel'],
-                    debug=debug,
-                    executor=executor,
-                    print_only_changes=print_only_changes,
-                )
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                for entry in self.entries[sequence]['sequential']:
-                    # It's very important that these sequential entries run init and then plan, and not all
-                    # the inits and then all the plans, because the symlink directories might share the same
-                    # real directories, and then running init multiple times in that directory will break
-                    # future applies. So run init and then the command immediately.
-                    self._execute_entries(
-                        command=self.command,
-                        entries=[entry],
-                        debug=debug,
-                        executor=executor,
-                        print_only_changes=print_only_changes,
-                    )
-
-        print("Pipeline executed successfully.")
-    #
-    # def apply_tester(self, executor):
-
-    def _execute_entries(
-            self,
-            entries: Iterable[PipelineEntry],
-            executor: concurrent.futures.Executor,
-            command: Optional[str] = None,
-            debug: bool = False,
-            print_only_changes: bool = False,
-    ):
-        """
-        Convenience function for executing the given entries with the given command.
-        :param entries: An iterable of Pipeline Entries to execute.
-        :param executor: The Executor to use. See concurrent.futures.Executor.
-        :param command: The Terraform command to execute. If not provided, defaults to the command for the
-        pipeline.
-        :param debug: True if Terraform debugging should be printed.
-        :param print_only_changes: True if only directories which contained changes should be printed.
-        """
-        command = command or self.command
+        sources = find_source_nodes(self.graph)
         futures_to_paths = {}
-        failures = []
 
-        for entry in entries:
-            print("Executing %s %s ..." % (entry.path, command))
-            future = executor.submit(entry.execute, command, debug=debug)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
+            for source in sources:
+                entry = self._get_entry(source)
+                if not self._has_prefix(entry):
+                    print(entry.path, "is not a prefix")
+                    future = executor.submit(entry.no_op)
+                    futures_to_paths[future] = entry.path
+                    continue
+
+                print("Executing %s %s ..." % (entry.path, self.command))
+                future = executor.submit(entry.execute, self.command, debug=debug)
+                futures_to_paths[future] = entry.path
+
+            for future in concurrent.futures.as_completed(futures_to_paths):
+                path = futures_to_paths[future]
+                if self.graph_dict.get(path).state != "no-op":
+                    exit_code, stdout, changes_detected = future.result()
+
+                    if print_only_changes and not changes_detected:
+                        stdout = ["No changes detected.\n"]
+
+                    print("\nFinished executing %s %s ..." % (path, self.command))
+                    print("Output:\n\n%s\n" % "".join(stdout).strip())
+
+                    if exit_code != 0:
+                        self.failures.append(path)
+
+                successors = list(self.graph.successors(path))
+                if successors:
+                    self.recursive_applier(executor, successors, num_parallel, debug, print_only_changes)
+
+        for node in self.graph:
+            item = self.graph_dict.get(node)
+            if not item:
+                self.not_applied.add(node)
+                print("This path was not run %s", node)
+            else:
+                if item.state == "no-op":
+                    self.not_applied.add(item)
+        #print("printing not applied list")
+
+        for apply in self.not_applied:
+            if self.graph_dict.get(apply):
+                applier = self.graph_dict.get(apply).path
+            else:
+                applier = apply.path
+            print(applier, "in not applied")
+
+        if self.failures:
+            raise RuntimeError(
+                "The follow pipeline entries failed with command '%s':\n%s" % (self.command, "\n".join(self.failures))
+            )
+
+    def recursive_applier(self, executor, successors, num_parallel: int, debug: bool, print_only_changes: bool):
+        futures_to_paths = {}
+
+        for node in successors:
+            entry = self._get_entry(node)
+            if entry.state is not "Pending":
+                print(entry.path, "is state", entry.state)
+                continue
+            if not self.can_be_applied(entry):
+                continue
+
+            if not self._has_prefix(entry):
+                future = executor.submit(entry.no_op)
+                futures_to_paths[future] = entry.path
+                continue
+
+            future = executor.submit(entry.execute, self.command, debug=debug)
             futures_to_paths[future] = entry.path
 
         for future in concurrent.futures.as_completed(futures_to_paths):
-            exit_code, stdout, changes_detected = future.result()
+
             path = futures_to_paths[future]
+            if self.graph_dict.get(path).state != "no-op":
+                exit_code, stdout, changes_detected = future.result()
 
-            if print_only_changes and not changes_detected:
-                stdout = ["No changes detected.\n"]
+                if print_only_changes and not changes_detected:
+                    stdout = ["No changes detected.\n"]
 
-            print("\nFinished executing %s %s ..." % (path, command))
-            print("Output:\n\n%s\n" % "".join(stdout).strip())
+                print("\nFinished executing %s %s ..." % (path, self.command))
+                print("Output:\n\n%s\n" % "".join(stdout).strip())
+                if exit_code != 0:
+                    self.failures.append(path)
 
-            if exit_code != 0:
-                failures.append(path)
+            next_successors = list(self.graph.successors(path))
+            if next_successors:
+                self.recursive_applier(executor, next_successors, num_parallel, debug, print_only_changes)
 
-        if failures:
-            raise RuntimeError(
-                "The follow pipeline entries failed with command '%s':\n%s" % (command, "\n".join(failures))
-            )
+    def can_be_applied(self, entry):
+        if entry:
+            path = entry.path
+            predecessors = list(self.graph.predecessors(path))
+
+            for predecessor in predecessors:
+                pred_entry = self.graph_dict.get(predecessor)
+
+                if pred_entry:
+                    if pred_entry.state not in ("Success", "no-op"):
+                        return False
+                else:
+                    return False
+
+        else:
+            print(entry, "is not in dict")
+            return False
+
+        return True
+
+    def apply_post_graph(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
+        futures_to_paths = {}
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
+            for node in self.post_graph:
+                entry = self._get_entry(node)
+                if not self._has_prefix(entry):
+                    future = executor.submit(entry.no_op)
+                    futures_to_paths[future] = entry.path
+                    continue
+
+                future = executor.submit(entry.execute, self.command, debug=debug)
+                futures_to_paths[future] = entry.path
+
+            for future in concurrent.futures.as_completed(futures_to_paths):
+
+                path = futures_to_paths[future]
+                if self.graph_dict.get(path).state != "no-op":
+
+                    exit_code, stdout, changes_detected = future.result()
+
+                    if print_only_changes and not changes_detected:
+                        stdout = ["No changes detected.\n"]
+
+                    print("\nFinished executing %s %s ..." % (path, self.command))
+                    print("Output:\n\n%s\n" % "".join(stdout).strip())
+
+                    if exit_code != 0:
+                        self.failures.append(path)
+
+
+        for node in self.post_graph:
+            item = self.graph_dict.get(node)
+            if not item:
+                self.not_applied.add(node)
+            else:
+                if item.state == "no-op":
+                    self.not_applied.add(item)
+
+    def _get_entry(self, node):
+        if self.graph_dict.get(node):
+            entry = self.graph_dict.get(node)
+        else:
+            entry = GraphEntry(node, [])
+            self.graph_dict[node] = entry
+        return entry
+
+    def _has_prefix(self, entry):
+        if not entry.path.startswith(self.prefix):
+            return False
+        return True

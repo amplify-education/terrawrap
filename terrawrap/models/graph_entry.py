@@ -24,7 +24,7 @@ class GraphEntry:
         self.path = get_absolute_path(path=path)
         wrapper_config_files = find_wrapper_config_files(self.path)
         wrapper_config = parse_wrapper_configs(wrapper_config_files)
-        #self.envvars = resolve_envvars(wrapper_config.envvars)
+        self.envvars = resolve_envvars(wrapper_config.envvars)
         self.variables = variables
         self.state = "Pending"
 
@@ -38,6 +38,9 @@ class GraphEntry:
         self.state = "Success"
         if self.state == "Success":
             print(self.state)
+
+    def no_op(self):
+        self.state = "no-op"
 
     # pylint: disable=too-many-locals
     def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
@@ -84,10 +87,12 @@ class GraphEntry:
             capture_stderr=True,
             env=command_env,
         )
-
+        print("Ive reached past init")
         if init_exit_code != 0:
+            self.state = "Failed"
+            print("im returning")
             return init_exit_code, init_stdout, True
-
+        print("uh now i have")
         if operation in ["apply"]:
             plan_exit_code, plan_stdout = execute_command(
                 plan_args,
@@ -96,14 +101,18 @@ class GraphEntry:
                 env=command_env
             )
             operation_args += [plan_file_name]
-            self.state = "Success"
         else:
             plan_exit_code = 0
             plan_stdout = []
 
         changes_detected = plan_exit_code != 0
+        if plan_exit_code == 0 or plan_exit_code == 2:
+            self.state = "Success"
+        else:
+            self.state = "Failed"
 
         if plan_exit_code != 2:
+            print(plan_exit_code, "is plan exit code")
             return (
                 plan_exit_code,
                 init_stdout + ["\n"] + plan_stdout,
@@ -117,6 +126,12 @@ class GraphEntry:
             env=command_env
         )
 
+        if operation_exit_code == 0:
+            self.state = "Success"
+
+        else:
+            self.state = "Failed"
+        print("Ive reached here")
         return (
             operation_exit_code,
             init_stdout + ["\n"] + plan_stdout + ["\n"] + operation_stdout,

@@ -72,8 +72,8 @@ def main():
     # if the current node is a symlink, and the symlinked dir is has not been run yet just have it wait, have all symlink dirs add their children to the list
     # just make sure symlinks are not run at the same time
     # make them serial by having the first symlink depend on the real dir, the second symlink depend on the first symlink, so on and so forth.
-    #  apply = ApplyGraph("apply", graph)
-    #  apply.apply_graph()
+    apply = ApplyGraph("tf plan", graph, post_graph, config_dir)
+    apply.apply_graph()
     #sources = find_source_nodes(graph)
     #dependencies = generate_dependencies(sources, graph)
 
