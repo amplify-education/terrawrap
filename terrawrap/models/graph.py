@@ -1,16 +1,17 @@
-"""Module containing the Pipeline class"""
+"""Module containing the ApplyGraph class"""
 import concurrent.futures
 from typing import Iterable, Optional, List, DefaultDict
 
+import networkx
 
 from terrawrap.utils.graph import find_source_nodes
 from terrawrap.models.graph_entry import GraphEntry
 
 
 class ApplyGraph:
-    """Class for representing a pipeline."""
+    """Class for representing an Apply Graph."""
 
-    def __init__(self, command: str, graph, post_graph, prefix):
+    def __init__(self, command: str, graph: networkx.DiGraph, post_graph: List[str], prefix: str):
         """
         :param command: The Terraform command that this pipeline should execute.
         :param pipeline_path: Path to the Terrawrap pipeline file. Can be absolute or relative from where
@@ -180,7 +181,7 @@ class ApplyGraph:
                 if item.state == "no-op":
                     self.not_applied.add(item)
 
-    def _can_be_applied(self, entry):
+    def _can_be_applied(self, entry: GraphEntry):
         """
         Checks if an entry can be applied.
         :param entry: The entry to be tested.
@@ -204,7 +205,7 @@ class ApplyGraph:
 
         return True
 
-    def _get_or_create_entry(self, node):
+    def _get_or_create_entry(self, node: str):
         """
         Gets an entry from the graph dictionary or create it if it does not exist
         :param node: The node used to fetch the graph entry
@@ -217,7 +218,7 @@ class ApplyGraph:
             self.graph_dict[node] = entry
         return entry
 
-    def _has_prefix(self, entry):
+    def _has_prefix(self, entry: GraphEntry):
         """
         Checks if an entry has the same prefix as the one passed into the tf command
         :param entry: The entry to be checked.

@@ -1,4 +1,4 @@
-"""Module for containing Pipeline Entries"""
+"""Module for containing Graph Entries"""
 import logging
 import os
 import tempfile
@@ -28,18 +28,10 @@ class GraphEntry:
         self.variables = variables
         self.state = "Pending"
 
-    def test_execute(self):
-        print("i am executing")
-        print(self.path)
-        timeDelay = random.randrange(0, 10)
-        print(timeDelay)
-        time.sleep(timeDelay)
-        print("executed")
-        self.state = "Success"
-        if self.state == "Success":
-            print(self.state)
-
     def no_op(self):
+        """
+        Sets the entry state to no-op if called.
+        """
         self.state = "no-op"
 
     # pylint: disable=too-many-locals
