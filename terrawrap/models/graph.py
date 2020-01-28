@@ -38,7 +38,7 @@ class ApplyGraph:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
             for source in sources:
-                entry = self._get_entry(source)
+                entry = self._get_or_create_entry(source)
                 if not self._has_prefix(entry):
                     future = executor.submit(entry.no_op)
                     futures_to_paths[future] = entry.path
@@ -100,7 +100,7 @@ class ApplyGraph:
         futures_to_paths = {}
 
         for node in successors:
-            entry = self._get_entry(node)
+            entry = self._get_or_create_entry(node)
             if entry.state is not "Pending":
                 continue
             if not self._can_be_applied(entry):
@@ -147,7 +147,7 @@ class ApplyGraph:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
             for node in self.post_graph:
-                entry = self._get_entry(node)
+                entry = self._get_or_create_entry(node)
                 if not self._has_prefix(entry):
                     future = executor.submit(entry.no_op)
                     futures_to_paths[future] = entry.path
