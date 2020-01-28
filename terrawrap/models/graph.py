@@ -25,11 +25,9 @@ class ApplyGraph:
         self.not_applied = set()
         self.failures = []
 
-
-    def apply_graph(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
+    def execute_graph(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
         """
-        Function for executing the pipeline. Will execute each sequence separately, with the entries inside
-        each sequence being executed in parallel, up to the limit given in num_parallel.
+        Function for executing the graph. Will execute in parallel, up to the limit given in num_parallel.
         :param num_parallel: The number of pipeline entries to run in parallel.
         :param debug: True if Terraform debugging should be turned on.
         :param print_only_changes: True if only directories which contained changes should be printed.
@@ -65,7 +63,7 @@ class ApplyGraph:
 
                 successors = list(self.graph.successors(path))
                 if successors:
-                    self.recursive_applier(executor, successors, num_parallel, debug, print_only_changes)
+                    self.recursive_executor(executor, successors, num_parallel, debug, print_only_changes)
 
         for node in self.graph:
             item = self.graph_dict.get(node)
@@ -83,7 +81,21 @@ class ApplyGraph:
                 "The follow directories failed with command '%s':\n%s" % (self.command, "\n".join(self.failures))
             )
 
-    def recursive_applier(self, executor, successors, num_parallel: int, debug: bool, print_only_changes: bool):
+    def recursive_executor(
+            self,
+            executor: concurrent.futures.Executor,
+            successors: List[str],
+            num_parallel: int,
+            debug: bool,
+            print_only_changes: bool):
+        """
+        Helper function for executing graph entries recursively
+        :param executor: The Executor to use. See concurrent.futures.Executor.
+        :param successors: A list of successors to be executed from the previous call
+        :param num_parallel: The number of pipeline entries to run in parallel.
+        :param debug: True if Terraform debugging should be turned on.
+        :param print_only_changes: True if only directories which contained changes should be printed.
+        """
         futures_to_paths = {}
 
         for node in successors:
@@ -117,9 +129,19 @@ class ApplyGraph:
 
             next_successors = list(self.graph.successors(path))
             if next_successors:
-                self.recursive_applier(executor, next_successors, num_parallel, debug, print_only_changes)
+                self.recursive_executor(executor, next_successors, num_parallel, debug, print_only_changes)
 
-    def apply_post_graph(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
+    def execute_post_graph(
+            self,
+            num_parallel: int = 4,
+            debug: bool = False,
+            print_only_changes: bool = False):
+        """
+        Function for executing entries not in the graph in parallel.
+        :param num_parallel: The number of pipeline entries to run in parallel.
+        :param debug: True if Terraform debugging should be turned on.
+        :param print_only_changes: True if only directories which contained changes should be printed.
+        """
         futures_to_paths = {}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
@@ -159,6 +181,11 @@ class ApplyGraph:
                     self.not_applied.add(item)
 
     def _can_be_applied(self, entry):
+        """
+        Checks if an entry can be applied.
+        :param entry: The entry to be tested.
+        :return: A boolean False if the entry cannot be applied otherwise True.
+        """
         if entry:
             path = entry.path
             predecessors = list(self.graph.predecessors(path))
@@ -177,7 +204,12 @@ class ApplyGraph:
 
         return True
 
-    def _get_entry(self, node):
+    def _get_or_create_entry(self, node):
+        """
+        Gets an entry from the graph dictionary or create it if it does not exist
+        :param node: The node used to fetch the graph entry
+        :return: The graph entry
+        """
         if self.graph_dict.get(node):
             entry = self.graph_dict.get(node)
         else:
@@ -186,6 +218,11 @@ class ApplyGraph:
         return entry
 
     def _has_prefix(self, entry):
+        """
+        Checks if an entry has the same prefix as the one passed into the tf command
+        :param entry: The entry to be checked.
+        :return: A boolean False if the prefix does not match otherwise True
+        """
         if not entry.path.startswith(self.prefix):
             return False
         return True
