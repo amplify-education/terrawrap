@@ -41,7 +41,6 @@ class ApplyGraph:
             for source in sources:
                 entry = self._get_entry(source)
                 if not self._has_prefix(entry):
-                    print(entry.path, "is not a prefix")
                     future = executor.submit(entry.no_op)
                     futures_to_paths[future] = entry.path
                     continue
@@ -72,22 +71,16 @@ class ApplyGraph:
             item = self.graph_dict.get(node)
             if not item:
                 self.not_applied.add(node)
-                print("This path was not run %s", node)
             else:
                 if item.state == "no-op":
-                    self.not_applied.add(item)
-        #print("printing not applied list")
-
-        for apply in self.not_applied:
-            if self.graph_dict.get(apply):
-                applier = self.graph_dict.get(apply).path
-            else:
-                applier = apply.path
-            print(applier, "in not applied")
+                    self.not_applied.add(item.path)
+        if self.not_applied:
+            print("The following directories have not been run since they are out of scope")
+            print(self.not_applied)
 
         if self.failures:
             raise RuntimeError(
-                "The follow pipeline entries failed with command '%s':\n%s" % (self.command, "\n".join(self.failures))
+                "The follow directories failed with command '%s':\n%s" % (self.command, "\n".join(self.failures))
             )
 
     def recursive_applier(self, executor, successors, num_parallel: int, debug: bool, print_only_changes: bool):
@@ -96,9 +89,8 @@ class ApplyGraph:
         for node in successors:
             entry = self._get_entry(node)
             if entry.state is not "Pending":
-                print(entry.path, "is state", entry.state)
                 continue
-            if not self.can_be_applied(entry):
+            if not self._can_be_applied(entry):
                 continue
 
             if not self._has_prefix(entry):
@@ -126,26 +118,6 @@ class ApplyGraph:
             next_successors = list(self.graph.successors(path))
             if next_successors:
                 self.recursive_applier(executor, next_successors, num_parallel, debug, print_only_changes)
-
-    def can_be_applied(self, entry):
-        if entry:
-            path = entry.path
-            predecessors = list(self.graph.predecessors(path))
-
-            for predecessor in predecessors:
-                pred_entry = self.graph_dict.get(predecessor)
-
-                if pred_entry:
-                    if pred_entry.state not in ("Success", "no-op"):
-                        return False
-                else:
-                    return False
-
-        else:
-            print(entry, "is not in dict")
-            return False
-
-        return True
 
     def apply_post_graph(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
         futures_to_paths = {}
@@ -185,6 +157,25 @@ class ApplyGraph:
             else:
                 if item.state == "no-op":
                     self.not_applied.add(item)
+
+    def _can_be_applied(self, entry):
+        if entry:
+            path = entry.path
+            predecessors = list(self.graph.predecessors(path))
+
+            for predecessor in predecessors:
+                pred_entry = self.graph_dict.get(predecessor)
+
+                if pred_entry:
+                    if pred_entry.state not in ("Success", "no-op"):
+                        return False
+                else:
+                    return False
+
+        else:
+            return False
+
+        return True
 
     def _get_entry(self, node):
         if self.graph_dict.get(node):
