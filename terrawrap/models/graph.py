@@ -51,7 +51,8 @@ class ApplyGraph:
 
             for future in concurrent.futures.as_completed(futures_to_paths):
                 path = futures_to_paths[future]
-                if self.graph_dict.get(path).state != "no-op":
+                print("path is ", path)
+                if self._get_or_create_entry(path).state != "no-op":
                     exit_code, stdout, changes_detected = future.result()
 
                     if print_only_changes and not changes_detected:
