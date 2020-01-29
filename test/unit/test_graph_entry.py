@@ -1,4 +1,4 @@
-"""Tests for PipelineEntrys"""
+"""Tests for GraphEntries"""
 from unittest import TestCase
 
 from mock import patch

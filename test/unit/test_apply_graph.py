@@ -1,4 +1,4 @@
-"""Tests for pipelines"""
+"""Tests for Graph applyinhs"""
 from unittest import TestCase
 
 import os
@@ -24,7 +24,6 @@ class TestApplyGraph(TestCase):
     @patch('terrawrap.models.graph.GraphEntry')
     def test_execute(self, graph_entry_class):
         """Test that executing a graph will call init and then the command"""
-        #   graph_dir = "config/account_level/regional_level_1/"
         graph_entry_class.return_value.state = "Pending"
         graph_entry_class.return_value.path = "foo/app1"
         graph_entry_class.return_value.execute.return_value = (0, ['Success'], True)
@@ -42,7 +41,6 @@ class TestApplyGraph(TestCase):
     @patch('terrawrap.models.graph.GraphEntry')
     def test_no_op(self, graph_entry_class):
         """Test that executing a graph can no-op if the prefix does not match"""
-        #   graph_dir = "config/account_level/regional_level_1/"
         graph_entry_class.return_value.state = "no-op"
         graph_entry_class.return_value.path = "foo/app1"
         graph_entry_class.return_value.execute.return_value = (0, ['Success'], True)
@@ -62,7 +60,6 @@ class TestApplyGraph(TestCase):
     @patch('terrawrap.models.graph.GraphEntry')
     def test_post_graph(self, graph_entry_class):
         """Test that executing a post_graph list"""
-        #   graph_dir = "config/account_level/regional_level_1/"
         graph_entry_class.return_value.state = "no-op"
         graph_entry_class.return_value.path = "foo/app1"
         graph_entry_class.return_value.execute.return_value = (0, ['Success'], True)
@@ -72,7 +69,6 @@ class TestApplyGraph(TestCase):
         graph.execute_graph()
         graph.execute_post_graph()
 
-        expected_not_applied = {'foo/app1'}
         self.assertEqual(
             graph_entry_class.return_value.execute.mock_calls,
             []
