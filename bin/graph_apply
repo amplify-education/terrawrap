@@ -69,18 +69,11 @@ def main():
             relative_path = directory.replace(os.getcwd(), "")
             relative_post_graph.append(relative_path)
         print(relative_post_graph)
-    # if the current node is a symlink, and the symlinked dir is has not been run yet just have it wait, have all symlink dirs add their children to the list
-    # just make sure symlinks are not run at the same time
-    # make them serial by having the first symlink depend on the real dir, the second symlink depend on the first symlink, so on and so forth.
-    apply = ApplyGraph("tf plan", graph, post_graph, config_dir)
-    apply.execute_graph()
-    #sources = find_source_nodes(graph)
-    #dependencies = generate_dependencies(sources, graph)
 
-    # visualize(dependencies)
-    # if post_graph:
-    #     print("The following files have not been configured and will be run in parallel after the graph has run.")
-    #     print(post_graph)
+    # TODO: Add logic for passing in a command
+    apply = ApplyGraph("plan", graph, post_graph, config_dir)
+    apply.execute_graph()
+    apply.execute_post_graph()
 
 
 if __name__ == '__main__':

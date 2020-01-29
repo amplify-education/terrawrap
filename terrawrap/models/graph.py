@@ -1,6 +1,6 @@
 """Module containing the ApplyGraph class"""
 import concurrent.futures
-from typing import Iterable, Optional, List, DefaultDict
+from typing import List
 
 import networkx
 
@@ -26,6 +26,7 @@ class ApplyGraph:
         self.not_applied = set()
         self.failures = []
 
+    # pylint: disable=too-many-locals
     def execute_graph(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
         """
         Function for executing the graph. Will execute in parallel, up to the limit given in num_parallel.
@@ -79,7 +80,9 @@ class ApplyGraph:
 
         if self.failures:
             raise RuntimeError(
-                "The follow directories failed with command '%s':\n%s" % (self.command, "\n".join(self.failures))
+                "The follow directories failed with command '%s':\n%s" % (
+                    self.command, "\n".join(self.failures)
+                )
             )
 
     def recursive_executor(
@@ -101,7 +104,7 @@ class ApplyGraph:
 
         for node in successors:
             entry = self._get_or_create_entry(node)
-            if entry.state is not "Pending":
+            if entry.state != "Pending":
                 continue
             if not self._can_be_applied(entry):
                 continue

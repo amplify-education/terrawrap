@@ -2,8 +2,6 @@
 import logging
 import os
 import tempfile
-import time
-import random
 from typing import List, Tuple
 
 from terrawrap.utils.cli import execute_command
@@ -98,7 +96,7 @@ class GraphEntry:
             plan_stdout = []
 
         changes_detected = plan_exit_code != 0
-        if plan_exit_code == 0 or plan_exit_code == 2:
+        if plan_exit_code in (0, 2):
             self.state = "Success"
         else:
             self.state = "Failed"

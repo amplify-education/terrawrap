@@ -1,9 +1,9 @@
 """ Holds graph utilities"""
 
 import os
-from typing import List, Tuple, Any
-import networkx
+from typing import List, Tuple, Any, Dict, Set
 from pathlib import Path
+import networkx
 
 
 def has_cycle(graph: networkx.DiGraph) -> bool:
@@ -109,7 +109,12 @@ def visualize(dependencies: List[List[str]]):
         depth += 1
 
 
-def find_symlink_directories(graph):
+def find_symlink_directories(graph: networkx.DiGraph) -> List[str]:
+    """
+    Finds all symlink directories in a given graph
+    :param graph: The graph to find symlinks in
+    :return: symlinks: A list of directories that are symlinks
+    """
     symlinks = []
 
     for node in graph:
@@ -120,7 +125,13 @@ def find_symlink_directories(graph):
     return symlinks
 
 
-def connect_symlinks(graph, symlink_dict):
+def connect_symlinks(graph: networkx.DiGraph, symlink_dict: Dict[str, Set[str]]):
+    """
+    Implements dependency linking in the graph for chain-linked directories.
+    This is necessary because we must run symlinked directories serially in respect to each other
+    :param graph: The graph containing symlinked directories
+    :param symlink_dict: A dictionary of symlinks and the directories that are linked to them.
+    """
     for symlink in symlink_dict.keys():
         current = symlink
         secondary = 0
