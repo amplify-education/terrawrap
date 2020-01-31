@@ -176,7 +176,6 @@ class ApplyGraph:
                     if exit_code != 0:
                         self.failures.append(path)
 
-
         for node in self.post_graph:
             item = self.graph_dict.get(node)
             if not item:

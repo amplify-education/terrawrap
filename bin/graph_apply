@@ -3,14 +3,23 @@
 This script obtains the dependencies for the terraform config wrapper files and applies them.
 
 Usage:
-    graph_apply.py [options] <path>
+    graph_apply.py --path=PATH [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug] [--print-only-changes]
+    graph_apply.py --version
 
 Arguments:
     path    The path of the config directory to check
 
 Options:
     -h, --help          Show this message and exit.[default: False]
-    -d, --dependencies  Show dependency info for a single wrapper file.[default: False]
+    -p PATH --path=PATH                         Path to the directory to execute.
+    -o OPERATION --operation=OPERATION          Which terraform command to run in the directories defined in
+                                                the pipeline file.
+                                                [default: plan]
+    -j NUM_JOBS --parallel-jobs=NUM_JOBS        The number of Terraform operations to run in parallel.
+                                                [default: 4].
+    -v,--debug                                  Turns on debug logging.
+    --print-only-changes                        Only print output for directories that have changes.
+    --version                                   Display the current version of Terraform Wrapper.
 """
 
 import os
@@ -35,10 +44,18 @@ def main():
     version_check(current_version=__version__)
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
 
-    only_dependencies = arguments['--dependencies']
+    operation = arguments['--operation'].strip()
+    debug = arguments['--debug']
+    print_only_changes = arguments['--print-only-changes']
+    try:
+        num_parallel = int(arguments['--parallel-jobs'])
+    except ValueError:
+        raise RuntimeError(
+            "Unable to parse number of parallel jobs, '%s' is not an integer." % args['--parallel-jobs']
+        )
 
     # Get the directory with Terraform config passed to this script as an argument
-    config_dir = arguments['<path>']
+    config_dir = arguments['--path']
     if not os.path.isabs(config_dir):
         config_dir = os.path.abspath(os.path.join(CURRENT_DIRECTORY, config_dir))
 
@@ -47,7 +64,13 @@ def main():
 
     wrapper_config_dict = {}
     print("Visualizing Dependencies for %s:" % config_dir)
-    graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
+    try:
+        graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
+    except ValueError:
+        graph, post_graph = None, None
+        print("Graph apply can only be used for applying multiple directories, "
+              "please use tf apply for and individual directory")
+        exit(1)
 
     if has_cycle(graph):
         print("Terrawrap has detected a dependency cycle. "
@@ -70,10 +93,17 @@ def main():
             relative_post_graph.append(relative_path)
         print(relative_post_graph)
 
-    # TODO: Add logic for passing in a command
-    apply = ApplyGraph("plan", graph, post_graph, config_dir)
-    apply.execute_graph()
-    apply.execute_post_graph()
+    apply = ApplyGraph(operation, graph, post_graph, config_dir)
+    apply.execute_graph(
+        num_parallel=num_parallel,
+        debug=debug,
+        print_only_changes=print_only_changes
+    )
+    apply.execute_post_graph(
+        num_parallel=num_parallel,
+        debug=debug,
+        print_only_changes=print_only_changes
+    )
 
 
 if __name__ == '__main__':

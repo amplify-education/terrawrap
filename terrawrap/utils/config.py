@@ -147,6 +147,7 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
         for name in dirs:
             dir_path = os.path.join(root, name)
             has_tf_wrapper = False
+
             for file in os.listdir(dir_path):
                 if file.endswith(".tf_wrapper"):
                     has_tf_wrapper = True
@@ -156,14 +157,17 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
                     if wrapper_config_obj.depends_on is None:
                         post_graph_runs.append(dir_path)
                         continue
+
                     single_config_dependency_graph = networkx.DiGraph()
                     visited: List[str] = []
                     graph_wrapper_dependencies(dir_path, config_dict, single_config_dependency_graph, visited)
                     graph_list.append(single_config_dependency_graph)
+
             if not has_tf_wrapper and is_config_directory(dir_path):
                 post_graph_runs.append(dir_path)
 
     directory_graph = networkx.compose_all(graph_list)
+
     return directory_graph, post_graph_runs
 
 
