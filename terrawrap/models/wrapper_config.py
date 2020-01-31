@@ -73,8 +73,7 @@ class WrapperConfig:
             plan_check: bool = True,
             envvars: Dict[str, AbstractEnvVarConfig] = None,
             backends: BackendsConfig = None,
-            depends_on: List[str] = None,
-            config: bool = True
+            depends_on: List[str] = None
     ):
         self.configure_backend = configure_backend
         self.pipeline_check = pipeline_check
@@ -83,4 +82,3 @@ class WrapperConfig:
         self.envvars = envvars or {}
         self.backends = backends
         self.depends_on = depends_on
-        self.config = config
