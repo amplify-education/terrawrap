@@ -98,8 +98,8 @@ def visualize(dependencies: List[List[str]]):
     For a given graph, generate a human readable output
     :param dependencies: A list of paths for a graph
     """
-    depth = 0
     for path in dependencies:
+        depth = 0
         for node in path:
             tab_spacing = int(node[0]) - 1 + depth
             if depth > 0:
