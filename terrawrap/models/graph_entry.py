@@ -77,12 +77,9 @@ class GraphEntry:
             capture_stderr=True,
             env=command_env,
         )
-        print("Ive reached past init")
         if init_exit_code != 0:
             self.state = "Failed"
-            print("im returning")
             return init_exit_code, init_stdout, True
-        print("uh now i have")
         if operation in ["apply"]:
             plan_exit_code, plan_stdout = execute_command(
                 plan_args,
@@ -102,7 +99,6 @@ class GraphEntry:
             self.state = "Failed"
 
         if plan_exit_code != 2:
-            print(plan_exit_code, "is plan exit code")
             return (
                 plan_exit_code,
                 init_stdout + ["\n"] + plan_stdout,
@@ -121,7 +117,7 @@ class GraphEntry:
 
         else:
             self.state = "Failed"
-        print("Ive reached here")
+
         return (
             operation_exit_code,
             init_stdout + ["\n"] + plan_stdout + ["\n"] + operation_stdout,
