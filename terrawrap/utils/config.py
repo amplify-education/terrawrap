@@ -126,8 +126,10 @@ def create_wrapper_config_obj(config_dir):
     if wrapper_config_obj.depends_on:
         depends_on = []
         for dependency in wrapper_config_obj.depends_on:
-            dependency = get_absolute_path(dependency)
-            depends_on.append(dependency)
+            abs_dependency = get_absolute_path(dependency)
+            if not os.path.isdir(abs_dependency):
+                abs_dependency = get_absolute_path(dependency, config_dir)
+            depends_on.append(abs_dependency)
         wrapper_config_obj.depends_on = depends_on
     if not is_config_directory(os.path.dirname(wrapper_file)):
         wrapper_config_obj.config = False
