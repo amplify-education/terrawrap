@@ -33,7 +33,7 @@ def main():
     version_check(current_version=__version__)
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
 
-    singular_dependencies = arguments['--single']
+    singular_dependencies = arguments['--singular']
 
     # Get the directory with Terraform config passed to this script as an argument
     config_dir = arguments['<path>']
