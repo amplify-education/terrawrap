@@ -270,7 +270,8 @@ def calc_backend_config(
     backend_config = ['-reconfigure']
     options: Dict[str, str] = {}
 
-    output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path).decode("utf-8")
+    byte_output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path)
+    output = byte_output.decode("utf-8", errors="replace")
     match = re.search(GIT_REPO_REGEX, output)
     if match:
         repo_name = match.group(1)

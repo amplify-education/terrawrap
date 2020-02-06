@@ -101,7 +101,7 @@ def _execute_command(
     )
 
     while True:
-        output = stdout_read.read(1).decode()
+        output = stdout_read.read(1).decode(errors="replace")
 
         if output == '' and process.poll() is not None:
             break
@@ -112,7 +112,7 @@ def _execute_command(
     exit_code = process.poll()
 
     stdout_read.seek(0)
-    stdout = [line.decode() for line in stdout_read.readlines()]
+    stdout = [line.decode(errors="replace") for line in stdout_read.readlines()]
 
     return exit_code, stdout
 
