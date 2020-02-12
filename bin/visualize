@@ -10,7 +10,7 @@ Arguments:
 
 Options:
     -h, --help          Show this message and exit.[default: False]
-    -s, --singular  Show dependency info for a single wrapper file.[default: False]
+    -s, --singular      Show dependency info for a single wrapper file.[default: False]
 """
 
 import os
