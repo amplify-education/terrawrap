@@ -14,7 +14,6 @@ from terrawrap.utils.config import (
     resolve_envvars,
     graph_wrapper_dependencies,
     walk_and_graph_directory,
-    has_depends_on,
 )
 
 ROLE_ARN = 'arn:aws:iam::1234567890:role/test_role'
@@ -84,13 +83,6 @@ class TestConfig(TestCase):
 
         self.assertTrue(networkx.is_isomorphic(actual_graph, expected_graph))
         self.assertEqual(actual_post_graph, expected_post_graph)
-
-    def test_has_no_depends_on(self):
-        """ Tests that we can detect if a file has not depends_on field"""
-        directory = os.path.join(
-            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_1'
-        )
-        self.assertFalse(has_depends_on(directory))
 
     def test_calc_backend_config(self):
         """Test that correct backend config is generated"""
