@@ -102,26 +102,19 @@ def is_config_directory(directory: str) -> bool:
     return config
 
 
-def has_depends_on(directory: str) -> bool:
-    """
-    Checks if a config directory has a depends_on in its tf_wrapper.
-    :param directory: The directory to check
-    :return: A boolean True if the given directory has depends_on
-    """
-    wrapper_file = os.path.join(directory, ".tf_wrapper")
-    with open(wrapper_file) as wrapper_file:
-        wrapper_config = yaml.safe_load(wrapper_file)
-        return "depends_on" in wrapper_config
-
-
-def create_wrapper_config_obj(config_dir):
+def create_wrapper_config_obj(config_dir, wrapper_file=None):
     """
     Given a config dir containing a tf_wrapper.
     Parses the tf_wrapper for dependencies and makes a a wrapper config object.
     :param config_dir: A tf directory containing a tf_wrapper.
+    :param wrapper_file: A wrapper file passed in if known
     :return: wrapper_config_obj: a wrapper config object
     """
-    wrapper_file = os.path.join(config_dir, ".tf_wrapper")
+    if not wrapper_file:
+        for file in os.listdir(config_dir):
+            if file.endswith(".tf_wrapper"):
+                wrapper_file = os.path.join(config_dir, file)
+
     wrapper_config_obj: WrapperConfig = parse_wrapper_configs([wrapper_file])
     if wrapper_config_obj.depends_on:
         depends_on = []
@@ -131,7 +124,7 @@ def create_wrapper_config_obj(config_dir):
                 abs_dependency = get_absolute_path(dependency, config_dir)
             depends_on.append(abs_dependency)
         wrapper_config_obj.depends_on = depends_on
-    if not is_config_directory(os.path.dirname(wrapper_file)):
+    if not is_config_directory(config_dir):
         wrapper_config_obj.config = False
     return wrapper_config_obj
 
@@ -145,29 +138,24 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
     """
     graph_list = []
     post_graph_runs = []
-    for root, dirs, _ in os.walk(starting_dir):
-        for name in dirs:
-            dir_path = os.path.join(root, name)
-            has_tf_wrapper = False
-
-            for file in os.listdir(dir_path):
-                if file.endswith(".tf_wrapper"):
-                    has_tf_wrapper = True
-                    wrapper_config_obj = create_wrapper_config_obj(dir_path)
-                    if not wrapper_config_obj.config:
-                        continue
-                    if wrapper_config_obj.depends_on is None:
-                        post_graph_runs.append(dir_path)
-                        continue
-
-                    single_config_dependency_graph = networkx.DiGraph()
-                    visited: List[str] = []
-                    graph_wrapper_dependencies(dir_path, config_dict, single_config_dependency_graph, visited)
-                    graph_list.append(single_config_dependency_graph)
-
-            if not has_tf_wrapper and is_config_directory(dir_path):
-                post_graph_runs.append(dir_path)
-
+    for root, _, files in os.walk(starting_dir):
+        has_tf_wrapper = False
+        for file in files:
+            if file.endswith(".tf_wrapper"):
+                has_tf_wrapper = True
+                wrapper_file = os.path.join(root, file)
+                wrapper_config_obj = create_wrapper_config_obj(root, wrapper_file)
+                if not wrapper_config_obj.config:
+                    continue
+                if wrapper_config_obj.depends_on is None:
+                    post_graph_runs.append(root)
+                    continue
+                single_config_dependency_graph = networkx.DiGraph()
+                visited: List[str] = []
+                graph_wrapper_dependencies(root, config_dict, single_config_dependency_graph, visited)
+                graph_list.append(single_config_dependency_graph)
+        if not has_tf_wrapper and is_config_directory(root):
+            post_graph_runs.append(root)
     directory_graph = networkx.compose_all(graph_list)
 
     return directory_graph, post_graph_runs
@@ -274,7 +262,8 @@ def calc_backend_config(
     backend_config = ['-reconfigure']
     options: Dict[str, str] = {}
 
-    output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path).decode("utf-8")
+    byte_output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path)
+    output = byte_output.decode("utf-8", errors="replace")
     match = re.search(GIT_REPO_REGEX, output)
     if match:
         repo_name = match.group(1)

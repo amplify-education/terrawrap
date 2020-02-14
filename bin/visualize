@@ -10,7 +10,7 @@ Arguments:
 
 Options:
     -h, --help          Show this message and exit.[default: False]
-    -d, --dependencies  Show dependency info for a single wrapper file.[default: False]
+    -s, --singular      Show dependency info for a single wrapper file.[default: False]
 """
 
 import os
@@ -33,7 +33,7 @@ def main():
     version_check(current_version=__version__)
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
 
-    only_dependencies = arguments['--dependencies']
+    singular_dependencies = arguments['--singular']
 
     # Get the directory with Terraform config passed to this script as an argument
     config_dir = arguments['<path>']
@@ -46,7 +46,7 @@ def main():
     post_graph = []
     wrapper_config_dict = {}
     print("Visualizing Dependencies for %s:" % config_dir.replace(os.getcwd(), ""))
-    if only_dependencies:
+    if singular_dependencies:
         graph = networkx.DiGraph()
         visited = []
         graph_wrapper_dependencies(config_dir, wrapper_config_dict, graph, visited)
