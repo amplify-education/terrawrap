@@ -1,0 +1,3 @@
+config: False
+depends_on:
+    - ./app2

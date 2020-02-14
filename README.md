@@ -51,6 +51,8 @@ Learn more at <https://www.amplify.com>
 3.  Repository level plan/apply. Terrawrap provides commands for running plan/apply recursively on a entire
     repository at once.
 
+4.  Repository level dependency visualization. Terrawrap provides commands for displaying the order of applies in 
+    human readable output.
 ## Goals
 
 1.  Make Terraform DRY for large organizations. A Terraform best practices is to break up Terraform configs

@@ -1,0 +1,13 @@
+envvars:
+  HARDCODED_KEY:
+    source: text
+    value: HARDCODED_VALUE
+  OVERWRITTEN_KEY:
+    source: text
+    value: I_SHOULD_NEVER_BE_SEEN
+  SSM_KEY:
+    source: ssm
+    path: FAKE_SSM_PATH
+
+depends_on:
+    - mock_graph_directory/config/account_level/regional_level_1/app1

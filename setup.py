@@ -73,5 +73,6 @@ setup(
         'bin/backend_check',
         'bin/pipeline_check',
         'bin/plan_check',
+        'bin/visualize',
     ],
 )

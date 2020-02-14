@@ -4,12 +4,16 @@ from unittest import TestCase
 
 from unittest.mock import patch, MagicMock
 
+import networkx
+
 from terrawrap.models.wrapper_config import WrapperConfig, BackendsConfig, S3BackendConfig
 from terrawrap.utils.config import (
     calc_backend_config,
     parse_wrapper_configs,
     find_wrapper_config_files,
     resolve_envvars,
+    graph_wrapper_dependencies,
+    walk_and_graph_directory,
 )
 
 ROLE_ARN = 'arn:aws:iam::1234567890:role/test_role'
@@ -24,6 +28,61 @@ class TestConfig(TestCase):
     def setUp(self):
         self.prev_dir = os.getcwd()
         os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
+        self.config_dict = {}
+
+    def test_graph_wrapper_dependencies(self):
+        """ Test dependency graph for a single directory"""
+        actual_graph = networkx.DiGraph()
+        visited = []
+        current_dir = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/app2'
+        )
+        graph_wrapper_dependencies(
+            current_dir,
+            self.config_dict,
+            actual_graph,
+            visited
+        )
+
+        expected_graph = networkx.DiGraph()
+        app3 = os.path.join(os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/app2')
+        app1 = os.path.join(os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_1/app1')
+        expected_graph.add_node(app3)
+        expected_graph.add_node(app1)
+        expected_graph.add_edge(app1, app3)
+
+        self.assertTrue(networkx.is_isomorphic(actual_graph, expected_graph))
+
+    def test_walk_and_graph_directory(self):
+        """test dependency graph for a recursive dependency"""
+        starting_dir = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2'
+        )
+        actual_graph, actual_post_graph = walk_and_graph_directory(starting_dir, self.config_dict)
+
+        expected_graph = networkx.DiGraph()
+        app1 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_1/app1'
+        )
+        app2 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/app2'
+        )
+        app4 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/app4'
+        )
+        app5 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/team/app5'
+        )
+        expected_graph.add_nodes_from([app1, app2, app4, app5])
+        expected_graph.add_edge(app4, app5)
+        expected_graph.add_edge(app2, app4)
+        expected_graph.add_edge(app1, app2)
+        expected_post_graph = [
+            os.path.join(os.getcwd(), "mock_graph_directory/config/account_level/regional_level_2/app7")
+        ]
+
+        self.assertTrue(networkx.is_isomorphic(actual_graph, expected_graph))
+        self.assertEqual(actual_post_graph, expected_post_graph)
 
     def test_calc_backend_config(self):
         """Test that correct backend config is generated"""

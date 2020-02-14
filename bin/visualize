@@ -1,0 +1,74 @@
+#!/usr/bin/env python
+"""
+This script obtains the dependencies for the terraform config wrapper files and generates a visualization
+
+Usage:
+    visualize.py [options] <path>
+
+Arguments:
+    path    The path of the config directory to check
+
+Options:
+    -h, --help          Show this message and exit.[default: False]
+    -s, --singular      Show dependency info for a single wrapper file.[default: False]
+"""
+
+import os
+import networkx
+
+from docopt import docopt
+
+from terrawrap.utils.version import version_check
+from terrawrap.version import __version__
+
+from terrawrap.utils.config import graph_wrapper_dependencies, walk_and_graph_directory
+from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize, has_cycle
+
+
+SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
+CURRENT_DIRECTORY = os.getcwd()
+
+
+def main():
+    version_check(current_version=__version__)
+    arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
+
+    singular_dependencies = arguments['--singular']
+
+    # Get the directory with Terraform config passed to this script as an argument
+    config_dir = arguments['<path>']
+    if not os.path.isabs(config_dir):
+        config_dir = os.path.abspath(os.path.join(CURRENT_DIRECTORY, config_dir))
+
+    if not os.path.isdir:
+        config_dir = os.path.dirname(config_dir)
+
+    post_graph = []
+    wrapper_config_dict = {}
+    print("Visualizing Dependencies for %s:" % config_dir.replace(os.getcwd(), ""))
+    if singular_dependencies:
+        graph = networkx.DiGraph()
+        visited = []
+        graph_wrapper_dependencies(config_dir, wrapper_config_dict, graph, visited)
+    else:
+        graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
+
+    if has_cycle(graph):
+        print("Terrawrap has detected a dependency cycle. "
+              "There is a circular dependency between the tf_wrapper files listed above")
+        exit(1)
+
+    sources = find_source_nodes(graph)
+    dependencies = generate_dependencies(sources, graph)
+    visualize(dependencies)
+    if post_graph:
+        print("The following files have not been configured and will be run in parallel after the graph has run.")
+        relative_post_graph = []
+        for directory in post_graph:
+            relative_path = directory.replace(os.getcwd(), "")
+            relative_post_graph.append(relative_path)
+        print(relative_post_graph)
+
+
+if __name__ == '__main__':
+    main()
