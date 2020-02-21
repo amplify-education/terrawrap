@@ -157,6 +157,7 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
         if not has_tf_wrapper and is_config_directory(root):
             post_graph_runs.append(root)
     directory_graph = networkx.compose_all(graph_list)
+
     return directory_graph, post_graph_runs
 
 

@@ -1,0 +1,109 @@
+#!/usr/bin/env python
+"""
+This script obtains the dependencies for the terraform config wrapper files and applies them.
+
+Usage:
+    graph_apply --path=PATH [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug] [--print-only-changes]
+    graph_apply --version
+
+Arguments:
+    path    The path of the config directory to check
+
+Options:
+    -h, --help                                   Show this message and exit.[default: False]
+    -p, PATH --path=PATH                         Path to the directory to execute.
+    -o, OPERATION --operation=OPERATION          Which terraform command to run in the directories defined in
+                                                 the pipeline file.
+                                                 [default: plan]
+    -j, NUM_JOBS --parallel-jobs=NUM_JOBS        The number of Terraform operations to run in parallel.
+                                                 [default: 4].
+    -v,--debug                                   Turns on debug logging.
+    --print-only-changes                         Only print output for directories that have changes.
+    --version                                    Display the current version of Terraform Wrapper.
+"""
+
+import os
+import networkx
+
+from docopt import docopt
+
+from terrawrap.utils.version import version_check
+from terrawrap.version import __version__
+
+from terrawrap.utils.config import graph_wrapper_dependencies, walk_and_graph_directory
+from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize, has_cycle, connect_symlinks
+from terrawrap.models.graph import ApplyGraph
+from terrawrap.utils.path import get_symlinks
+
+
+SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
+CURRENT_DIRECTORY = os.getcwd()
+
+
+def main():
+    version_check(current_version=__version__)
+    arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
+
+    operation = arguments['--operation'].strip()
+    debug = arguments['--debug']
+    print_only_changes = arguments['--print-only-changes']
+    try:
+        num_parallel = int(arguments['--parallel-jobs'])
+    except ValueError:
+        raise RuntimeError(
+            "Unable to parse number of parallel jobs, '%s' is not an integer." % arguments['--parallel-jobs']
+        )
+
+    config_dir = arguments['--path']
+    if not os.path.isabs(config_dir):
+        config_dir = os.path.abspath(os.path.join(CURRENT_DIRECTORY, config_dir))
+    if not os.path.isdir:
+        config_dir = os.path.dirname(config_dir)
+
+    wrapper_config_dict = {}
+
+    print("Visualizing Dependencies for %s:" % config_dir)
+    try:
+        graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
+    except ValueError:
+        graph, post_graph = None, None
+        print("graph_apply can only be used for applying multiple directories, "
+              "please use tf command for an individual directory")
+        exit(1)
+
+    if has_cycle(graph):
+        print("Terrawrap has detected a dependency cycle. "
+              "There is a circular dependency between the tf_wrapper files listed above"
+              ", or no starting point could be found")
+        exit(1)
+
+    symlinks_dict = get_symlinks(config_dir)
+
+    connect_symlinks(graph, symlinks_dict)
+
+    sources = find_source_nodes(graph)
+    dependencies = generate_dependencies(sources, graph)
+    visualize(dependencies)
+    if post_graph:
+        print("The following files have not been configured and will be run in parallel after the graph has run.")
+        relative_post_graph = []
+        for directory in post_graph:
+            relative_path = directory.replace(os.getcwd(), "")
+            relative_post_graph.append(relative_path)
+        print(relative_post_graph)
+
+    apply = ApplyGraph(operation, graph, post_graph, config_dir)
+    apply.execute_graph(
+        num_parallel=num_parallel,
+        debug=debug,
+        print_only_changes=print_only_changes
+    )
+    apply.execute_post_graph(
+        num_parallel=num_parallel,
+        debug=debug,
+        print_only_changes=print_only_changes
+    )
+
+
+if __name__ == '__main__':
+    main()
