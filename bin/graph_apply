@@ -3,23 +3,23 @@
 This script obtains the dependencies for the terraform config wrapper files and applies them.
 
 Usage:
-    graph_apply.py --path=PATH [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug] [--print-only-changes]
-    graph_apply.py --version
+    graph_apply --path=PATH [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug] [--print-only-changes]
+    graph_apply --version
 
 Arguments:
     path    The path of the config directory to check
 
 Options:
-    -h, --help          Show this message and exit.[default: False]
-    -p PATH --path=PATH                         Path to the directory to execute.
-    -o OPERATION --operation=OPERATION          Which terraform command to run in the directories defined in
-                                                the pipeline file.
-                                                [default: plan]
-    -j NUM_JOBS --parallel-jobs=NUM_JOBS        The number of Terraform operations to run in parallel.
-                                                [default: 4].
-    -v,--debug                                  Turns on debug logging.
-    --print-only-changes                        Only print output for directories that have changes.
-    --version                                   Display the current version of Terraform Wrapper.
+    -h, --help                                   Show this message and exit.[default: False]
+    -p, PATH --path=PATH                         Path to the directory to execute.
+    -o, OPERATION --operation=OPERATION          Which terraform command to run in the directories defined in
+                                                 the pipeline file.
+                                                 [default: plan]
+    -j, NUM_JOBS --parallel-jobs=NUM_JOBS        The number of Terraform operations to run in parallel.
+                                                 [default: 4].
+    -v,--debug                                   Turns on debug logging.
+    --print-only-changes                         Only print output for directories that have changes.
+    --version                                    Display the current version of Terraform Wrapper.
 """
 
 import os
@@ -51,25 +51,24 @@ def main():
         num_parallel = int(arguments['--parallel-jobs'])
     except ValueError:
         raise RuntimeError(
-            "Unable to parse number of parallel jobs, '%s' is not an integer." % args['--parallel-jobs']
+            "Unable to parse number of parallel jobs, '%s' is not an integer." % arguments['--parallel-jobs']
         )
 
-    # Get the directory with Terraform config passed to this script as an argument
     config_dir = arguments['--path']
     if not os.path.isabs(config_dir):
         config_dir = os.path.abspath(os.path.join(CURRENT_DIRECTORY, config_dir))
-
     if not os.path.isdir:
         config_dir = os.path.dirname(config_dir)
 
     wrapper_config_dict = {}
+
     print("Visualizing Dependencies for %s:" % config_dir)
     try:
         graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
     except ValueError:
         graph, post_graph = None, None
-        print("Graph apply can only be used for applying multiple directories, "
-              "please use tf apply for and individual directory")
+        print("graph_apply can only be used for applying multiple directories, "
+              "please use tf command for an individual directory")
         exit(1)
 
     if has_cycle(graph):
@@ -78,9 +77,9 @@ def main():
               ", or no starting point could be found")
         exit(1)
 
-    syms_dict = get_symlinks(config_dir)
+    symlinks_dict = get_symlinks(config_dir)
 
-    connect_symlinks(graph, syms_dict)
+    connect_symlinks(graph, symlinks_dict)
 
     sources = find_source_nodes(graph)
     dependencies = generate_dependencies(sources, graph)
