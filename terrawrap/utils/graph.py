@@ -138,7 +138,6 @@ def connect_symlinks(graph: networkx.DiGraph, symlink_dict: Dict[str, Set[str]])
         links = list(symlink_dict[symlink])
         while secondary is not len(links):
             secondary_link = links[secondary]
-            print("adding edge from %s to %s" % (current, secondary_link))
             graph.add_edge(current, secondary_link)
             current = secondary_link
             secondary += 1

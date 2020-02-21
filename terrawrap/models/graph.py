@@ -14,11 +14,11 @@ class ApplyGraph:
     def __init__(self, command: str, graph: networkx.DiGraph, post_graph: List[str], prefix: str):
         """
         :param command: The Terraform command that this pipeline should execute.
-        :param pipeline_path: Path to the Terrawrap pipeline file. Can be absolute or relative from where
-        the script is executed.
+        :param graph: The graph to be executed.
+        :param post_graph: The list of items to be executed after the graph has been run.
+        :param prefix: The prefix an item must match to be applied.
         """
         self.command = command
-        self.reverse_pipeline = command == 'destroy'
         self.graph = graph
         self.graph_dict = {}
         self.post_graph = post_graph
@@ -79,11 +79,8 @@ class ApplyGraph:
             print(self.not_applied)
 
         if self.failures:
-            raise RuntimeError(
-                "The follow directories failed with command '%s':\n%s" % (
-                    self.command, "\n".join(self.failures)
-                )
-            )
+            print("The follow directories failed with command '%s':\n%s" %
+                  (self.command, "\n".join(self.failures)))
 
     def recursive_executor(
             self,
@@ -182,6 +179,14 @@ class ApplyGraph:
             else:
                 if item.state == "no-op":
                     self.not_applied.add(item)
+
+        if self.not_applied:
+            print("The following directories have not been run since they are out of scope")
+            print(self.not_applied)
+
+        if self.failures:
+            print("The follow directories failed with command '%s':\n%s" %
+                  (self.command, "\n".join(self.failures)))
 
     def _can_be_applied(self, entry: GraphEntry):
         """
