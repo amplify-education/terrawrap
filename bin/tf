@@ -87,6 +87,16 @@ def exec_tf_command(
     if command == "init":
         shutil.rmtree(os.path.join(path, ".terraform"), ignore_errors=True)
 
+    if command == "import":
+        response = input(
+            "WARNING: Running 'import' inside of an existing Terraform directory/state file can result in "
+            "resources being deleted when apply is run.\nPlease make sure to merge your changes or disable "
+            "automated apply jobs first.\nAre you sure you want to run 'import' now? (y/N): "
+        )
+        if response.lower().strip() != "y":
+            print("Please do better by taking one of the appropriate precautions suggested above.")
+            sys.exit(1)
+
     try_count = 0
     while True:
         exit_code, stdout = execute_command(
