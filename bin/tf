@@ -36,7 +36,8 @@ from terrawrap.utils.config import (
     parse_variable_files,
     find_wrapper_config_files,
     resolve_envvars,
-    parse_backend_config_for_dir
+    parse_backend_config_for_dir,
+    calc_repo_path,
 )
 from terrawrap.utils.dynamodb import DynamoDB
 from terrawrap.utils.path import get_absolute_path
@@ -163,7 +164,10 @@ def update_digest(error: str, path: str, variables: Dict[str, str]) -> bool:
     :return: True if digest is updated, otherwise False
     """
     dynamodb = DynamoDB(region=variables['region'])
-    digest = re.search(r'[\da-f]{32}', error).group()
+    try:
+        digest = re.search(r'[\da-f]{32}', error).group()
+    except AttributeError:
+        digest = ""
 
     default_terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
         region=variables.get('region'),
@@ -174,15 +178,22 @@ def update_digest(error: str, path: str, variables: Dict[str, str]) -> bool:
 
     lock_id = '{bucket_name}/{path}.tfstate-md5'.format(
         bucket_name=terraform_bucket,
-        path=re.sub('.*/terraform-config', 'terraform-config', path)
+        path=calc_repo_path(path=path),
     )
-    response = dynamodb.upsert_item(
-        table_name='terraform-locking',
-        primary_key_name='LockID',
-        primary_key_value=lock_id,
-        attribute_name='Digest',
-        attribute_value=digest
-    )
+    if digest:
+        response = dynamodb.upsert_item(
+            table_name='terraform-locking',
+            primary_key_name='LockID',
+            primary_key_value=lock_id,
+            attribute_name='Digest',
+            attribute_value=digest
+        )
+    else:
+        response = dynamodb.delete_item(
+            table_name='terraform-locking',
+            primary_key_name='LockID',
+            primary_key_value=lock_id,
+        )
     if response['ResponseMetadata']['HTTPStatusCode'] == 200:
         return True
 
