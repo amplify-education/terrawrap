@@ -103,10 +103,16 @@ def main():
         debug=debug,
         print_only_changes=print_only_changes
     )
+    if apply.not_applied:
+        print("The following directories have not been run since they are out of scope")
+        print(apply.not_applied)
     if apply.failures:
         print(
-            "Terrawrap has detected failures in the above Terraform applies, "
-            "please check above for specific directories."
+            "The following directories failed with command '%s':\n%s" % (operation, "\n".join(apply.failures))
+            )
+        print(
+            "Terrawrap has detected failures while running terraform %s, "
+            "please check above for specific directories." % operation
         )
         exit(1)
 
