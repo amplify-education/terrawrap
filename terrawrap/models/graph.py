@@ -74,13 +74,6 @@ class ApplyGraph:
             else:
                 if item.state == "no-op":
                     self.not_applied.add(item.path)
-        if self.not_applied:
-            print("The following directories have not been run since they are out of scope")
-            print(self.not_applied)
-
-        if self.failures:
-            print("The follow directories failed with command '%s':\n%s" %
-                  (self.command, "\n".join(self.failures)))
 
     def recursive_executor(
             self,
@@ -179,14 +172,6 @@ class ApplyGraph:
             else:
                 if item.state == "no-op":
                     self.not_applied.add(item)
-
-        if self.not_applied:
-            print("The following directories have not been run since they are out of scope")
-            print(self.not_applied)
-
-        if self.failures:
-            print("The follow directories failed with command '%s':\n%s" %
-                  (self.command, "\n".join(self.failures)))
 
     def _can_be_applied(self, entry: GraphEntry):
         """
