@@ -103,6 +103,12 @@ def main():
         debug=debug,
         print_only_changes=print_only_changes
     )
+    if apply.failures:
+        print(
+            "Terrawrap has detected failures in the above Terraform applies, "
+            "please check above for specific directories."
+        )
+        exit(1)
 
 
 if __name__ == '__main__':
