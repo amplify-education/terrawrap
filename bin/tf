@@ -37,10 +37,9 @@ from terrawrap.utils.config import (
     find_wrapper_config_files,
     resolve_envvars,
     parse_backend_config_for_dir,
-    calc_repo_path,
 )
 from terrawrap.utils.dynamodb import DynamoDB
-from terrawrap.utils.path import get_absolute_path
+from terrawrap.utils.path import get_absolute_path, calc_repo_path
 
 LOCK_TIMEOUT = timedelta(minutes=60)
 MAX_COUNT = 5

@@ -1,8 +1,6 @@
 """Holds config utilities"""
 import os
-import re
 import sys
-import subprocess
 from typing import Dict, List, Optional, Tuple
 import networkx
 
@@ -19,9 +17,8 @@ from terrawrap.models.wrapper_config import (
     BackendsConfig
 )
 from terrawrap.utils.collection_utils import update
-from terrawrap.utils.path import get_absolute_path
+from terrawrap.utils.path import get_absolute_path, calc_repo_path
 
-GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
 DEFAULT_REGION = 'us-west-2'
 SSM_ENVVAR_CACHE = SSMParameterGroup(max_age=600)
 
@@ -293,24 +290,6 @@ def calc_backend_config(
 
     backend_config.extend(['-backend-config=%s=%s' % (key, value) for key, value in options.items()])
     return backend_config
-
-
-def calc_repo_path(path: str) -> str:
-    """
-    Convenience function for taking an absolute path to a TF directory and returning the path to that
-    directory relative to the repo.
-    :param path: The absolute path to a TF directory.
-    :return: New path to the TF directory
-    """
-    byte_output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path)
-    output = byte_output.decode("utf-8", errors="replace")
-    match = re.search(GIT_REPO_REGEX, output)
-    if match:
-        repo_name = match.group(1)
-    else:
-        raise RuntimeError("Could not determine git repo name, are we in a git repo?")
-
-    return '%s/%s' % (repo_name, path[path.index("/config") + 1:])
 
 
 def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
