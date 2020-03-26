@@ -1,6 +1,6 @@
 """Module containing the ApplyGraph class"""
 import concurrent.futures
-from typing import List
+from typing import List, Dict, Set
 
 import networkx
 
@@ -20,11 +20,11 @@ class ApplyGraph:
         """
         self.command = command
         self.graph = graph
-        self.graph_dict = {}
+        self.graph_dict: Dict[str, GraphEntry] = {}
         self.post_graph = post_graph
         self.prefix = prefix
-        self.not_applied = set()
-        self.failures = []
+        self.not_applied: Set[str] = set()
+        self.failures: List[str] = []
 
     # pylint: disable=too-many-locals
     def execute_graph(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
@@ -110,7 +110,7 @@ class ApplyGraph:
         for future in concurrent.futures.as_completed(futures_to_paths):
 
             path = futures_to_paths[future]
-            if self.graph_dict.get(path).state != "no-op":
+            if self.graph_dict[path].state != "no-op":
                 exit_code, stdout, changes_detected = future.result()
 
                 if print_only_changes and not changes_detected:
@@ -152,7 +152,7 @@ class ApplyGraph:
             for future in concurrent.futures.as_completed(futures_to_paths):
 
                 path = futures_to_paths[future]
-                if self.graph_dict.get(path).state != "no-op":
+                if self.graph_dict[path].state != "no-op":
 
                     exit_code, stdout, changes_detected = future.result()
 
@@ -171,7 +171,7 @@ class ApplyGraph:
                 self.not_applied.add(node)
             else:
                 if item.state == "no-op":
-                    self.not_applied.add(item)
+                    self.not_applied.add(item.path)
 
     def _can_be_applied(self, entry: GraphEntry):
         """

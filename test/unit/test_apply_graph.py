@@ -73,7 +73,10 @@ class TestApplyGraph(TestCase):
             graph_entry_class.return_value.execute.mock_calls,
             []
         )
-        self.assertTrue(len(graph.not_applied) == 2)
+        self.assertEqual(
+            graph.not_applied,
+            {graph_entry_class.return_value.path}
+        )
 
     @patch('terrawrap.models.graph.GraphEntry')
     def test_runtime_errors(self, graph_entry_class):

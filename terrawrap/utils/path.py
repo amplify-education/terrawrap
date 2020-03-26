@@ -1,7 +1,12 @@
 """Module for containing convenience functions around path manipulation"""
 import os
+import re
+import subprocess
 from collections import defaultdict
 from typing import Dict, Set, Iterable, List
+
+
+GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
 
 
 def get_absolute_path(path: str, root_dir: str = None) -> str:
@@ -56,3 +61,21 @@ def get_directories_for_paths(paths: Iterable[str]) -> List[str]:
     directories.extend([os.path.dirname(file) for file in files])
 
     return directories
+
+
+def calc_repo_path(path: str) -> str:
+    """
+    Convenience function for taking an absolute path to a TF directory and returning the path to that
+    directory relative to the repo.
+    :param path: The absolute path to a TF directory.
+    :return: New path to the TF directory
+    """
+    byte_output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path)
+    output = byte_output.decode("utf-8", errors="replace")
+    match = re.search(GIT_REPO_REGEX, output)
+    if match:
+        repo_name = match.group(1)
+    else:
+        raise RuntimeError("Could not determine git repo name, are we in a git repo?")
+
+    return '%s/%s' % (repo_name, path[path.index("/config") + 1:])
