@@ -93,6 +93,9 @@ class PipelineEntry:
 
             operation_args += [plan_file_name]
 
+        if operation in ["plan"]:
+            operation_args += ["--detailed-exitcode"]
+
         operation_exit_code, operation_stdout = execute_command(
             operation_args,
             print_output=False,
@@ -102,8 +105,16 @@ class PipelineEntry:
 
         output += ["\n"] + operation_stdout
 
+        changes_detected = True
+        if operation in ["plan"]:
+            if operation_exit_code == 2:
+                # Set exit code to 0 so the command doesn't fail out
+                operation_exit_code = 0
+            elif operation_exit_code != 2:
+                changes_detected = False
+
         return (
             operation_exit_code,
             output,
-            True,
+            changes_detected,
         )
