@@ -63,7 +63,7 @@ class PipelineEntry:
         if operation in ["apply", "destroy"]:
             operation_args += ["-auto-approve"]
 
-        init_exit_code, init_stdout = execute_command(
+        init_exit_code, output = execute_command(
             init_args,
             print_output=False,
             capture_stderr=True,
@@ -71,8 +71,9 @@ class PipelineEntry:
         )
 
         if init_exit_code != 0:
-            return init_exit_code, init_stdout, True
+            return init_exit_code, output, True
 
+        # We need to plan first before we apply so we can actually see a plan... Thanks Hashicorp
         if operation in ["apply"]:
             plan_exit_code, plan_stdout = execute_command(
                 plan_args,
@@ -80,19 +81,20 @@ class PipelineEntry:
                 capture_stderr=True,
                 env=command_env
             )
+
+            output += ["\n"] + plan_stdout
+
+            if plan_exit_code != 2:
+                return (
+                    plan_exit_code,
+                    output,
+                    False,
+                )
+
             operation_args += [plan_file_name]
-        else:
-            plan_exit_code = 0
-            plan_stdout = []
 
-        changes_detected = plan_exit_code != 0
-
-        if plan_exit_code != 2:
-            return (
-                plan_exit_code,
-                init_stdout + ["\n"] + plan_stdout,
-                changes_detected,
-            )
+        if operation in ["plan"]:
+            operation_args += ["--detailed-exitcode"]
 
         operation_exit_code, operation_stdout = execute_command(
             operation_args,
@@ -101,8 +103,18 @@ class PipelineEntry:
             env=command_env
         )
 
+        output += ["\n"] + operation_stdout
+
+        changes_detected = True
+        if operation in ["plan"]:
+            if operation_exit_code == 2:
+                # Set exit code to 0 so the command doesn't fail out
+                operation_exit_code = 0
+            elif operation_exit_code != 2:
+                changes_detected = False
+
         return (
             operation_exit_code,
-            init_stdout + ["\n"] + plan_stdout + ["\n"] + operation_stdout,
+            output,
             changes_detected,
         )
