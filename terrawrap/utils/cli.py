@@ -20,6 +20,7 @@ RETRIABLE_ERRORS = [
     'failed to decode query XML error response',
     'connection reset by peer',
     'Please try again.',
+    'Client.Timeout exceeded',
 ]
 
 
