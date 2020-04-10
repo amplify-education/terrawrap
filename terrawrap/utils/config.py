@@ -144,7 +144,7 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
                 wrapper_config_obj = create_wrapper_config_obj(root, wrapper_file)
                 if not wrapper_config_obj.config:
                     continue
-                if not wrapper_config_obj.pipeline_check:
+                if not wrapper_config_obj.apply_automatically:
                     continue
                 if wrapper_config_obj.depends_on is None:
                     post_graph_runs.append(root)

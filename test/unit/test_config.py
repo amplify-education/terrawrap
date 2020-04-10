@@ -73,6 +73,9 @@ class TestConfig(TestCase):
         app5 = os.path.join(
             os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/team/app5'
         )
+        app9 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2/team/app9'
+        )
         expected_graph.add_nodes_from([app1, app2, app4, app5])
         expected_graph.add_edge(app4, app5)
         expected_graph.add_edge(app2, app4)
@@ -83,6 +86,8 @@ class TestConfig(TestCase):
 
         self.assertTrue(networkx.is_isomorphic(actual_graph, expected_graph))
         self.assertEqual(actual_post_graph, expected_post_graph)
+        self.assertTrue(app9 not in actual_graph.nodes)
+        self.assertTrue(app9 not in actual_post_graph)
 
     def test_calc_backend_config(self):
         """Test that correct backend config is generated"""
