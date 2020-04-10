@@ -12,13 +12,16 @@ class TestPipelineEntry(TestCase):
     @patch('terrawrap.models.pipeline_entry.execute_command')
     def test_execute(self, exec_command):
         """Test executing a command successfully"""
-        exec_command.side_effect = [(0, ['Success'])]
+        exec_command.side_effect = [
+            (0, ['Success']),  # init
+            (0, ['Success']),  # plan with no changes
+        ]
 
         entry = PipelineEntry('/var', [])
         exit_code, stdout, changes_detected = entry.execute('plan')
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(stdout, ['Success', '\n'])
+        self.assertEqual(stdout, ['Success', '\n', 'Success'])
         self.assertEqual(changes_detected, False)
 
     @patch('terrawrap.models.pipeline_entry.execute_command')

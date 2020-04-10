@@ -11,9 +11,17 @@ from amplify_aws_utils.resource_helper import Jitter
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 5
-RETRIABLE_ERRORS = ['RequestError: send request failed', 'unexpected EOF', 'Throttling',
-                    'timeout while waiting for state', 'ServiceUnavailable: Service Unavailable',
-                    'failed to decode query XML error response', 'connection reset by peer']
+RETRIABLE_ERRORS = [
+    'RequestError: send request failed',
+    'unexpected EOF',
+    'Throttling',
+    'timeout while waiting for state',
+    'ServiceUnavailable: Service Unavailable',
+    'failed to decode query XML error response',
+    'connection reset by peer',
+    'Please try again.',
+    'Client.Timeout exceeded',
+]
 
 
 # pylint: too-many-locals

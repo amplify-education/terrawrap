@@ -2,6 +2,7 @@
 from typing import Any, Dict
 
 import boto3
+from amplify_aws_utils.resource_helper import throttled_call
 
 
 class DynamoDB:
@@ -32,9 +33,31 @@ class DynamoDB:
         expression_attribute_values = {':d': {'S': attribute_value}}
         update_expression = 'SET {} = :d'.format(attribute_name)
 
-        return self.client.update_item(
+        return throttled_call(
+            self.client.update_item,
             TableName=table_name,
             Key=key,
             ExpressionAttributeValues=expression_attribute_values,
             UpdateExpression=update_expression
+        )
+
+    def delete_item(
+            self,
+            table_name: str,
+            primary_key_name: str,
+            primary_key_value: str,
+    ):
+        """
+        Convenience function for deleting an item from a DynamoDB table with a specific primary key value.
+        :param table_name: DynamoDB table name
+        :param primary_key_name: Table's primary key name
+        :param primary_key_value: Table's primary key value
+        :return: response
+        """
+        key = {primary_key_name: {'S': primary_key_value}}
+
+        return throttled_call(
+            self.client.delete_item,
+            TableName=table_name,
+            Key=key,
         )

@@ -109,7 +109,7 @@ def visualize(dependencies: List[List[str]]):
         depth += 1
 
 
-def find_symlink_directories(graph: networkx.DiGraph) -> List[str]:
+def find_symlink_directories(graph: networkx.DiGraph) -> List[Path]:
     """
     Finds all symlink directories in a given graph
     :param graph: The graph to find symlinks in
