@@ -74,35 +74,6 @@ def main():
             post_graph = []
             print("Discovered dependency information, please either remove all dependency info or fix existing.")
             exit(0)
-        # if post_graph:
-        #     relative_post_graph = []
-        #     for directory in post_graph:
-        #         relative_path = directory.replace(os.getcwd(), "")
-        #         relative_post_graph.append(relative_path)
-        #     print(relative_post_graph)
-        #     apply = ApplyGraph(operation, graph, post_graph, config_dir)
-        #     apply.execute_post_graph(
-        #         num_parallel=num_parallel,
-        #         debug=debug,
-        #         print_only_changes=print_only_changes
-        #     )
-        #     if apply.not_applied:
-        #         print("The following directories have not been run since they are out of scope")
-        #         print(apply.not_applied)
-        #     if apply.failures:
-        #         print(
-        #             "The following directories failed with command '%s':\n%s" % (operation, "\n".join(apply.failures))
-        #         )
-        #         print(
-        #             "Terrawrap has detected failures while running terraform %s, "
-        #             "please check above for specific directories." % operation
-        #         )
-        #
-        # exit(1)
-        # graph, post_graph = None, None
-        # print("graph_apply can only be used for applying multiple directories, "
-        #       "please use tf command for an individual directory")
-        # exit(1)
 
     symlinks_dict = get_symlinks(config_dir)
 
@@ -131,9 +102,11 @@ def main():
         print_only_changes=print_only_changes
     )
     if apply.not_applied:
+        print("SKIPPED DIRECTORIES")
         print("The following directories have not been run since they are out of scope")
         print(apply.not_applied)
     if apply.failures:
+        print("FAILED DIRECTORIES")
         print(
             "The following directories failed with command '%s':\n%s" % (operation, "\n".join(apply.failures))
             )
