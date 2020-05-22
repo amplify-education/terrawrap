@@ -24,7 +24,6 @@ RETRIABLE_ERRORS = [
 ]
 
 
-# pylint: too-many-locals
 def execute_command(
         args: List[str],
         *pargs,
