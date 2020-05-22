@@ -169,8 +169,9 @@ def walk_without_graph_directory(starting_dir: str) -> List[str]:
                 has_tf_wrapper = True
                 wrapper_file = os.path.join(root, file)
                 wrapper_config_obj = create_wrapper_config_obj(root, wrapper_file)
-                # if wrapper_config_obj.depends_on is not None:
-                #     Raise
+                if wrapper_config_obj.depends_on is not None:
+                    raise ValueError("Discovered dependency information")
+                    break
                 if not wrapper_config_obj.config:
                     continue
                 if not wrapper_config_obj.apply_automatically:

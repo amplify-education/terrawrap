@@ -68,9 +68,13 @@ def main():
     except ValueError:
         print("Terrawrap has detected no dependency information in this graph, attempting to apply all directories")
         graph = networkx.DiGraph()
-        post_graph = walk_without_graph_directory(config_dir)
+        try:
+            post_graph = walk_without_graph_directory(config_dir)
+        except ValueError:
+            post_graph = []
+            print("Discovered dependency information, please either remove all dependency info or fix existing.")
+            exit(0)
         if post_graph:
-            # print("The following files have not been configured and will be run in parallel after the graph has run.")
             relative_post_graph = []
             for directory in post_graph:
                 relative_path = directory.replace(os.getcwd(), "")
