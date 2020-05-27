@@ -14,6 +14,7 @@ from terrawrap.utils.config import (
     resolve_envvars,
     graph_wrapper_dependencies,
     walk_and_graph_directory,
+    walk_without_graph_directory
 )
 
 ROLE_ARN = 'arn:aws:iam::1234567890:role/test_role'
@@ -54,7 +55,7 @@ class TestConfig(TestCase):
         self.assertTrue(networkx.is_isomorphic(actual_graph, expected_graph))
 
     def test_walk_and_graph_directory(self):
-        """test dependency graph for a recursive dependency"""
+        """Test dependency graph for a recursive dependency"""
         starting_dir = os.path.join(
             os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_2'
         )
@@ -88,6 +89,59 @@ class TestConfig(TestCase):
         self.assertEqual(actual_post_graph, expected_post_graph)
         self.assertTrue(app9 not in actual_graph.nodes)
         self.assertTrue(app9 not in actual_post_graph)
+
+    def test_walk_without_graph_directory(self):
+        """Test will find and list all config dirs if no dependency information"""
+        starting_dir = os.path.join(
+            os.getcwd(), 'mock_directory/config/'
+        )
+        actual_post_graph = walk_without_graph_directory(starting_dir)
+
+        app1 = os.path.join(
+            os.getcwd(), 'mock_directory/config/app1'
+        )
+        app2 = os.path.join(
+            os.getcwd(), 'mock_directory/config/app2'
+        )
+
+        app_team_4 = os.path.join(
+            os.getcwd(), 'mock_directory/config/team/app4'
+        )
+
+        expected_post_graph = [app1, app2, app_team_4]
+
+        expected_post_graph.sort()
+        actual_post_graph.sort()
+
+        self.assertEqual(actual_post_graph, expected_post_graph)
+
+    def wont_apply_automatically_in_parrallel(self):
+        """ Test will not automatically apply if set with no dependency info"""
+        starting_dir = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/account_level/regional_level_3'
+        )
+        actual_post_graph = walk_without_graph_directory(starting_dir)
+
+        app1 = os.path.join(
+            starting_dir, '/app1'
+        )
+        app3 = os.path.join(
+            starting_dir, '/app3'
+        )
+        app4 = os.path.join(
+            starting_dir, '/app4'
+        )
+        app7 = os.path.join(
+            starting_dir, '/app7'
+        )
+
+        expected_post_graph = [app1, app3, app4]
+
+        expected_post_graph.sort()
+        actual_post_graph.sort()
+
+        self.assertEqual(actual_post_graph, expected_post_graph)
+        self.assertTrue(app7 not in actual_post_graph)
 
     def test_calc_backend_config(self):
         """Test that correct backend config is generated"""

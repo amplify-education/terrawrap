@@ -30,7 +30,7 @@ from docopt import docopt
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
-from terrawrap.utils.config import graph_wrapper_dependencies, walk_and_graph_directory
+from terrawrap.utils.config import walk_and_graph_directory, walk_without_graph_directory
 from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize, has_cycle, connect_symlinks
 from terrawrap.models.graph import ApplyGraph
 from terrawrap.utils.path import get_symlinks
@@ -66,16 +66,14 @@ def main():
     try:
         graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
     except ValueError:
-        graph, post_graph = None, None
-        print("graph_apply can only be used for applying multiple directories, "
-              "please use tf command for an individual directory")
-        exit(1)
-
-    if has_cycle(graph):
-        print("Terrawrap has detected a dependency cycle. "
-              "There is a circular dependency between the tf_wrapper files listed above"
-              ", or no starting point could be found")
-        exit(1)
+        print("Terrawrap has detected no dependency information in this graph, attempting to apply all directories")
+        graph = networkx.DiGraph()
+        try:
+            post_graph = walk_without_graph_directory(config_dir)
+        except ValueError:
+            post_graph = []
+            print("Discovered dependency information, please either remove all dependency info or fix existing.")
+            exit(0)
 
     symlinks_dict = get_symlinks(config_dir)
 
@@ -104,9 +102,11 @@ def main():
         print_only_changes=print_only_changes
     )
     if apply.not_applied:
+        print("SKIPPED DIRECTORIES")
         print("The following directories have not been run since they are out of scope")
         print(apply.not_applied)
     if apply.failures:
+        print("FAILED DIRECTORIES")
         print(
             "The following directories failed with command '%s':\n%s" % (operation, "\n".join(apply.failures))
             )

@@ -160,6 +160,33 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
     return directory_graph, post_graph_runs
 
 
+def walk_without_graph_directory(starting_dir: str) -> List[str]:
+    """
+    Given a starting directory, walks it and returns a list of all tf configs to apply.
+    :param starting_dir: The starting directory
+    :return: post_graph: A graph composed of all dependency information for a directory
+    """
+    post_graph_runs = []
+    for root, _, files in os.walk(starting_dir):
+        has_tf_wrapper = False
+        for file in files:
+            if file.endswith(".tf_wrapper"):
+                has_tf_wrapper = True
+                wrapper_file = os.path.join(root, file)
+                wrapper_config_obj = create_wrapper_config_obj(root, wrapper_file)
+                if wrapper_config_obj.depends_on is not None:
+                    raise ValueError("Discovered dependency information")
+                if not wrapper_config_obj.config:
+                    continue
+                if not wrapper_config_obj.apply_automatically:
+                    continue
+                post_graph_runs.append(root)
+        if not has_tf_wrapper and is_config_directory(root):
+            post_graph_runs.append(root)
+
+    return post_graph_runs
+
+
 # pylint: disable=R0912
 def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiGraph, visited: List[str]):
     """
