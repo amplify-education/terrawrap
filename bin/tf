@@ -235,7 +235,7 @@ def download_plugins(plugin_paths: Dict[str, str]):
 
         # get the etag if it exists
         headers = {}
-        if os.path.isfile(etag_path):
+        if os.path.isfile(etag_path) and os.path.isfile(file_path):
             with(open(etag_path, 'r')) as etag_file:
                 headers['If-None-Match'] = etag_file.read()
 
