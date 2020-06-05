@@ -262,7 +262,7 @@ def download_plugins(plugin_paths: Dict[str, str]):
                 # write the etag to a file so we can use it in future requests
                 etag = response.headers.get('etag')
                 if etag:
-                    # AWS returns the etag surronded by quotes
+                    # AWS returns the etag surrounded by quotes
                     # remove them if that happens
                     if etag[0] == '"':
                         etag = etag[1:-1]
