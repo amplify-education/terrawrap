@@ -248,14 +248,14 @@ def download_plugins(plugin_paths: Dict[str, str]):
                 headers['If-None-Match'] = etag_file.read()
 
         # get the plugin. send etag header to avoid downloading file if we already have the same version
-        response = requests.get(path, headers=headers)
-        response.raise_for_status()
+        # use a lock to prevent conflicts writing the file if running this command in parallel
+        with lock:
+            print('Downloading plugin %s' % path)
+            response = requests.get(path, headers=headers)
+            response.raise_for_status()
 
-        # save the file if etag matches
-        if response.status_code == 200:
-            # use a lock to prevent conflicts writing the file if running this command in parallel
-            with lock:
-                print('Downloaded plugin %s' % path)
+            # save the file if etag matches
+            if response.status_code == 200:
                 with(open(file_path, 'wb')) as plugin_file:
                     plugin_file.write(response.content)
 
