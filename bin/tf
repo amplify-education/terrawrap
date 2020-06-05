@@ -27,6 +27,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
 
 import requests
+from filelock import FileLock
 
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
@@ -232,6 +233,9 @@ def download_plugins(plugin_paths: Dict[str, str]):
         home = os.path.expanduser("~")
         file_path = os.path.join(home, '.terraform.d/plugins', name)
         etag_path = '%s.%s' % (file_path, 'etag')
+        lock_path = '%s.%s' % (file_path, 'lock')
+
+        lock = FileLock(lock_path, timeout=600)
 
         # get the etag if it exists
         headers = {}
@@ -245,19 +249,21 @@ def download_plugins(plugin_paths: Dict[str, str]):
 
         # save the file if etag matches
         if response.status_code == 200:
-            print('Downloaded plugin %s' % path)
-            with(open(file_path, 'wb')) as plugin_file:
-                plugin_file.write(response.content)
+            # use a lock to prevent conflicts writing the file if running this command in parallel
+            with lock:
+                print('Downloaded plugin %s' % path)
+                with(open(file_path, 'wb')) as plugin_file:
+                    plugin_file.write(response.content)
 
-            # write the etag to a file so we can use it in future requests
-            etag = response.headers.get('etag')
-            if etag:
-                # AWS returns the etag surronded by quotes
-                # remove them if that happens
-                if etag[0] == '"':
-                    etag = etag[1:-1]
-                with(open(etag_path, 'w')) as etag_file:
-                    etag_file.write(etag)
+                # write the etag to a file so we can use it in future requests
+                etag = response.headers.get('etag')
+                if etag:
+                    # AWS returns the etag surronded by quotes
+                    # remove them if that happens
+                    if etag[0] == '"':
+                        etag = etag[1:-1]
+                    with(open(etag_path, 'w')) as etag_file:
+                        etag_file.write(etag)
 
 
 def handler():
