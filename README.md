@@ -126,7 +126,6 @@ The following options are supported in `.tf_wrapper`:
 
 ```yaml
 configure_backend: True # If true, automatically configure Terraform backends.
-pipeline_check: True # If true, require this directory to be in a pipeline file.
 backend_check: True # If true, require this directory to have a terraform backend configured
 
 envvars:
@@ -134,6 +133,9 @@ envvars:
     source: # The source of the envvar. One of `['ssm', 'text']`.
     path: # If the source of the envvar is `ssm`, the SSM Parameter Store path to lookup the value of the environment variable from.
     value: # if the source of the envvar is `text`, the string value to set as the environment variable.
+
+plugins:
+    <NAME_OF_PLUGIN>: <plugin url>
 ```
 
 ### Autovars

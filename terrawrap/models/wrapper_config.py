@@ -64,7 +64,7 @@ def env_var_deserializer(obj_dict, cls, **kwargs):
 jsons.set_deserializer(env_var_deserializer, AbstractEnvVarConfig)
 
 
-# pylint: disable=too-many-argument
+# pylint: disable=too-many-arguments
 class WrapperConfig:
     def __init__(
             self,
