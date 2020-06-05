@@ -229,6 +229,10 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
 
 
 def download_plugins(plugin_paths: Dict[str, str]):
+    """
+    Download a set of Terraform plugins to the user's home directory
+    :param plugin_paths: A dictionary of plugin names and URLs where to download them
+    """
     for name, path in plugin_paths.items():
         home = os.path.expanduser("~")
         file_path = os.path.join(home, '.terraform.d/plugins', name)
