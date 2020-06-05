@@ -26,8 +26,9 @@ import sys
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
 
-from terrawrap.utils.version import version_check
-from terrawrap.version import __version__
+import requests
+from filelock import FileLock
+
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
     find_variable_files,
@@ -40,6 +41,8 @@ from terrawrap.utils.config import (
 )
 from terrawrap.utils.dynamodb import DynamoDB
 from terrawrap.utils.path import get_absolute_path, calc_repo_path
+from terrawrap.utils.version import version_check
+from terrawrap.version import __version__
 
 LOCK_TIMEOUT = timedelta(minutes=60)
 MAX_COUNT = 5
@@ -225,6 +228,48 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
         sys.exit(0)
 
 
+def download_plugins(plugin_paths: Dict[str, str]):
+    """
+    Download a set of Terraform plugins to the user's home directory
+    :param plugin_paths: A dictionary of plugin names and URLs where to download them
+    """
+    for name, path in plugin_paths.items():
+        home = os.path.expanduser("~")
+        file_path = os.path.join(home, '.terraform.d/plugins', name)
+        etag_path = '%s.%s' % (file_path, 'etag')
+        lock_path = '%s.%s' % (file_path, 'lock')
+
+        lock = FileLock(lock_path, timeout=600)
+
+        # get the etag if it exists
+        headers = {}
+        if os.path.isfile(etag_path) and os.path.isfile(file_path):
+            with(open(etag_path, 'r')) as etag_file:
+                headers['If-None-Match'] = etag_file.read()
+
+        # get the plugin. send etag header to avoid downloading file if we already have the same version
+        # use a lock to prevent conflicts writing the file if running this command in parallel
+        with lock:
+            print('Downloading plugin %s' % path)
+            response = requests.get(path, headers=headers)
+            response.raise_for_status()
+
+            # save the file if etag matches
+            if response.status_code == 200:
+                with(open(file_path, 'wb')) as plugin_file:
+                    plugin_file.write(response.content)
+
+                # write the etag to a file so we can use it in future requests
+                etag = response.headers.get('etag')
+                if etag:
+                    # AWS returns the etag surrounded by quotes
+                    # remove them if that happens
+                    if etag[0] == '"':
+                        etag = etag[1:-1]
+                    with(open(etag_path, 'w')) as etag_file:
+                        etag_file.write(etag)
+
+
 def handler():
     version_check(current_version=__version__)
     path, command, additional_arguments, should_resolve_envvars = process_arguments(sys.argv)
@@ -267,6 +312,9 @@ def handler():
                 existing_backend_config=existing_backend_config
             )
             additional_arguments = backend_config + additional_arguments
+
+    if command == "init":
+        download_plugins(wrapper_config.plugins)
 
     exec_tf_command(
         command=command,

@@ -64,6 +64,7 @@ def env_var_deserializer(obj_dict, cls, **kwargs):
 jsons.set_deserializer(env_var_deserializer, AbstractEnvVarConfig)
 
 
+# pylint: disable=too-many-arguments
 class WrapperConfig:
     def __init__(
             self,
@@ -75,7 +76,8 @@ class WrapperConfig:
             backends: BackendsConfig = None,
             depends_on: List[str] = None,
             config: bool = True,
-            apply_automatically: bool = True
+            apply_automatically: bool = True,
+            plugins: Dict[str, str] = None
     ):
         self.configure_backend = configure_backend
         self.pipeline_check = pipeline_check
@@ -86,3 +88,4 @@ class WrapperConfig:
         self.depends_on = depends_on
         self.config = config
         self.apply_automatically = apply_automatically
+        self.plugins = plugins or {}

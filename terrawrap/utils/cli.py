@@ -121,7 +121,10 @@ def _execute_command(
     stdout_read.seek(0)
     stdout = [line.decode(errors="replace") for line in stdout_read.readlines()]
 
-    return exit_code, stdout
+    # ignoring mypy error below because it thinks exit_code can sometimes be None
+    # we know that will never be the case because the above While loop will keep looping forever
+    # until exit_code is not None
+    return exit_code, stdout  # type: ignore
 
 
 def _get_retriable_errors(out: List[str]) -> List[str]:
