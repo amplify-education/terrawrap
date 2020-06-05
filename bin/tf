@@ -303,7 +303,8 @@ def handler():
             )
             additional_arguments = backend_config + additional_arguments
 
-    download_plugins(wrapper_config.plugins)
+    if command == "init":
+        download_plugins(wrapper_config.plugins)
 
     exec_tf_command(
         command=command,
