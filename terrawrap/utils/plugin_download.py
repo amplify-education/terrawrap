@@ -2,7 +2,6 @@
 
 import os
 import platform
-import re
 from typing import Dict, Tuple, Optional
 from urllib.parse import urlparse
 
@@ -18,6 +17,7 @@ class FileDownloadFailed(RuntimeError):
 
 class PluginDownload:
     """Utility for downloading plugins"""
+
     def __init__(self, s3_client):
         self.s3_client = s3_client or boto3.client('s3')
 
@@ -115,13 +115,11 @@ class PluginDownload:
 
     def _get_s3_content(self, url: str, etag: Optional[str]) -> Optional[Tuple[bytes, Optional[str]]]:
         """Download a file from S3 using the AWS SDK"""
-        match = re.match(r's3://([a-zA-Z0-9-.]+)/(.+)', url)
-        if not match:
-            raise RuntimeError('Invalid S3 url %s' % url)
+        parsed_url = urlparse(url)
 
         args = {
-            'Bucket': match.group(1),
-            'Key': match.group(2)
+            'Bucket': parsed_url.hostname,
+            'Key': parsed_url.path
         }
 
         if etag:
