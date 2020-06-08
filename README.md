@@ -146,7 +146,7 @@ plugins:
 
 Terrawrap supports automatically downloading provider plugins by configuring the `.tf_wrapper` file as specified above.
 Terrawrap will first try to download platform specific versions of plugins by downloading them from 
-`<plugin url>/<system type>/<machine type>`. If Terrawrap is unable to download from the platform specific URL 
+`<plugin url>/<system type>/<architecture type>`. If Terrawrap is unable to download from the platform specific URL 
 then it will try to download directly from the given plugin url directly instead.
 
 For example, the following config on a Mac
