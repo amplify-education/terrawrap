@@ -1,6 +1,8 @@
 """Test terraform config utilities"""
 from unittest import TestCase
 
+import os
+from pathlib import Path
 import networkx
 
 from terrawrap.utils.graph import (
@@ -9,7 +11,11 @@ from terrawrap.utils.graph import (
     successors,
     generate_dependencies,
     visualize,
+    find_symlink_directories,
+    connect_symlinks
 )
+
+from terrawrap.utils.path import get_symlinks
 
 ROLE_ARN = 'arn:aws:iam::1234567890:role/test_role'
 BUCKET = 'us-west-2--mclass--terraform--test'
@@ -68,3 +74,35 @@ class TestConfig(TestCase):
         sources = find_source_nodes(self.graph)
         dependencies = generate_dependencies(sources, self.graph)
         visualize(dependencies)
+
+    def test_symlinks(self):
+        """ Tests we have symlinks"""
+        app1 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/symlinks/app1'
+        )
+        app2 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/symlinks/app2'
+        )
+        graph = networkx.DiGraph()
+        graph.add_nodes_from([app1, app2])
+        symlinks = find_symlink_directories(graph)
+
+        self.assertEqual(symlinks, [Path(app2)])
+
+    def test_connect_symlinks(self):
+        """Tests we can connect found symlinks"""
+        app1 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/symlinks/app1'
+        )
+        app2 = os.path.join(
+            os.getcwd(), 'mock_graph_directory/config/symlinks/app2'
+        )
+        config_dir = os.path.join(
+            os.getcwd(),'mock_graph_directory/config/symlinks/'
+        )
+        graph = networkx.DiGraph()
+        graph.add_nodes_from([app1, app2])
+        symlink_dict = get_symlinks(config_dir)
+        connect_symlinks(graph, symlink_dict)
+
+        self.assertTrue(graph.has_edge(app1, app2))
