@@ -65,7 +65,7 @@ class TestPluginDownload(TestCase):
         open_mock.return_value.write.assert_has_calls([])
 
     @patch('os.path.expanduser', MagicMock(return_value='/home/fake_user'))
-    @patch('terrawrap.utils.file_download.FileLock', MagicMock())
+    @patch('terrawrap.utils.plugin_download.FileLock', MagicMock())
     @patch('platform.system', MagicMock(return_value='FakeLinux'))
     @patch('platform.machine', MagicMock(return_value='x86_42'))
     def test_download_plugins(self):
@@ -81,7 +81,7 @@ class TestPluginDownload(TestCase):
             )
 
     @patch('os.path.expanduser', MagicMock(return_value='/home/fake_user'))
-    @patch('terrawrap.utils.file_download.FileLock', MagicMock())
+    @patch('terrawrap.utils.plugin_download.FileLock', MagicMock())
     @patch('platform.system', MagicMock(return_value='FakeLinux'))
     @patch('platform.machine', MagicMock(return_value='x86_42'))
     def test_download_plugins_platform_missing(self):
