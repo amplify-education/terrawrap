@@ -4,6 +4,7 @@ import os
 import platform
 import re
 from typing import Dict, Tuple, Optional
+from urllib.parse import urlparse
 
 import boto3
 import requests
@@ -83,10 +84,13 @@ class PluginDownload:
         """
         print('Downloading %s' % url)
 
-        if url.startswith('http://') or url.startswith('https://'):
+        parsed_url = urlparse(url)
+        print(parsed_url)
+
+        if parsed_url.scheme in ('http', 'https'):
             return self._get_http_content(url, etag)
 
-        if url.startswith('s3://'):
+        if parsed_url.scheme == 's3':
             return self._get_s3_content(url, etag)
 
         raise RuntimeError('Invalid file download scheme. URL must start with one of (http, https, s3')
