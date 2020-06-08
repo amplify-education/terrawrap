@@ -39,7 +39,7 @@ from terrawrap.utils.config import (
     parse_backend_config_for_dir,
 )
 from terrawrap.utils.dynamodb import DynamoDB
-from terrawrap.utils.file_download import PluginDownload
+from terrawrap.utils.plugin_download import PluginDownload
 from terrawrap.utils.path import get_absolute_path, calc_repo_path
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__

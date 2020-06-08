@@ -85,7 +85,6 @@ class PluginDownload:
         print('Downloading %s' % url)
 
         parsed_url = urlparse(url)
-        print(parsed_url)
 
         if parsed_url.scheme in ('http', 'https'):
             return self._get_http_content(url, etag)
