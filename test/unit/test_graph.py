@@ -98,7 +98,7 @@ class TestConfig(TestCase):
             os.getcwd(), 'mock_graph_directory/config/symlinks/app2'
         )
         config_dir = os.path.join(
-            os.getcwd(),'mock_graph_directory/config/symlinks/'
+            os.getcwd(), 'mock_graph_directory/config/symlinks/'
         )
         graph = networkx.DiGraph()
         graph.add_nodes_from([app1, app2])
