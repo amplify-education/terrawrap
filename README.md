@@ -54,7 +54,7 @@ Learn more at <https://www.amplify.com>
 
 4.  Repository level dependency visualization. Terrawrap provides commands for displaying the order of applies in 
     human readable output.
-    
+
 5.  Automatically download third-party Terraform plugins
 
 ## Goals
@@ -145,17 +145,19 @@ plugins:
 ### Plugins
 
 Terrawrap supports automatically downloading provider plugins by configuring the `.tf_wrapper` file as specified above.
-Terrawrap will first try to download platform specific versions of plugins by downloading them from `<plugin url>/<system>/<platform>`.
-If unable to download from the platform specific URL then Terrawrap will try to download directly from the given plugin url.
+Terrawrap will first try to download platform specific versions of plugins by downloading them from 
+`<plugin url>/<system type>/<machine type>`. If Terrawrap is unable to download from the platform specific URL 
+then it will try to download directly from the given plugin url directly instead.
 
 For example, the following config on a Mac
 
 ```yaml
 plugins:
-    foo: example.com/foo
+    foo: http://example.com/foo
 ```
 
-Terrawap will first try to download from `example.com/foo/Darwin/x86_64`. If that request fails then Terrawrap will try `example.com/foo`
+Terrawap will first try to download from `http://example.com/foo/Darwin/x86_64`. 
+If that request fails then Terrawrap will try `http://example.com/foo` instead.
 
 ### Autovars
 

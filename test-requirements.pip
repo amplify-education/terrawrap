@@ -7,4 +7,5 @@ nose>=1.1,<2
 nose-cov>=1.5,<2
 mock>=1.0.1,<2
 coverage>=4.5.3,<5
+requests-mock>=1.8.0,<2
 # Additional libraries
