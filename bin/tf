@@ -26,6 +26,8 @@ import sys
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
 
+import boto3
+
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
     find_variable_files,
@@ -37,7 +39,7 @@ from terrawrap.utils.config import (
     parse_backend_config_for_dir,
 )
 from terrawrap.utils.dynamodb import DynamoDB
-from terrawrap.utils.file_download import download_plugins
+from terrawrap.utils.file_download import PluginDownload
 from terrawrap.utils.path import get_absolute_path, calc_repo_path
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
@@ -270,7 +272,8 @@ def handler():
             additional_arguments = backend_config + additional_arguments
 
     if command == "init":
-        download_plugins(wrapper_config.plugins)
+        plugin_download = PluginDownload(boto3.client('s3'))
+        plugin_download.download_plugins(wrapper_config.plugins)
 
     exec_tf_command(
         command=command,
