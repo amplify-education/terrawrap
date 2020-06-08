@@ -18,6 +18,7 @@ import sys
 
 from docopt import docopt
 
+from terrawrap.exceptions import NotTerraformConfigDirectory
 from terrawrap.utils.config import (
     parse_backend_config_for_dir, find_wrapper_config_files,
     parse_wrapper_configs
@@ -65,8 +66,12 @@ def check_directory_for_backend(dir_path: str) -> bool:
     if not wrapper_config.backend_check:
         return True
 
-    backend_config = parse_backend_config_for_dir(dir_path)
-    return backend_config is not None
+    try:
+        backend_config = parse_backend_config_for_dir(dir_path)
+        return backend_config is not None
+    except NotTerraformConfigDirectory:
+        # Skip directories that don't contain terraform .tf files
+        return True
 
 
 if __name__ == '__main__':

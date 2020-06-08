@@ -9,6 +9,7 @@ import jsons
 import yaml
 from ssm_cache import SSMParameterGroup
 
+from terrawrap.exceptions import NotTerraformConfigDirectory
 from terrawrap.models.wrapper_config import (
     WrapperConfig,
     AbstractEnvVarConfig,
@@ -343,15 +344,21 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
     :param dir_path: Directory that has tf files
     :return: Backend config if a "terraform" resource exists, otherwise None
     """
+    has_tf_files = False
     for file_path in os.listdir(dir_path):
         if '.terraform' in file_path or not file_path.endswith('tf'):
             continue
+
+        has_tf_files = True
 
         result = _parse_backend_config_for_file(
             file_path=os.path.join(dir_path, file_path),
         )
         if result:
             return result
+
+    if not has_tf_files:
+        raise NotTerraformConfigDirectory()
 
     return None
 
