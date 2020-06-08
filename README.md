@@ -145,6 +145,9 @@ plugins:
 ### Plugins
 
 Terrawrap supports automatically downloading provider plugins by configuring the `.tf_wrapper` file as specified above.
+This is a temporary workaround until Terraform 0.13 is released with built-in support for automatically 
+downloading plugins and plugin registries are available for hosting private plugins. 
+
 Terrawrap will first try to download platform specific versions of plugins by downloading them from 
 `<plugin url>/<system type>/<architecture type>`. If Terrawrap is unable to download from the platform specific URL 
 then it will try to download directly from the given plugin url directly instead.
