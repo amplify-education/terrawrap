@@ -77,15 +77,3 @@ class TestApplyGraph(TestCase):
             graph.not_applied,
             {graph_entry_class.return_value.path}
         )
-
-    @patch('terrawrap.models.graph.GraphEntry')
-    def test_runtime_errors(self, graph_entry_class):
-        """Test that executing a graph will raise runtime errors"""
-        graph_entry_class.return_value.state = "Pending"
-        graph_entry_class.return_value.path = "foo/app1"
-        graph_entry_class.return_value.execute.return_value = (0, ['Failure'], False)
-
-        graph = ApplyGraph('plan', self.graph, self.post_graph, "foo")
-
-        self.assertRaises(RuntimeError, graph.execute_graph())
-        self.assertRaises(RuntimeError, graph.execute_post_graph())

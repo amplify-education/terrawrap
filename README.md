@@ -33,6 +33,7 @@ Learn more at <https://www.amplify.com>
 
 -   [Configuration](#configuration)
     -   [.tf_wrapper](#tf_wrapper)
+    -   [Plugins](#plugins)
     -   [Autovars](#autovars)
     -   [Backend Configuration](#backend-configuration)
 
@@ -53,6 +54,9 @@ Learn more at <https://www.amplify.com>
 
 4.  Repository level dependency visualization. Terrawrap provides commands for displaying the order of applies in 
     human readable output.
+
+5.  Automatically download third-party Terraform plugins
+
 ## Goals
 
 1.  Make Terraform DRY for large organizations. A Terraform best practices is to break up Terraform configs
@@ -137,6 +141,26 @@ envvars:
 plugins:
     <NAME_OF_PLUGIN>: <plugin url>
 ```
+
+### Plugins
+
+Terrawrap supports automatically downloading provider plugins by configuring the `.tf_wrapper` file as specified above.
+This is a temporary workaround until Terraform 0.13 is released with built-in support for automatically 
+downloading plugins and plugin registries are available for hosting private plugins. 
+
+Terrawrap will first try to download platform specific versions of plugins by downloading them from 
+`<plugin url>/<system type>/<architecture type>`. If Terrawrap is unable to download from the platform specific URL 
+then it will try to download directly from the given plugin url directly instead.
+
+For example, the following config on a Mac
+
+```yaml
+plugins:
+    foo: http://example.com/foo
+```
+
+Terrawap will first try to download from `http://example.com/foo/Darwin/x86_64`. 
+If that request fails then Terrawrap will try `http://example.com/foo` instead.
 
 ### Autovars
 
