@@ -119,7 +119,7 @@ class PluginDownload:
 
         args = {
             'Bucket': parsed_url.hostname,
-            'Key': parsed_url.path
+            'Key': parsed_url.path[1:]  # remove leading slash in path
         }
 
         if etag:
