@@ -28,7 +28,11 @@ class PluginDownload:
         """
         for name, path in plugin_paths.items():
             home = os.path.expanduser("~")
-            file_path = os.path.join(home, '.terraform.d/plugins', name)
+            plugin_directory = os.path.join(home, '.terraform.d/plugins')
+            os.makedirs(plugin_directory)
+
+            file_path = os.path.join(plugin_directory, name)
+
             system = platform.system()
             machine = platform.machine()
             path_with_platform = '%s/%s/%s' % (path, system, machine)
