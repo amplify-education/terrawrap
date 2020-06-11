@@ -2,6 +2,7 @@
 
 import os
 import platform
+import stat
 from typing import Dict, Tuple, Optional
 from urllib.parse import urlparse
 
@@ -69,6 +70,9 @@ class PluginDownload:
 
             with(open(file_path, 'wb')) as out_file:
                 out_file.write(content)
+
+            mode = os.stat(file_path)
+            os.chmod(file_path, mode.st_mode | stat.S_IEXEC)
 
             if etag:
                 # AWS returns the etag surrounded by quotes
