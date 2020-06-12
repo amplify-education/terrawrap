@@ -18,6 +18,8 @@ class TestPluginDownload(TestCase):
     @requests_mock.Mocker()
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.path.isfile', MagicMock(return_value=False))
+    @patch('os.stat', MagicMock())
+    @patch('os.chmod', MagicMock())
     def test_file_download(self, mock_requests, open_mock):
         """Test downloading a file"""
         mock_requests.register_uri('GET', 'http://example.com', content=b'fake content')
@@ -31,6 +33,8 @@ class TestPluginDownload(TestCase):
     @requests_mock.Mocker()
     @patch('builtins.open', new_callable=mock_open, read_data='1234')
     @patch('os.path.isfile', MagicMock(return_value=True))
+    @patch('os.stat', MagicMock())
+    @patch('os.chmod', MagicMock())
     def test_file_download_with_etag(self, mock_requests, open_mock):
         """Test downloading a file and saving it's etag"""
         mock_requests.register_uri(
@@ -112,6 +116,8 @@ class TestPluginDownload(TestCase):
 
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.path.isfile', MagicMock(return_value=False))
+    @patch('os.stat', MagicMock())
+    @patch('os.chmod', MagicMock())
     def test_download_from_s3(self, open_mock):
         """Test downloading a file from S3"""
         mock_content = MagicMock()
