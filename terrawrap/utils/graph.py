@@ -17,10 +17,13 @@ def has_cycle(graph: networkx.DiGraph) -> bool:
         return True
 
     for source in sources:
-        cycle = networkx.find_cycle(graph, source)
-        if cycle:
-            print(cycle)
-            return True
+        try:
+            cycle = networkx.find_cycle(graph, source)
+            if cycle:
+                print(cycle)
+                return True
+        except networkx.NetworkXNoCycle:
+            return False
     return False
 
 
