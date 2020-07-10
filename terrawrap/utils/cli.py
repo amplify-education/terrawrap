@@ -21,6 +21,7 @@ RETRIABLE_ERRORS = [
     'connection reset by peer',
     'Please try again.',
     'Client.Timeout exceeded',
+    'Request limit for operation',
 ]
 
 
