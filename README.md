@@ -40,7 +40,7 @@ Learn more at <https://www.amplify.com>
 -   [Commands](#commands)
     -   [tf](#tf)
     -   [plan_check](#plan_check)
-    -   [graph_apply](https://github.com/amplify-education/terrawrap/wiki/Graph-Apply)
+    -   [graph_apply](https://github.com/amplify-education/terrawrap/wiki/graph_apply)
 
 ## Features
 
