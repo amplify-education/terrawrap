@@ -16,7 +16,7 @@ Options:
                                                  the pipeline file.
                                                  [default: plan]
     -j, NUM_JOBS --parallel-jobs=NUM_JOBS        The number of Terraform operations to run in parallel.
-                                                 [default: 4].
+                                                 Defaults to 2x number of CPU cores
     -v,--debug                                   Turns on debug logging.
     --print-only-changes                         Only print output for directories that have changes.
     --version                                    Display the current version of Terraform Wrapper.
@@ -48,7 +48,7 @@ def main():
     debug = arguments['--debug']
     print_only_changes = arguments['--print-only-changes']
     try:
-        num_parallel = int(arguments['--parallel-jobs'])
+        num_parallel = int(arguments.get('--parallel-jobs', os.cpu_count() * 2))
     except ValueError:
         raise RuntimeError(
             "Unable to parse number of parallel jobs, '%s' is not an integer." % arguments['--parallel-jobs']
