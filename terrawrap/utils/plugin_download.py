@@ -118,8 +118,8 @@ class PluginDownload:
                 return None
 
             return response.content, response.headers.get('etag')
-        except requests.HTTPError:
-            raise FileDownloadFailed()
+        except requests.HTTPError as exception:
+            raise FileDownloadFailed() from exception
 
     def _get_s3_content(self, url: str, etag: Optional[str]) -> Optional[Tuple[bytes, Optional[str]]]:
         """Download a file from S3 using the AWS SDK"""
