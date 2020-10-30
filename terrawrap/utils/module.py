@@ -45,9 +45,13 @@ def _get_modules_for_file(directory: str, file_name: str) -> Tuple[str, Set[str]
     """
     modules = set()
     with open(directory + '/' + file_name, 'r') as file:
-        tf_info = hcl2.load(file)
-        for module in tf_info.get('module', []):
-            for module_config in module.values():
-                modules.add(os.path.normpath(module_config['source'][0]))
+        try:
+            tf_info = hcl2.load(file)
+            for module in tf_info.get('module', []):
+                for module_config in module.values():
+                    modules.add(os.path.normpath(module_config['source'][0]))
+        except Exception:
+            print('Error while parsing file %s' % file.name)
+            raise
 
     return directory, modules
