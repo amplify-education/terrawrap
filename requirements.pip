@@ -8,7 +8,7 @@ pyyaml>=3.13,<4
 ssm-cache>=2.7,<3
 # lock jsons version because it causes python3.6 unit tests to fail
 jsons==0.10.2
-python-hcl2>=0.2.6,<0.3.0
+python-hcl2>=2,<3
 # Packaging does not obey semver
 packaging==19.1
 diskcache>=4.0.0,<5
