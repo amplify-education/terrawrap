@@ -9,7 +9,7 @@ import jsons
 import yaml
 from ssm_cache import SSMParameterGroup
 
-from terrawrap.exceptions import NotTerraformConfigDirectory
+from terrawrap.exceptions import NotTerraformConfigDirectory, NoDependency
 from terrawrap.models.wrapper_config import (
     WrapperConfig,
     AbstractEnvVarConfig,
@@ -23,7 +23,6 @@ from terrawrap.utils.path import get_absolute_path, calc_repo_path
 DEFAULT_REGION = 'us-west-2'
 SSM_ENVVAR_CACHE = SSMParameterGroup(max_age=600)
 TF_WRAP_FILE = ".tf_wrapper"
-TF_WRAP_FILE_YML = ".tf_wrapper.yml"
 
 
 def find_variable_files(path: str) -> List[str]:
@@ -64,7 +63,7 @@ def find_wrapper_config_files(path: str) -> List[str]:
     for element in elements:
         cur_path = os.path.join(cur_path, element)
         for file in os.listdir(cur_path):
-            if file.endswith(TF_WRAP_FILE) or file.endswith(TF_WRAP_FILE_YML):
+            if file.endswith(TF_WRAP_FILE):
                 wrapper_config_files.append(os.path.join(cur_path, file))
 
     return wrapper_config_files
@@ -178,7 +177,7 @@ def walk_without_graph_directory(starting_dir: str) -> List[str]:
                 wrapper_file = os.path.join(root, file)
                 wrapper_config_obj = create_wrapper_config_obj(root, wrapper_file)
                 if wrapper_config_obj.depends_on is not None:
-                    raise ValueError("Discovered dependency information")
+                    raise NoDependency("Discovered dependency information")
                 if not wrapper_config_obj.config:
                     continue
                 if not wrapper_config_obj.apply_automatically:

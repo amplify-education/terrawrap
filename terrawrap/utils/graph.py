@@ -3,6 +3,8 @@
 import os
 import networkx
 from pathlib import Path
+
+from terrawrap.exceptions import NoDependency
 from terrawrap.utils.config import walk_without_graph_directory
 from typing import List, Tuple, Any, Dict, Set
 
@@ -144,7 +146,7 @@ def connect_symlinks(graph: networkx.DiGraph, symlink_dict: Dict[str, Set[str]])
                 links_to_run = walk_without_graph_directory(secondary_link)
                 for link in links_to_run:
                     graph.add_edge(current, link)
-            except ValueError as error:
+            except NoDependency as error:
                 print(error)
                 graph.add_edge(current, secondary_link)
 

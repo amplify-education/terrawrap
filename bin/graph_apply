@@ -27,6 +27,7 @@ import networkx
 
 from docopt import docopt
 
+from terrawrap.exceptions import NoDependency
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
@@ -70,7 +71,7 @@ def main():
         graph = networkx.DiGraph()
         try:
             post_graph = walk_without_graph_directory(config_dir)
-        except ValueError:
+        except NoDependency:
             post_graph = []
             print("Discovered dependency information, please either remove all dependency info or fix existing.")
             print("This error generally occurs due to malformed dependency information.")
