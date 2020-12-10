@@ -4,6 +4,7 @@ import os
 from typing import List, Tuple, Any, Dict, Set
 from pathlib import Path
 import networkx
+from terrawrap.utils.config import walk_without_graph_directory
 
 
 def has_cycle(graph: networkx.DiGraph) -> bool:
@@ -135,8 +136,17 @@ def connect_symlinks(graph: networkx.DiGraph, symlink_dict: Dict[str, Set[str]])
         current = symlink
         secondary = 0
         links = list(symlink_dict[symlink])
-        while secondary is not len(links):
+        while secondary != len(links):
             secondary_link = links[secondary]
-            graph.add_edge(current, secondary_link)
+
+            # TODO: implement better way for symlinked tf configs with terraform config
+            try:
+                links_to_run = walk_without_graph_directory(secondary_link)
+                for link in links_to_run:
+                    graph.add_edge(current, link)
+            except ValueError as e:
+                print(e)
+                graph.add_edge(current, secondary_link)
+
             current = secondary_link
             secondary += 1

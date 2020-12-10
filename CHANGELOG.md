@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.6.12] - 2020-12-10
+
+### Changed
+
+-   Add `tf_wrapper` config check for the `connect_symlinks` in `graph_apply`
+
+## [0.6.11] - 2020-11-02
+
+### Changed
+
+-   Bump `python-hcl2` version
+
+## [0.6.10] - 2020-10-30
+
+### Changed
+
+-   Fix report error on parsing module
+
+## [0.6.9] - 2020-10-28
+
+### Changed
+
+-   Update plan_check to print IAM and error directories
+
+## [0.6.8] - 2020-10-10
+
+### Changed
+
+-   Fix retry another throttle error
+
+## [0.6.7] - 2020-7-9
+
+### Changed
+
+-   Catch no cycle error for visualize
+
 ## [0.6.6] - 2020-06-11
 
 ### Changed
