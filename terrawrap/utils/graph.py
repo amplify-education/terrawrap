@@ -1,11 +1,11 @@
 """ Holds graph utilities"""
 
+import os
 from pathlib import Path
 from terrawrap.exceptions import NoDependency
 from terrawrap.utils.config import walk_without_graph_directory
 from typing import List, Tuple, Any, Dict, Set
 import networkx
-import os
 
 
 def has_cycle(graph: networkx.DiGraph) -> bool:
