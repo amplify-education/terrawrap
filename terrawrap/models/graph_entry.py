@@ -5,7 +5,11 @@ import tempfile
 from typing import List, Tuple
 
 from terrawrap.utils.cli import execute_command
-from terrawrap.utils.config import find_wrapper_config_files, parse_wrapper_configs, resolve_envvars
+from terrawrap.utils.config import (
+    find_wrapper_config_files,
+    parse_wrapper_configs,
+    resolve_envvars
+)
 from terrawrap.utils.path import get_absolute_path
 
 logger = logging.getLogger(__name__)
@@ -20,7 +24,6 @@ class GraphEntry:
         :param variables: Any additional variables to set alongside the Terraform command.
         """
         self.path = get_absolute_path(path=path)
-
         self.variables = variables
         self.state = "Pending"
 
