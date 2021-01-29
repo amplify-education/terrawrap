@@ -20,9 +20,7 @@ class GraphEntry:
         :param variables: Any additional variables to set alongside the Terraform command.
         """
         self.path = get_absolute_path(path=path)
-        wrapper_config_files = find_wrapper_config_files(self.path)
-        wrapper_config = parse_wrapper_configs(wrapper_config_files)
-        self.envvars = resolve_envvars(wrapper_config.envvars)
+
         self.variables = variables
         self.state = "Pending"
 
@@ -42,7 +40,10 @@ class GraphEntry:
         """
         self.state = "Executing"
         command_env = os.environ.copy()
-        command_env.update(self.envvars)
+
+        wrapper_config_files = find_wrapper_config_files(self.path)
+        wrapper_config = parse_wrapper_configs(wrapper_config_files)
+        command_env.update(resolve_envvars(wrapper_config.envvars))
 
         if debug:
             command_env["TF_LOG"] = "DEBUG"
