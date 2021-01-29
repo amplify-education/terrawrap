@@ -35,7 +35,7 @@ class GraphEntry:
 
     # pylint: disable=too-many-locals
     def execute(
-            self, operation: str, debug: bool = False
+        self, operation: str, debug: bool = False
     ) -> Tuple[int, List[str], bool]:
         """
         Function for executing this Graph Entry.
@@ -54,24 +54,18 @@ class GraphEntry:
             command_env["TF_LOG"] = "DEBUG"
 
         # pylint: disable=unused-variable
-        plan_file, plan_file_name = tempfile.mkstemp(
-            suffix=".tfplan"
-        )
+        plan_file, plan_file_name = tempfile.mkstemp(suffix=".tfplan")
 
         # We're using --no-resolve-envvars here because we've already resolved the environment variables in
         # the constructor. We are then passing in those environment variables explicitly in the
         # execute_command call below.
-        base_args = [
-            "tf",
-            "--no-resolve-envvars",
-            self.path
-        ]
+        base_args = ["tf", "--no-resolve-envvars", self.path]
         init_args = base_args + ["init"] + self.variables
-        plan_args = base_args + [
-            "plan",
-            "-detailed-exitcode",
-            "-out=%s" % plan_file_name
-        ] + self.variables
+        plan_args = (
+            base_args
+            + ["plan", "-detailed-exitcode", "-out=%s" % plan_file_name]
+            + self.variables
+        )
         operation_args = base_args + [operation] + self.variables
 
         if operation in ["apply", "destroy"]:
