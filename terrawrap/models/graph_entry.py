@@ -8,7 +8,7 @@ from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
     find_wrapper_config_files,
     parse_wrapper_configs,
-    resolve_envvars
+    resolve_envvars,
 )
 from terrawrap.utils.path import get_absolute_path
 
@@ -34,7 +34,9 @@ class GraphEntry:
         self.state = "no-op"
 
     # pylint: disable=too-many-locals
-    def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
+    def execute(
+            self, operation: str, debug: bool = False
+    ) -> Tuple[int, List[str], bool]:
         """
         Function for executing this Graph Entry.
         :param operation: The Terraform operation to execute. IE: apply, plan
@@ -76,20 +78,14 @@ class GraphEntry:
             operation_args += ["-auto-approve"]
 
         init_exit_code, init_stdout = execute_command(
-            init_args,
-            print_output=False,
-            capture_stderr=True,
-            env=command_env,
+            init_args, print_output=False, capture_stderr=True, env=command_env
         )
         if init_exit_code != 0:
             self.state = "Failed"
             return init_exit_code, init_stdout, True
         if operation in ["apply"]:
             plan_exit_code, plan_stdout = execute_command(
-                plan_args,
-                print_output=False,
-                capture_stderr=True,
-                env=command_env
+                plan_args, print_output=False, capture_stderr=True, env=command_env
             )
             operation_args += [plan_file_name]
         else:
@@ -110,10 +106,7 @@ class GraphEntry:
             )
 
         operation_exit_code, operation_stdout = execute_command(
-            operation_args,
-            print_output=False,
-            capture_stderr=True,
-            env=command_env
+            operation_args, print_output=False, capture_stderr=True, env=command_env
         )
 
         if operation_exit_code == 0:
