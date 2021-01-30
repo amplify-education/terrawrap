@@ -40,9 +40,9 @@ def update(dict1: Dict, dict2: Dict) -> Dict:
     :return: A merged dictionary.
     """
     for key, value in dict2.items():
-        if isinstance(value, Dict):
+        if isinstance(value, dict):
             dict1[key] = update(dict1.get(key, {}), value)
-        elif isinstance(value, List):
+        elif isinstance(value, list):
             original_value = dict1.get(key, [])
             original_value.extend(value)
             dict1[key] = original_value
