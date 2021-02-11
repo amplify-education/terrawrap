@@ -293,7 +293,17 @@ def get_modified_subdirectories(plan_path: str) -> Tuple[List[str], List[str]]:
     return regular_directories, symlinked_directories
 
 
-def should_run_plan_for(directory, plan_path):
+def should_run_plan_for(directory: str, plan_path: str) -> bool:
+    """
+    Return True if we are allowed to run plan for a given directory
+    :param directory: The directory to check if we should run plan there
+    :param plan_path: The root used for plan_check. All directories outside of this dir shouldn't run plan
+    """
+
+    # We don't run to run plan if the directory doesn't exist anymore (it could have been deleted)
+    # Or if there are no TF files in it
+    # Or if plan has been disabled for that dir in .tf_wrapper
+    # Or if the directory is outside of the path arg used to run this command
     return (
         os.path.commonpath([plan_path, directory]) == plan_path
         and os.path.exists(directory)
@@ -303,6 +313,7 @@ def should_run_plan_for(directory, plan_path):
 
 
 def is_plan_check_enabled(directory: str) -> bool:
+    """Return True if plan check is enabled based on .tf_wrapper config"""
     wrapper_config_files = find_wrapper_config_files(path=os.path.abspath(directory))
     wrapper_config = parse_wrapper_configs(wrapper_config_files=wrapper_config_files)
 
