@@ -290,8 +290,6 @@ def get_modified_subdirectories(plan_path: str) -> Tuple[List[str], List[str]]:
         if os.path.islink(directory)
     ]
 
-    exit(9)
-
     return regular_directories, symlinked_directories
 
 
