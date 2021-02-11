@@ -9,15 +9,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Refactored `plan_check` when using `--modified-only` to build a graph when scanning for directories that
-  were changed or affected by a change (such as symlinks, module changes, auto.tfvars, etc). This fixes a 
-  number of edge cases where `plan_check` missed directories that should have had `plan` run.
+-   Refactored `plan_check` when using `--modified-only` to build a graph when scanning for directories that
+    were changed or affected by a change (such as symlinks, module changes, auto.tfvars, etc). This fixes a 
+    number of edge cases where `plan_check` missed directories that should have had `plan` run.
 
 ## [0.7.0] - 2021-01-29
 
 ### Changed
 
-- Fixed a bug in `graph_apply` when there are symlinks to directories above the directory being applied
+-   Fixed a bug in `graph_apply` when there are symlinks to directories above the directory being applied
 
 
 ## [0.6.15] - 2020-12-15
