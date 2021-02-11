@@ -18,7 +18,7 @@ class TestPath(TestCase):
         os.chdir(self.prev_dir)
 
     def test_get_symlinks(self):
-        """test getting map of symlinks for a directory"""
+        """test getting graph of symlinks for a directory"""
         actual = get_symlink_graph('config')
 
         expected = DiGraph()

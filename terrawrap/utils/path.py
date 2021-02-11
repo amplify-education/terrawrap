@@ -47,7 +47,7 @@ def get_symlinks(directory: str) -> Dict[str, Set[str]]:
 
 def get_symlink_graph(directory: str) -> DiGraph:
     """
-    Recursively walk a directory and return a dict of all symlinks
+    Recursively walk a directory and return a graph of all symlinks
     :param directory:
     :return: graph of symlink source and paths that link to that source
     """

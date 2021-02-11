@@ -63,7 +63,7 @@ class TestTerraformVariables(TestCase):
         self.assertEqual(actual, 'config/team/team.auto.tfvars')
 
     def test_get_auto_var_usages(self):
-        """test getting dict of all auto var usages"""
+        """test getting graph of all auto var usages"""
         actual = get_auto_var_usage_graph('config')
 
         expected = DiGraph()

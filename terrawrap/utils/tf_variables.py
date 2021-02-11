@@ -93,7 +93,7 @@ def get_source_for_variable(usage_directory: str, var_name: str, vars_map: Dict[
 
 def get_auto_var_usage_graph(root_directory: str) -> DiGraph:
     """
-    Recursively scan a directory to build a dictionary of auto tfvars files and the directories
+    Recursively scan a directory to build a graph of auto tfvars files and the directories
     that depend on them
     :param root_directory: directory where to start the search
     :return:

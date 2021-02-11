@@ -17,8 +17,8 @@ class TestModule(TestCase):
     def tearDown(self):
         os.chdir(self.prev_dir)
 
-    def test_get_module_usage_map(self):
-        """Test getting map of module usages"""
+    def test_get_module_usage_graph(self):
+        """Test getting graph of module usages"""
         actual = get_module_usage_graph('config')
 
         expected = DiGraph()
