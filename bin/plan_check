@@ -254,15 +254,6 @@ def get_modified_subdirectories(plan_path: str) -> Tuple[List[str], List[str]]:
         for changed_file in changed_files
     }
 
-    # filter out any directories without tf files. This could be a directory with just auto.tfvars files
-    # or directories with just pipeline files
-    # also filter out any directories that don't exist anymore if all files in them were deleted
-    changed_directories = {
-        directory
-        for directory in changed_directories
-        if os.path.exists(directory) and any(file.endswith('.tf') for file in os.listdir(directory))
-    }
-
     directories_to_check = set()
     for path in changed_directories | changed_files:
         if path not in graph.nodes:
@@ -309,6 +300,7 @@ def should_run_plan_for(directory, plan_path):
         os.path.commonpath([plan_path, directory]) == plan_path
         and os.path.exists(directory)
         and is_plan_check_enabled(directory)
+        and any(file.endswith('.tf') for file in os.listdir(directory))
     )
 
 
