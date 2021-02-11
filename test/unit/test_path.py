@@ -3,7 +3,9 @@ from unittest import TestCase
 
 import os
 
-from terrawrap.utils.path import get_symlinks, get_directories_for_paths
+from networkx import DiGraph, is_isomorphic
+
+from terrawrap.utils.path import get_symlink_graph, get_directories_for_paths
 
 
 class TestPath(TestCase):
@@ -17,10 +19,15 @@ class TestPath(TestCase):
 
     def test_get_symlinks(self):
         """test getting map of symlinks for a directory"""
-        actual = get_symlinks('config')
-        self.assertEqual(actual, {
-            'config/app1': {'config/app3'}
-        })
+        actual = get_symlink_graph('config')
+
+        expected = DiGraph()
+        expected.add_node('config/app1')
+        expected.add_node('config/app3')
+
+        expected.add_edge('config/app1', 'config/app3')
+
+        self.assertTrue(is_isomorphic(actual, expected))
 
     def test_get_directories_for_paths(self):
         """test get directories for a list of paths"""

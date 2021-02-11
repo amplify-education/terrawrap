@@ -1,4 +1,5 @@
 """Test git utilities"""
+import os
 from collections import namedtuple
 from unittest import TestCase
 from mock import patch
@@ -18,6 +19,6 @@ class TestGit(TestCase):
             Change(None, '/bar', True, False),
             Change('/baz', None, False, True)
         ]
-        actual = get_git_changed_files()
+        actual = get_git_changed_files(os.getcwd())
 
         self.assertEqual(actual, {'/bar', '/foo', '/baz'})

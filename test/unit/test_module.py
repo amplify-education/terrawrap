@@ -3,7 +3,9 @@ from unittest import TestCase
 
 import os
 
-from terrawrap.utils.module import get_module_usage_map
+from networkx import DiGraph, is_isomorphic
+
+from terrawrap.utils.module import get_module_usage_graph
 
 
 class TestModule(TestCase):
@@ -17,12 +19,16 @@ class TestModule(TestCase):
 
     def test_get_module_usage_map(self):
         """Test getting map of module usages"""
-        actual = get_module_usage_map('config')
+        actual = get_module_usage_graph('config')
 
-        self.assertEqual(actual, {
-            'modules/module1': {
-                'config/app1',
-                'config/app2',
-                'config/app3'
-            }
-        })
+        expected = DiGraph()
+        expected.add_node('modules/module1')
+        expected.add_node('config/app1')
+        expected.add_node('config/app2')
+        expected.add_node('config/app3')
+
+        expected.add_edge('modules/module1', 'config/app1')
+        expected.add_edge('modules/module1', 'config/app2')
+        expected.add_edge('modules/module1', 'config/app3')
+
+        self.assertTrue(is_isomorphic(actual, expected))

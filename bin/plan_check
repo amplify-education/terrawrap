@@ -28,12 +28,13 @@ from docopt import docopt
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 from terrawrap.utils.cli import execute_command
-from terrawrap.utils.collection_utils import pick_dict_values_by_substring, flatten_collection
 from terrawrap.utils.config import parse_wrapper_configs, find_wrapper_config_files, resolve_envvars
-from terrawrap.utils.git_utils import get_git_changed_files
-from terrawrap.utils.module import get_module_usage_map
-from terrawrap.utils.path import get_symlinks, get_directories_for_paths
-from terrawrap.utils.tf_variables import get_auto_var_usages
+from terrawrap.utils.git_utils import get_git_changed_files, get_git_root
+from terrawrap.utils.module import get_module_usage_graph
+from terrawrap.utils.path import get_symlink_graph
+from terrawrap.utils.tf_variables import get_auto_var_usage_graph
+
+from networkx import compose_all, descendants
 
 IAM_POLICY_RE = re.compile('[-~+] .*(aws_iam_|aws_s3_bucket_policy).*')
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -230,84 +231,85 @@ def execute_init_and_plan(
     return directories_with_errors, directories_with_iam_changes
 
 
-def get_modified_subdirectories(root_directory: str) -> Tuple[List[str], List[str]]:
+def get_modified_subdirectories(plan_path: str) -> Tuple[List[str], List[str]]:
     """
     Use Git to find which directories have changed and return a list of them
     A changed directory is a directory that has files that changed, or has symlinks to files that
     changed, or uses a module that changed
-    :param root_directory: root to search for changed subdirectories from
+    :param plan_path: root to search for changed subdirectories from
     :return: A list of "regular" directories and directories that are symlinks which have changed
     """
-    changed_files = get_git_changed_files()
-    module_usage_map = get_module_usage_map(root_directory)
+    changed_files = get_git_changed_files(plan_path)
+    root = get_git_root(plan_path)
 
-    # this searches for symlinks and autovars usages at the root_directory
-    # therefore it won't run plan if any symlinks or autovars changed outside the root_directory
-    # TODO fix that ^
-    symlink_map = get_symlinks(root_directory)
-    auto_vars_usages = get_auto_var_usages(root_directory)
+    module_usage_graph = get_module_usage_graph(root)
+    symlink_graph = get_symlink_graph(root)
+    auto_vars_usage_graph = get_auto_var_usage_graph(root)
+
+    graph = compose_all([module_usage_graph, symlink_graph, auto_vars_usage_graph])
 
     # get directories that changed because a file in them changed
-    changed_directories = [
+    changed_directories = {
         os.path.dirname(changed_file)
         for changed_file in changed_files
-    ]
+    }
 
     # filter out any directories without tf files. This could be a directory with just auto.tfvars files
     # or directories with just pipeline files
     # also filter out any directories that don't exist anymore if all files in them were deleted
-    changed_directories = [
+    changed_directories = {
         directory
         for directory in changed_directories
         if os.path.exists(directory) and any(file.endswith('.tf') for file in os.listdir(directory))
-    ]
-
-    # look up each changed path in symlink map to get list of linked paths that also changed
-    changed_symlinks = pick_dict_values_by_substring(changed_files, symlink_map)
-    changed_symlinks = flatten_collection(changed_symlinks)
-    # get set of directories that are symlinks to paths that changed (convert file symlinks to directories)
-    changed_symlink_directories = get_directories_for_paths(changed_symlinks)
-
-    # get directories that changed because a module changed
-    changed_module_instances = pick_dict_values_by_substring(changed_files, module_usage_map)
-    changed_module_instances = flatten_collection(changed_module_instances)
-
-    # get directories that changed because an auto var changed
-    changed_auto_vars_instances = pick_dict_values_by_substring(changed_files, auto_vars_usages)
-    changed_auto_vars_instances = flatten_collection(changed_auto_vars_instances)
-
-    # we need to check any directory that was changed directly or changed via a module change
-    # or is a symlink to a directory that changed or depends on a autovars file that changed
-    directories_to_check = (changed_directories + changed_module_instances +
-                            changed_symlink_directories + changed_auto_vars_instances)
-
-    # filter out any directories that aren't under our root.
-    # We may have got some while following symlinks and module links
-    # some directories may also not exist if they were deleted. can't run plan on them
-    directories_to_check_under_root = {
-        directory
-        for directory in directories_to_check
-        # if the longest common path of two directories is one of the directories
-        # then the other directory must be a child of the first
-        if (
-                os.path.commonpath([root_directory, directory]) == root_directory
-                and os.path.exists(directory)
-                and is_plan_check_enabled(directory)
-        )
     }
+
+    directories_to_check = set()
+    for path in changed_directories | changed_files:
+        if path not in graph.nodes:
+            continue
+
+        affected_directories = descendants(graph, path)
+
+        # filter out directories outside of the root
+        affected_directories = [
+            affected_dir
+            for affected_dir in affected_directories
+            if should_run_plan_for(affected_dir, plan_path)
+        ]
+
+        if affected_directories:
+            print("Changed directories caused by %s: %s" % (path, affected_directories))
+            directories_to_check.update(affected_directories)
+
+    # Also append the actual directories that changed
+    directories_to_check.update([
+        directory
+        for directory in changed_directories
+        if should_run_plan_for(directory, plan_path)
+    ])
 
     # group directories into regular and symlink paths so downstream code can treat them differently
     regular_directories = [
-        directory for directory in directories_to_check_under_root
+        directory for directory in directories_to_check
         if not os.path.islink(directory)
     ]
 
     symlinked_directories = [
-        directory for directory in directories_to_check_under_root
+        directory for directory in directories_to_check
         if os.path.islink(directory)
     ]
 
+    exit(9)
+
     return regular_directories, symlinked_directories
+
+
+def should_run_plan_for(directory, plan_path):
+    return (
+        os.path.commonpath([plan_path, directory]) == plan_path
+        and os.path.exists(directory)
+        and is_plan_check_enabled(directory)
+    )
 
 
 def is_plan_check_enabled(directory: str) -> bool:

@@ -3,11 +3,13 @@ from unittest import TestCase
 
 import os
 
+from networkx import DiGraph, is_isomorphic
+
 from terrawrap.utils.tf_variables import (
     get_auto_vars,
     get_nondefault_variables_for_file,
     get_source_for_variable,
-    get_auto_var_usages,
+    get_auto_var_usage_graph,
     Variable,
 )
 
@@ -62,11 +64,21 @@ class TestTerraformVariables(TestCase):
 
     def test_get_auto_var_usages(self):
         """test getting dict of all auto var usages"""
-        actual = get_auto_var_usages('config')
+        actual = get_auto_var_usage_graph('config')
 
-        self.assertEqual(actual, {
-            'config/global.auto.tfvars': {'config/app1', 'config/app3'},
-            'config/app3/app.auto.tfvars': {'config/app3'},
-            'config/team/team.auto.tfvars': {'config/team/app4'},
-            'config/app1/app.auto.tfvars': {'config/app1'}
-        })
+        expected = DiGraph()
+        expected.add_node('config/global.auto.tfvars')
+        expected.add_node('config/app3/app.auto.tfvars')
+        expected.add_node('config/team/team.auto.tfvars')
+        expected.add_node('config/app1/app.auto.tfvars')
+        expected.add_node('config/app1')
+        expected.add_node('config/app3')
+        expected.add_node('config/team/app4')
+
+        expected.add_edge('config/global.auto.tfvars', 'config/app1')
+        expected.add_edge('config/global.auto.tfvars', 'config/app3')
+        expected.add_edge('config/app3/app.auto.tfvars', 'config/app3')
+        expected.add_edge('config/team/team.auto.tfvars', 'config/team/app4')
+        expected.add_edge('config/app1/app.auto.tfvars', 'config/app1')
+
+        self.assertTrue(is_isomorphic(actual, expected))

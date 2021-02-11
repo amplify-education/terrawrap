@@ -3,8 +3,9 @@ import os
 import re
 import subprocess
 from collections import defaultdict
-from typing import Dict, Set, Iterable, List
+from typing import Iterable, List, Dict, Set
 
+from networkx import DiGraph
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
 
@@ -42,6 +43,34 @@ def get_symlinks(directory: str) -> Dict[str, Set[str]]:
             links[os.path.normpath(link_source)].add(os.path.normpath(current_dir))
 
     return dict(links)
+
+
+def get_symlink_graph(directory: str) -> DiGraph:
+    """
+    Recursively walk a directory and return a dict of all symlinks
+    :param directory:
+    :return: graph of symlink source and paths that link to that source
+    """
+    graph = DiGraph()
+    # pylint: disable=unused-variable
+    for current_dir, dirs, files in os.walk(directory, followlinks=True):
+        if '.terraform' in current_dir:
+            continue
+
+        if os.path.islink(current_dir):
+            link_source = os.path.join(os.path.dirname(current_dir), os.readlink(current_dir))
+            link_source_norm = os.path.normpath(link_source)
+            target_path_norm = os.path.normpath(current_dir)
+
+            if link_source_norm not in graph.nodes:
+                graph.add_node(link_source_norm)
+
+            if target_path_norm not in graph.nodes:
+                graph.add_node(target_path_norm)
+
+            graph.add_edge(link_source_norm, target_path_norm)
+
+    return graph
 
 
 def get_directories_for_paths(paths: Iterable[str]) -> List[str]:
