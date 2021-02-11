@@ -3,7 +3,7 @@ import os
 import re
 import subprocess
 from collections import defaultdict
-from typing import Iterable, List, Dict, Set
+from typing import Dict, Set, Iterable, List
 
 from networkx import DiGraph
 
