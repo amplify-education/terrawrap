@@ -300,7 +300,7 @@ def should_run_plan_for(directory: str, plan_path: str) -> bool:
     :param plan_path: The root used for plan_check. All directories outside of this dir shouldn't run plan
     """
 
-    # We don't run to run plan if the directory doesn't exist anymore (it could have been deleted)
+    # We don't want to run plan if the directory doesn't exist anymore (it could have been deleted)
     # Or if there are no TF files in it
     # Or if plan has been disabled for that dir in .tf_wrapper
     # Or if the directory is outside of the path arg used to run this command

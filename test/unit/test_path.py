@@ -5,7 +5,7 @@ import os
 
 from networkx import DiGraph, is_isomorphic
 
-from terrawrap.utils.path import get_symlink_graph, get_directories_for_paths
+from terrawrap.utils.path import get_symlink_graph
 
 
 class TestPath(TestCase):
@@ -28,17 +28,3 @@ class TestPath(TestCase):
         expected.add_edge('config/app1', 'config/app3')
 
         self.assertTrue(is_isomorphic(actual, expected))
-
-    def test_get_directories_for_paths(self):
-        """test get directories for a list of paths"""
-
-        actual = get_directories_for_paths([
-            'config/app1',
-            'config/app1/test.tf',
-            'config/app2/test.tf'
-        ])
-        self.assertEqual(actual, [
-            'config/app1',
-            'config/app1',
-            'config/app2'
-        ])

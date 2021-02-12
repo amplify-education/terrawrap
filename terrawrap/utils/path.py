@@ -3,7 +3,7 @@ import os
 import re
 import subprocess
 from collections import defaultdict
-from typing import Dict, Set, Iterable, List
+from typing import Dict, Set
 
 from networkx import DiGraph
 
@@ -52,11 +52,11 @@ def get_symlink_graph(directory: str) -> DiGraph:
     :return: graph of symlink source and paths that link to that source
     """
     graph = DiGraph()
-    # pylint: disable=unused-variable
-    for current_dir, dirs, files in os.walk(directory, followlinks=True):
+    for current_dir, _, files in os.walk(directory, followlinks=True):
         if '.terraform' in current_dir:
             continue
 
+        # create edges in graph for all directories which are symlinks
         if os.path.islink(current_dir):
             link_source = os.path.join(os.path.dirname(current_dir), os.readlink(current_dir))
             link_source_norm = os.path.normpath(link_source)
@@ -68,28 +68,33 @@ def get_symlink_graph(directory: str) -> DiGraph:
             if target_path_norm not in graph.nodes:
                 graph.add_node(target_path_norm)
 
+            # Create a edge in the graph from symlink source to symlink target
             graph.add_edge(link_source_norm, target_path_norm)
 
+        # also create a edge for every file which is a symlink
+        for file in files:
+            if os.path.islink(file):
+                link_source = os.path.join(os.path.dirname(file), os.readlink(file))
+                link_source_norm = os.path.normpath(link_source)
+                target_path_norm = os.path.normpath(file)
+
+                if link_source_norm not in graph.nodes:
+                    graph.add_node(link_source_norm)
+
+                if target_path_norm not in graph.nodes:
+                    graph.add_node(target_path_norm)
+
+                # first create an edge from symlink file to symlink destination
+                # this is important in cases when a auto.tfvars file is symlinked
+                graph.add_edge(link_source_norm, target_path_norm)
+
+                # also create a edge from symlink file to the directory of the destination
+                # For example a directory could have a shared script or other file which is a symlink
+                # If the source of that file changes then we need to run plan/apply on every directory
+                # which includes a link to that file
+                graph.add_edge(link_source_norm, os.path.normpath(current_dir))
+
     return graph
-
-
-def get_directories_for_paths(paths: Iterable[str]) -> List[str]:
-    """
-    For a list of paths check if each one is a directory or a file. If its a file then return
-    the directory for the file otherwise return the path itself
-    :param paths:
-    :return:
-    """
-    # get set of symlinks that point to directories
-    directories = [path for path in paths if os.path.isdir(path)]
-
-    # get set of symlinks that point to files
-    files = [path for path in paths if not os.path.isdir(path)]
-
-    # get the directory for each file and add it to the list of directories
-    directories.extend([os.path.dirname(file) for file in files])
-
-    return directories
 
 
 def calc_repo_path(path: str) -> str:
