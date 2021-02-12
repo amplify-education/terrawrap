@@ -11,7 +11,8 @@ Arguments:
 Options:
     -h, --help          Show this message and exit.[default: False]
     -s, --skip-iam      Skip iam changes for this run.[default: False]
-    --modified-only     Only run plan check on directories that were changed in git
+    --modified-only     Only run plan check on directories that were changed in git.
+                        Requires that this command be run from a git repository directory
     --print-diff        Print the diff for any directories with changed configurations. [default: False]
     --with-colors       Print the diff with colors [default: False]
     --version           Show the version.
