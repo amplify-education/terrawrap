@@ -32,7 +32,7 @@ from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import parse_wrapper_configs, find_wrapper_config_files, resolve_envvars
 from terrawrap.utils.git_utils import get_git_changed_files, get_git_root
 from terrawrap.utils.module import get_module_usage_graph
-from terrawrap.utils.path import get_symlink_graph
+from terrawrap.utils.path import get_file_graph
 from terrawrap.utils.tf_variables import get_auto_var_usage_graph
 
 from networkx import compose_all, descendants
@@ -244,25 +244,19 @@ def get_modified_subdirectories(plan_path: str) -> Tuple[List[str], List[str]]:
     root = get_git_root(plan_path)
 
     module_usage_graph = get_module_usage_graph(root)
-    symlink_graph = get_symlink_graph(root)
+    file_graph = get_file_graph(root)
     auto_vars_usage_graph = get_auto_var_usage_graph(root)
 
-    graph = compose_all([module_usage_graph, symlink_graph, auto_vars_usage_graph])
-
-    # get directories that changed because a file in them changed
-    changed_directories = {
-        os.path.dirname(changed_file)
-        for changed_file in changed_files
-    }
+    graph = compose_all([module_usage_graph, file_graph, auto_vars_usage_graph])
 
     directories_to_check = set()
-    for path in changed_directories | changed_files:
+    for path in changed_files:
         if path not in graph.nodes:
             continue
 
         affected_directories = descendants(graph, path)
 
-        # filter out directories outside of the root
+        # filter out directories that we shouldn't run plan for
         affected_directories = [
             affected_dir
             for affected_dir in affected_directories
@@ -272,13 +266,6 @@ def get_modified_subdirectories(plan_path: str) -> Tuple[List[str], List[str]]:
         if affected_directories:
             print("Changed directories caused by %s: %s" % (path, affected_directories))
             directories_to_check.update(affected_directories)
-
-    # Also append the actual directories that changed
-    directories_to_check.update([
-        directory
-        for directory in changed_directories
-        if should_run_plan_for(directory, plan_path)
-    ])
 
     # group directories into regular and symlink paths so downstream code can treat them differently
     regular_directories = [
