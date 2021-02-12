@@ -264,7 +264,6 @@ def get_modified_subdirectories(plan_path: str) -> Tuple[List[str], List[str]]:
         ]
 
         if affected_directories:
-            print("Changed directories caused by %s: %s" % (path, affected_directories))
             directories_to_check.update(affected_directories)
 
     # group directories into regular and symlink paths so downstream code can treat them differently
