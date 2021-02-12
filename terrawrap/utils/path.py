@@ -3,8 +3,9 @@ import os
 import re
 import subprocess
 from collections import defaultdict
-from typing import Dict, Set, Iterable, List
+from typing import Dict, Set
 
+from networkx import DiGraph
 
 GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
 
@@ -44,23 +45,48 @@ def get_symlinks(directory: str) -> Dict[str, Set[str]]:
     return dict(links)
 
 
-def get_directories_for_paths(paths: Iterable[str]) -> List[str]:
+def get_file_graph(directory: str) -> DiGraph:
     """
-    For a list of paths check if each one is a directory or a file. If its a file then return
-    the directory for the file otherwise return the path itself
-    :param paths:
-    :return:
+    Recursively walk a directory and return a graph of all files and symlinks
+    :param directory:
+    :return: graph of file names to parent directories and symlink destinations
     """
-    # get set of symlinks that point to directories
-    directories = [path for path in paths if os.path.isdir(path)]
+    graph = DiGraph()
+    for current_dir, dirs, files in os.walk(directory):
+        if '.terraform' in current_dir:
+            continue
 
-    # get set of symlinks that point to files
-    files = [path for path in paths if not os.path.isdir(path)]
+        if current_dir not in graph.nodes:
+            graph.add_node(current_dir)
 
-    # get the directory for each file and add it to the list of directories
-    directories.extend([os.path.dirname(file) for file in files])
+        # for every file in a dir, create a node and an edge pointing to the parent dir
+        # also create an edge for symlinks to symlink source
+        for path in files:
+            norm_path = os.path.normpath(os.path.join(current_dir, path))
+            if norm_path not in graph.nodes:
+                graph.add_node(norm_path)
 
-    return directories
+            graph.add_edge(norm_path, current_dir)
+
+            if os.path.islink(norm_path):
+                link_source = os.path.normpath(os.path.join(current_dir, os.readlink(norm_path)))
+
+                if link_source not in graph.nodes:
+                    graph.add_node(link_source)
+
+                graph.add_edge(link_source, norm_path)
+
+        # handle dirs the same way as files but don't create a node/edge for them unless they are a symlink
+        for path in dirs:
+            norm_path = os.path.normpath(os.path.join(current_dir, path))
+            if os.path.islink(norm_path):
+                link_source = os.path.normpath(os.path.join(current_dir, os.readlink(norm_path)))
+
+                if link_source not in graph.nodes:
+                    graph.add_node(link_source)
+
+                graph.add_edge(link_source, norm_path)
+    return graph
 
 
 def calc_repo_path(path: str) -> str:

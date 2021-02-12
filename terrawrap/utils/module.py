@@ -1,19 +1,19 @@
 """Utility functions for working with Terraform modules"""
 import concurrent.futures
 import os
-from collections import defaultdict
-from typing import Dict, Set, Tuple
+from typing import Set, Tuple
 
 import hcl2
+from networkx import DiGraph
 
 
-def get_module_usage_map(root_directory: str) -> Dict[str, Set[str]]:
+def get_module_usage_graph(root_directory: str) -> DiGraph:
     """
     Recursively scan a directory with terraform config files and return what modules are being used
     :param root_directory: Directory to scan
-    :return: Map of module path to list of directories that depend on each module
+    :return: Graph of module path and lists of directories that depend on each module
     """
-    module_map: Dict[str, Set[str]] = defaultdict(set)
+    graph = DiGraph()
     future_list = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
         # pylint: disable=unused-variable
@@ -31,9 +31,16 @@ def get_module_usage_map(root_directory: str) -> Dict[str, Set[str]]:
             directory, modules = future.result()
             for mod in modules:
                 module_source_path = os.path.normpath(directory + '/' + mod)
-                module_map[module_source_path].add(os.path.normpath(directory))
+                target_path = os.path.normpath(directory)
 
-    return dict(module_map)
+                if module_source_path not in graph.nodes:
+                    graph.add_node(module_source_path)
+
+                if target_path not in graph.nodes:
+                    graph.add_node(target_path)
+
+                graph.add_edge(module_source_path, target_path)
+    return graph
 
 
 def _get_modules_for_file(directory: str, file_name: str) -> Tuple[str, Set[str]]:
