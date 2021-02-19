@@ -294,8 +294,8 @@ def should_run_plan_for(directory: str, plan_path: str) -> bool:
     return (
         os.path.commonpath([plan_path, directory]) == plan_path
         and os.path.exists(directory)
-        and is_plan_check_enabled(directory)
         and os.path.isdir(directory)
+        and is_plan_check_enabled(directory)
         and any(file.endswith('.tf') for file in os.listdir(directory))
     )
 
