@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2021-02-19
+
+### Changed
+
+-   Check that a path is a directory before attempting to run `plan` when running `plan_check`
+
+## [0.8.1] - 2021-02-16
+
+### Changed
+
+-   Terraform provider version lock files are not automatically deleted
+
+
 ## [0.8.0] - 2021-02-11
 
 ### Changed
