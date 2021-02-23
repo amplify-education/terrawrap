@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2021-02-23
+
+### Changed
+
+-   Update `PyYAML` package to version >=5.3.1,<6
+
 ## [0.8.2] - 2021-02-19
 
 ### Changed
