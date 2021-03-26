@@ -53,7 +53,7 @@ def get_file_graph(directory: str) -> DiGraph:
     """
     graph = DiGraph()
     for current_dir, dirs, files in os.walk(directory):
-        if '.terraform' in current_dir:
+        if '.terraform' in current_dir or '.git' in current_dir:
             continue
 
         if current_dir not in graph.nodes:

@@ -105,7 +105,7 @@ def get_auto_var_usage_graph(root_directory: str) -> DiGraph:
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
         # pylint: disable=unused-variable
         for current_dir, dirs, files in os.walk(root_directory, followlinks=True):
-            if '.terraform' in current_dir:
+            if '.terraform' in current_dir or '.git' in current_dir:
                 continue
 
             for file in files:
