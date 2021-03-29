@@ -347,7 +347,7 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
     """
     has_tf_files = False
     for file_path in os.listdir(dir_path):
-        if '.terraform' in file_path or not file_path.endswith('tf'):
+        if '.terraform' in file_path or not file_path.endswith('.tf'):
             continue
 
         has_tf_files = True
