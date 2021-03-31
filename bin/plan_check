@@ -16,7 +16,7 @@ Options:
     --print-diff                            Print the diff for any directories with changed configurations.
                                             [default: False]
     --with-colors                           Print the diff with colors [default: False]
-    -j, NUM_JOBS --parallel-jobs=NUM_JOBS   The number of Terraform operations to run in parallel.
+    -j NUM_JOBS, --parallel-jobs=NUM_JOBS   The number of Terraform operations to run in parallel.
                                             [default: 4].
      --version                              Show the version.
 """
