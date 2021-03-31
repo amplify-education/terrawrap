@@ -9,13 +9,16 @@ Arguments:
     path    The path of the config directory to check
 
 Options:
-    -h, --help          Show this message and exit.[default: False]
-    -s, --skip-iam      Skip iam changes for this run.[default: False]
-    --modified-only     Only run plan check on directories that were changed in git.
-                        Requires that this command be run from a git repository directory
-    --print-diff        Print the diff for any directories with changed configurations. [default: False]
-    --with-colors       Print the diff with colors [default: False]
-    --version           Show the version.
+    -h, --help                              Show this message and exit.[default: False]
+    -s, --skip-iam                          Skip iam changes for this run.[default: False]
+    --modified-only                         Only run plan check on directories that were changed in git.
+                                            Requires that this command be run from a git repository directory
+    --print-diff                            Print the diff for any directories with changed configurations.
+                                            [default: False]
+    --with-colors                           Print the diff with colors [default: False]
+    -j NUM_JOBS, --parallel-jobs=NUM_JOBS   The number of Terraform operations to run in parallel.
+                                            [default: 4].
+     --version                              Show the version.
 """
 
 import os
@@ -176,7 +179,8 @@ def execute_init_and_plan(
         symlinked_directories: List[str],
         skip_iam: bool,
         print_diff: bool,
-        with_colors: bool
+        with_colors: bool,
+        num_parallel: int
 ) -> Tuple[List[str], List[str]]:
     """
     Execute functions concurrently
@@ -185,6 +189,7 @@ def execute_init_and_plan(
     :param skip_iam: A boolean to skip iam changes check
     :param print_diff: A boolean to control printing diffs for changes
     :param with_colors: A boolean to control printing diffs with ansi colors
+    :param num_parallel: Number of workers to use
     :return: Tuple of two lists, the first list is of directories with terraform failures, the second is of
     directories with IAM failures.
     """
@@ -199,7 +204,7 @@ def execute_init_and_plan(
     directories_with_iam_changes = []
     directories_with_errors = []
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
         future_exec = {}
         for directory in regular_directories:
             envvars = directory_to_envvars[directory]
@@ -317,6 +322,13 @@ def main():
     print_diff = arguments['--print-diff']
     with_colors = arguments['--with-colors']
 
+    try:
+        num_parallel = int(arguments['--parallel-jobs'])
+    except ValueError:
+        raise RuntimeError(
+            "Unable to parse number of parallel jobs, '%s' is not an integer." % arguments['--parallel-jobs']
+        )
+
     # Get the directory with Terraform config passed to this script as an argument
     config_dir = arguments['<path>']
     if not os.path.isabs(config_dir):
@@ -333,7 +345,7 @@ def main():
     )
 
     failing_directories, iam_directories = execute_init_and_plan(
-        regular_directories, symlinked_directories, skip_iam, print_diff, with_colors
+        regular_directories, symlinked_directories, skip_iam, print_diff, with_colors, num_parallel
     )
 
     if failing_directories:
