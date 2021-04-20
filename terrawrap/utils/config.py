@@ -114,7 +114,8 @@ def create_wrapper_config_obj(config_dir, wrapper_file=None):
             if file.endswith(TF_WRAP_FILE):
                 wrapper_file = os.path.join(config_dir, file)
 
-    wrapper_config_obj: WrapperConfig = parse_wrapper_configs([wrapper_file])
+    wrapper_files = [wrapper_file] if wrapper_file else []
+    wrapper_config_obj: WrapperConfig = parse_wrapper_configs(wrapper_files)
     if wrapper_config_obj.depends_on:
         depends_on = []
         for dependency in wrapper_config_obj.depends_on:

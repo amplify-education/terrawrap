@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.8.8] - 2021-04-20
+
+### Changed
+
+-   Fix parsing of the wrap file config
+
+## [0.8.7] - 2021-03-31
+
+### Changed
+
+-   Add parallel jobs option to the `plan_check`
+
 ## [0.8.6] - 2021-03-29
 
 ### Changed
