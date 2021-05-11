@@ -95,7 +95,7 @@ def init_and_plan_directory(
     :return: One of the WrapperExitCode enums
     """
 
-    arguments = ['-lock=false', '-input=false']
+    arguments = ['-input=false']
 
     if not with_colors:
         arguments.append('-no-color')
@@ -126,7 +126,7 @@ def init_and_plan_directory(
     # the constructor. We are then passing in those environment variables explicitly in the
     # execute_command call below.
     plan_exit_code, plan_stdout = execute_command(
-        [wrapper_py, "--no-resolve-envvars", directory, 'plan', '-detailed-exitcode'] + arguments,
+        [wrapper_py, "--no-resolve-envvars", directory, 'plan', '-detailed-exitcode', '-lock=false'] + arguments,
         print_output=False,
         env=command_env
     )
