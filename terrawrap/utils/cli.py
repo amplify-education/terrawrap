@@ -100,38 +100,39 @@ def _execute_command(
     :return: A tuple of the exit code and output of the command.
     """
     stdout_write, stdout_path = tempfile.mkstemp()
-    stdout_read = open(stdout_path, "rb")
+    with open(stdout_path, "rb") as stdout_read, open('/dev/null', 'w') as dev_null:
 
-    if print_command:
-        print("Executing: %s" % " ".join(args))
+        if print_command:
+            print("Executing: %s" % " ".join(args))
 
-    kwargs['stdout'] = stdout_write
-    kwargs['stderr'] = stdout_write if capture_stderr else open('/dev/null', 'w')
+        kwargs['stdout'] = stdout_write
+        kwargs['stderr'] = stdout_write if capture_stderr else dev_null
 
-    process = subprocess.Popen(
-        args,
-        *pargs,
-        **kwargs
-    )
+        # pylint: disable=consider-using-with
+        process = subprocess.Popen(
+            args,
+            *pargs,
+            **kwargs
+        )
 
-    while True:
-        output = stdout_read.read(1).decode(errors="replace")
+        while True:
+            output = stdout_read.read(1).decode(errors="replace")
 
-        if output == '' and process.poll() is not None:
-            break
+            if output == '' and process.poll() is not None:
+                break
 
-        if print_output and output:
-            print(output, end="", flush=True)
+            if print_output and output:
+                print(output, end="", flush=True)
 
-    exit_code = process.poll()
+        exit_code = process.poll()
 
-    stdout_read.seek(0)
-    stdout = [line.decode(errors="replace") for line in stdout_read.readlines()]
+        stdout_read.seek(0)
+        stdout = [line.decode(errors="replace") for line in stdout_read.readlines()]
 
-    # ignoring mypy error below because it thinks exit_code can sometimes be None
-    # we know that will never be the case because the above While loop will keep looping forever
-    # until exit_code is not None
-    return exit_code, stdout  # type: ignore
+        # ignoring mypy error below because it thinks exit_code can sometimes be None
+        # we know that will never be the case because the above While loop will keep looping forever
+        # until exit_code is not None
+        return exit_code, stdout  # type: ignore
 
 
 def _get_retriable_errors(out: List[str]) -> List[str]:
