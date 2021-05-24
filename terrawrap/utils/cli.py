@@ -67,7 +67,7 @@ def execute_command(
         try_count += 1
 
         network_errors = _get_retriable_errors(stdout)
-        if network_errors and retry:
+        if exit_code != 0 and network_errors and retry:
             logger.warning('Found network errors while running %s command: %s', args, network_errors)
         else:
             # The command either succeeded or failed with a non network error. don't retry
