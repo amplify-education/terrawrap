@@ -2,7 +2,6 @@
 from abc import ABC, abstractmethod
 
 import os
-import tempfile
 from typing import List, Tuple
 
 from terrawrap.utils.cli import execute_command
@@ -69,65 +68,48 @@ class GraphEntry(Entry):
         if debug:
             command_env["TF_LOG"] = "DEBUG"
 
-        # pylint: disable=unused-variable
-        plan_file, plan_file_name = tempfile.mkstemp(suffix=".tfplan")
-
         # We're using --no-resolve-envvars here because we've already resolved the environment variables in
         # the constructor. We are then passing in those environment variables explicitly in the
         # execute_command call below.
         base_args = ["tf", "--no-resolve-envvars", self.abs_path]
         init_args = base_args + ["init"] + self.variables
-        plan_args = (
-            base_args +
-            ["plan", "-detailed-exitcode", "-out=%s" % plan_file_name] +
-            self.variables
-        )
         operation_args = base_args + [operation] + self.variables
 
-        if operation in ["apply", "destroy"]:
-            operation_args += ["-auto-approve"]
-
         init_exit_code, init_stdout = execute_command(
-            init_args, print_output=False, capture_stderr=True, env=command_env
+            init_args,
+            print_output=False,
+            capture_stderr=True,
+            env=command_env,
         )
         if init_exit_code != 0:
             self.state = "Failed"
             return init_exit_code, init_stdout, True
-        if operation in ["apply"]:
-            plan_exit_code, plan_stdout = execute_command(
-                plan_args, print_output=False, capture_stderr=True, env=command_env
-            )
-            operation_args += [plan_file_name]
-        else:
-            plan_exit_code = 0
-            plan_stdout = []
 
-        changes_detected = plan_exit_code != 0
-        if plan_exit_code in (0, 2):
-            self.state = "Success"
-        else:
-            self.state = "Failed"
-
-        if plan_exit_code != 2:
-            return (
-                plan_exit_code,
-                init_stdout + ["\n"] + plan_stdout,
-                changes_detected,
-            )
+        shell = False
+        if operation in ["apply", "destroy"]:
+            operation_args = " ".join(["yes", "yes", "|"] + operation_args)
+            shell = True
 
         operation_exit_code, operation_stdout = execute_command(
-            operation_args, print_output=False, capture_stderr=True, env=command_env
+            operation_args,
+            print_output=False,
+            capture_stderr=True,
+            env=command_env,
+            shell=shell,
         )
 
         if operation_exit_code == 0:
             self.state = "Success"
-
         else:
             self.state = "Failed"
+
+        changes_detected = True
+        if any("Resources: 0 added, 0 changed, 0 destroyed" in line for line in operation_stdout):
+            changes_detected = False
 
         print("\nFinished executing %s %s ..." % (self.abs_path, operation))
         return (
             operation_exit_code,
-            init_stdout + ["\n"] + plan_stdout + ["\n"] + operation_stdout,
+            init_stdout + ["\n"] + operation_stdout,
             changes_detected,
         )
