@@ -55,8 +55,14 @@ def execute_command(
     exit_code = 0
     stdout: List[str] = []
     while try_count < max_tries:
-        exit_code, stdout = _execute_command(args, print_output, capture_stderr, print_command,
-                                             *pargs, **kwargs)
+        exit_code, stdout = _execute_command(
+            args,
+            print_output,
+            capture_stderr,
+            print_command,
+            *pargs,
+            **kwargs,
+        )
 
         try_count += 1
 
