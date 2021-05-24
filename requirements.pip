@@ -10,5 +10,5 @@ jsons>=1.0.0,<2.0.0
 python-hcl2>=2,<3
 # Packaging does not obey semver
 packaging==19.1
-diskcache>=4.0.0,<5
+diskcache>=5.0.0,<6
 networkx>=2.4
