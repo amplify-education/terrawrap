@@ -87,11 +87,11 @@ class GraphEntry(Entry):
 
         shell = False
         if operation in ["apply", "destroy"]:
-            operation_args = " ".join(["yes", "yes", "|"] + operation_args)
+            operation_args = ["yes", "yes", "|"] + operation_args
             shell = True
 
         operation_exit_code, operation_stdout = execute_command(
-            operation_args,
+            " ".join(operation_args) if shell else operation_args,
             print_output=False,
             capture_stderr=True,
             env=command_env,

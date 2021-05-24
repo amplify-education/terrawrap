@@ -4,7 +4,7 @@ from __future__ import print_function
 import logging
 import subprocess
 import tempfile
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 from amplify_aws_utils.resource_helper import Jitter
 
@@ -26,7 +26,7 @@ RETRIABLE_ERRORS = [
 
 
 def execute_command(
-        args: List[str],
+        args: Union[List[str], str],
         *pargs,
         print_output: bool = True,
         capture_stderr: bool = True,
@@ -37,7 +37,7 @@ def execute_command(
 ) -> Tuple[int, List[str]]:
     """
     Convenience function for executing a given command and optionally printing the output.
-    :param args: List of arguments to execute.
+    :param args: List of arguments to execute, or a single string.
     :param pargs: Any additional positional arguments to Popen.
     :param print_output: True if the output of the command should be printed immediately. Defaults to True.
     :param capture_stderr: True if stderr should be captured. Defaults to True.
@@ -82,7 +82,7 @@ def execute_command(
 
 
 def _execute_command(
-        args: List[str],
+        args: Union[List[str], str],
         print_output: bool,
         capture_stderr: bool,
         print_command: bool,
@@ -91,7 +91,7 @@ def _execute_command(
 ) -> Tuple[int, List[str]]:
     """
     Private function for executing a given command and optionally printing the output.
-    :param args: List of arguments to execute.
+    :param args: List of arguments to execute, or a single string.
     :param print_output: True if the output of the command should be printed immediately. Defaults to True.
     :param capture_stderr: True if stderr should be captured. Defaults to True.
     :param print_command: True if the command should be printed before executing. Defaults to False.
