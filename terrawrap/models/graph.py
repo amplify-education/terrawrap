@@ -52,7 +52,7 @@ class ApplyGraph:
                 if stdout and print_only_changes and not changes_detected:
                     stdout = ["No changes detected.\n"]
 
-                print("Output:\n\n%s\n" % "".join(stdout).strip())
+                print("Output for %s:\n\n%s\n" % (path, "".join(stdout).strip()))
 
                 if exit_code != 0:
                     self.failures.append(path)
@@ -104,7 +104,7 @@ class ApplyGraph:
             if stdout and print_only_changes and not changes_detected:
                 stdout = ["No changes detected.\n"]
 
-            print("Output:\n\n%s\n" % "".join(stdout).strip())
+            print("Output for %s:\n\n%s\n" % (path, "".join(stdout).strip()))
             if exit_code != 0:
                 self.failures.append(path)
 
@@ -144,7 +144,7 @@ class ApplyGraph:
                     if print_only_changes and not changes_detected:
                         stdout = ["No changes detected.\n"]
 
-                    print("Output:\n\n%s\n" % "".join(stdout).strip())
+                    print("Output for %s:\n\n%s\n" % (path, "".join(stdout).strip()))
 
                     if exit_code != 0:
                         self.failures.append(path)

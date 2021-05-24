@@ -33,7 +33,7 @@ class TestCli(TestCase):
     @patch('io.open')
     def test_execute_command_retry(self, mock_open, mock_network_error):
         """Test retrying execution because of network errors"""
-        self.mock_process.poll.return_value = 0
+        self.mock_process.poll.side_effect = [1, 1, 1, 0]
         mock_network_error.side_effect = [["Throttling"], []]
         mock_stdout_read = mock_open.return_value
         mock_stdout_read.readline.return_value = b''
