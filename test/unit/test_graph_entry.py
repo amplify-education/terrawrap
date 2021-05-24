@@ -12,14 +12,17 @@ class TestGraphEntry(TestCase):
     @patch('terrawrap.models.graph_entry.execute_command')
     def test_execute(self, exec_command):
         """Test executing a command successfully"""
-        exec_command.side_effect = [(0, ['Success'])]
+        exec_command.side_effect = [
+            (0, ['Success']),
+            (0, ['Success']),
+        ]
 
         entry = GraphEntry('/var', [])
         exit_code, stdout, changes_detected = entry.execute('plan')
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(stdout, ['Success', '\n'])
-        self.assertEqual(changes_detected, False)
+        self.assertEqual(stdout, ['Success', '\n', 'Success'])
+        self.assertEqual(changes_detected, True)
 
     @patch('terrawrap.models.graph_entry.execute_command')
     def test_execute_fail(self, exec_command):
@@ -38,7 +41,6 @@ class TestGraphEntry(TestCase):
         """Test executing apply with changes"""
         exec_command.side_effect = [
             (0, ['Success']),
-            (2, ['Something changed']),
             (0, ['Success']),
         ]
 
@@ -46,7 +48,7 @@ class TestGraphEntry(TestCase):
         exit_code, stdout, changes_detected = entry.execute('apply')
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(stdout, ['Success', '\n', 'Something changed', '\n', 'Success'])
+        self.assertEqual(stdout, ['Success', '\n', 'Success'])
         self.assertEqual(changes_detected, True)
 
     @patch('terrawrap.models.graph_entry.execute_command')
@@ -54,12 +56,12 @@ class TestGraphEntry(TestCase):
         """Test executing apply with no changes"""
         exec_command.side_effect = [
             (0, ['Success']),
-            (0, ['Nothing changed']),
+            (0, ['Resources: 0 added, 0 changed, 0 destroyed']),
         ]
 
         entry = GraphEntry('/var', [])
         exit_code, stdout, changes_detected = entry.execute('apply')
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(stdout, ['Success', '\n', 'Nothing changed'])
+        self.assertEqual(stdout, ['Success', '\n', 'Resources: 0 added, 0 changed, 0 destroyed'])
         self.assertEqual(changes_detected, False)
