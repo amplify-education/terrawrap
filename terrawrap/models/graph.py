@@ -5,7 +5,7 @@ from typing import List, Dict, Set
 import networkx
 
 from terrawrap.utils.graph import find_source_nodes
-from terrawrap.models.graph_entry import GraphEntry
+from terrawrap.models.graph_entry import GraphEntry, NoOpGraphEntry, Entry
 
 
 class ApplyGraph:
@@ -20,10 +20,11 @@ class ApplyGraph:
         """
         self.command = command
         self.graph = graph
-        self.graph_dict: Dict[str, GraphEntry] = {}
+        self.graph_dict: Dict[str, Entry] = {}
         self.post_graph = post_graph
         self.prefix = prefix
         self.not_applied: Set[str] = set()
+        self.applied: Set[str] = set()
         self.failures: List[str] = []
 
     # pylint: disable=too-many-locals
@@ -40,28 +41,21 @@ class ApplyGraph:
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
             for source in sources:
                 entry = self._get_or_create_entry(source)
-                if not self._has_prefix(entry):
-                    future = executor.submit(entry.no_op)
-                    futures_to_paths[future] = entry.path
-                    continue
 
-                print("Executing %s %s ..." % (entry.path, self.command))
                 future = executor.submit(entry.execute, self.command, debug=debug)
                 futures_to_paths[future] = entry.path
 
             for future in concurrent.futures.as_completed(futures_to_paths):
                 path = futures_to_paths[future]
-                if self._get_or_create_entry(path).state != "no-op":
-                    exit_code, stdout, changes_detected = future.result()
+                exit_code, stdout, changes_detected = future.result()
 
-                    if print_only_changes and not changes_detected:
-                        stdout = ["No changes detected.\n"]
+                if stdout and print_only_changes and not changes_detected:
+                    stdout = ["No changes detected.\n"]
 
-                    print("\nFinished executing %s %s ..." % (path, self.command))
-                    print("Output:\n\n%s\n" % "".join(stdout).strip())
+                print("Output for %s:\n\n%s\n" % (path, "".join(stdout).strip()))
 
-                    if exit_code != 0:
-                        self.failures.append(path)
+                if exit_code != 0:
+                    self.failures.append(path)
 
                 successors = list(self.graph.successors(path))
                 if successors:
@@ -71,9 +65,10 @@ class ApplyGraph:
             item = self.graph_dict.get(node)
             if not item:
                 self.not_applied.add(node)
+            elif item.state == "no-op":
+                self.not_applied.add(item.path)
             else:
-                if item.state == "no-op":
-                    self.not_applied.add(item.path)
+                self.applied.add(node)
 
     def recursive_executor(
             self,
@@ -99,31 +94,25 @@ class ApplyGraph:
             if not self._can_be_applied(entry):
                 continue
 
-            if not self._has_prefix(entry):
-                future = executor.submit(entry.no_op)
-                futures_to_paths[future] = entry.path
-                continue
-
             future = executor.submit(entry.execute, self.command, debug=debug)
             futures_to_paths[future] = entry.path
 
         for future in concurrent.futures.as_completed(futures_to_paths):
-
             path = futures_to_paths[future]
-            if self.graph_dict[path].state != "no-op":
-                exit_code, stdout, changes_detected = future.result()
+            exit_code, stdout, changes_detected = future.result()
 
-                if print_only_changes and not changes_detected:
-                    stdout = ["No changes detected.\n"]
+            if stdout and print_only_changes and not changes_detected:
+                stdout = ["No changes detected.\n"]
 
-                print("\nFinished executing %s %s ..." % (path, self.command))
-                print("Output:\n\n%s\n" % "".join(stdout).strip())
-                if exit_code != 0:
-                    self.failures.append(path)
+            print("Output for %s:\n\n%s\n" % (path, "".join(stdout).strip()))
+            if exit_code != 0:
+                self.failures.append(path)
 
             next_successors = list(self.graph.successors(path))
             if next_successors:
-                self.recursive_executor(executor, next_successors, num_parallel, debug, print_only_changes)
+                self.recursive_executor(
+                    executor, next_successors, num_parallel, debug, print_only_changes
+                )
 
     def execute_post_graph(
             self,
@@ -141,10 +130,6 @@ class ApplyGraph:
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
             for node in self.post_graph:
                 entry = self._get_or_create_entry(node)
-                if not self._has_prefix(entry):
-                    future = executor.submit(entry.no_op)
-                    futures_to_paths[future] = entry.path
-                    continue
 
                 future = executor.submit(entry.execute, self.command, debug=debug)
                 futures_to_paths[future] = entry.path
@@ -159,8 +144,7 @@ class ApplyGraph:
                     if print_only_changes and not changes_detected:
                         stdout = ["No changes detected.\n"]
 
-                    print("\nFinished executing %s %s ..." % (path, self.command))
-                    print("Output:\n\n%s\n" % "".join(stdout).strip())
+                    print("Output for %s:\n\n%s\n" % (path, "".join(stdout).strip()))
 
                     if exit_code != 0:
                         self.failures.append(path)
@@ -169,9 +153,10 @@ class ApplyGraph:
             item = self.graph_dict.get(node)
             if not item:
                 self.not_applied.add(node)
+            elif item.state == "no-op":
+                self.not_applied.add(item.path)
             else:
-                if item.state == "no-op":
-                    self.not_applied.add(item.path)
+                self.applied.add(node)
 
     def _can_be_applied(self, entry: GraphEntry):
         """
@@ -206,16 +191,9 @@ class ApplyGraph:
         if self.graph_dict.get(node):
             entry = self.graph_dict.get(node)
         else:
-            entry = GraphEntry(node, [])
+            if node.startswith(self.prefix):
+                entry = GraphEntry(node, [])
+            else:
+                entry = NoOpGraphEntry(node, [])
             self.graph_dict[node] = entry
         return entry
-
-    def _has_prefix(self, entry: GraphEntry):
-        """
-        Checks if an entry has the same prefix as the one passed into the tf command
-        :param entry: The entry to be checked.
-        :return: A boolean False if the prefix does not match otherwise True
-        """
-        if not entry.path.startswith(self.prefix):
-            return False
-        return True

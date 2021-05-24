@@ -6,6 +6,7 @@ from typing import Dict, Set, Tuple, Union
 
 import hcl2
 from lark import Token
+from networkx import DiGraph
 
 Variable = namedtuple('Variable', ['name', 'value'])
 
@@ -90,22 +91,21 @@ def get_source_for_variable(usage_directory: str, var_name: str, vars_map: Dict[
     return possible_sources[-1]
 
 
-def get_auto_var_usages(root_directory: str) -> Dict[str, Set[str]]:
+def get_auto_var_usage_graph(root_directory: str) -> DiGraph:
     """
-    Recursively scan a directory to build a dictionary of auto tfvars files and the directories
+    Recursively scan a directory to build a graph of auto tfvars files and the directories
     that depend on them
     :param root_directory: directory where to start the search
     :return:
     """
+    graph = DiGraph()
     auto_vars = get_auto_vars(root_directory)
-
-    var_usages: Dict[str, Set[str]] = defaultdict(set)
 
     future_list = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
         # pylint: disable=unused-variable
         for current_dir, dirs, files in os.walk(root_directory, followlinks=True):
-            if '.terraform' in current_dir:
+            if '.terraform' in current_dir or '.git' in current_dir:
                 continue
 
             for file in files:
@@ -118,9 +118,16 @@ def get_auto_var_usages(root_directory: str) -> Dict[str, Set[str]]:
         for future in concurrent.futures.as_completed(future_list):
             directory, var_sources = future.result()
             for var_source in var_sources:
-                var_usages[var_source].add(directory)
 
-    return dict(var_usages)
+                if var_source not in graph.nodes:
+                    graph.add_node(var_source)
+
+                if directory not in graph.nodes:
+                    graph.add_node(directory)
+
+                graph.add_edge(var_source, directory)
+
+    return graph
 
 
 def _collect_variable_usages(current_dir: str, file: str, auto_vars: Dict[str, Set[Variable]]) \

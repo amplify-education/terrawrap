@@ -4,7 +4,7 @@ from __future__ import print_function
 import logging
 import subprocess
 import tempfile
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 from amplify_aws_utils.resource_helper import Jitter
 
@@ -26,7 +26,7 @@ RETRIABLE_ERRORS = [
 
 
 def execute_command(
-        args: List[str],
+        args: Union[List[str], str],
         *pargs,
         print_output: bool = True,
         capture_stderr: bool = True,
@@ -37,7 +37,7 @@ def execute_command(
 ) -> Tuple[int, List[str]]:
     """
     Convenience function for executing a given command and optionally printing the output.
-    :param args: List of arguments to execute.
+    :param args: List of arguments to execute, or a single string.
     :param pargs: Any additional positional arguments to Popen.
     :param print_output: True if the output of the command should be printed immediately. Defaults to True.
     :param capture_stderr: True if stderr should be captured. Defaults to True.
@@ -55,13 +55,19 @@ def execute_command(
     exit_code = 0
     stdout: List[str] = []
     while try_count < max_tries:
-        exit_code, stdout = _execute_command(args, print_output, capture_stderr, print_command,
-                                             *pargs, **kwargs)
+        exit_code, stdout = _execute_command(
+            args,
+            print_output,
+            capture_stderr,
+            print_command,
+            *pargs,
+            **kwargs,
+        )
 
         try_count += 1
 
         network_errors = _get_retriable_errors(stdout)
-        if network_errors and retry:
+        if exit_code != 0 and network_errors and retry:
             logger.warning('Found network errors while running %s command: %s', args, network_errors)
         else:
             # The command either succeeded or failed with a non network error. don't retry
@@ -76,7 +82,7 @@ def execute_command(
 
 
 def _execute_command(
-        args: List[str],
+        args: Union[List[str], str],
         print_output: bool,
         capture_stderr: bool,
         print_command: bool,
@@ -85,7 +91,7 @@ def _execute_command(
 ) -> Tuple[int, List[str]]:
     """
     Private function for executing a given command and optionally printing the output.
-    :param args: List of arguments to execute.
+    :param args: List of arguments to execute, or a single string.
     :param print_output: True if the output of the command should be printed immediately. Defaults to True.
     :param capture_stderr: True if stderr should be captured. Defaults to True.
     :param print_command: True if the command should be printed before executing. Defaults to False.
@@ -94,38 +100,39 @@ def _execute_command(
     :return: A tuple of the exit code and output of the command.
     """
     stdout_write, stdout_path = tempfile.mkstemp()
-    stdout_read = open(stdout_path, "rb")
+    with open(stdout_path, "rb") as stdout_read, open('/dev/null', 'w') as dev_null:
 
-    if print_command:
-        print("Executing: %s" % " ".join(args))
+        if print_command:
+            print("Executing: %s" % " ".join(args))
 
-    kwargs['stdout'] = stdout_write
-    kwargs['stderr'] = stdout_write if capture_stderr else open('/dev/null', 'w')
+        kwargs['stdout'] = stdout_write
+        kwargs['stderr'] = stdout_write if capture_stderr else dev_null
 
-    process = subprocess.Popen(
-        args,
-        *pargs,
-        **kwargs
-    )
+        # pylint: disable=consider-using-with
+        process = subprocess.Popen(
+            args,
+            *pargs,
+            **kwargs
+        )
 
-    while True:
-        output = stdout_read.read(1).decode(errors="replace")
+        while True:
+            output = stdout_read.read(1).decode(errors="replace")
 
-        if output == '' and process.poll() is not None:
-            break
+            if output == '' and process.poll() is not None:
+                break
 
-        if print_output and output:
-            print(output, end="", flush=True)
+            if print_output and output:
+                print(output, end="", flush=True)
 
-    exit_code = process.poll()
+        exit_code = process.poll()
 
-    stdout_read.seek(0)
-    stdout = [line.decode(errors="replace") for line in stdout_read.readlines()]
+        stdout_read.seek(0)
+        stdout = [line.decode(errors="replace") for line in stdout_read.readlines()]
 
-    # ignoring mypy error below because it thinks exit_code can sometimes be None
-    # we know that will never be the case because the above While loop will keep looping forever
-    # until exit_code is not None
-    return exit_code, stdout  # type: ignore
+        # ignoring mypy error below because it thinks exit_code can sometimes be None
+        # we know that will never be the case because the above While loop will keep looping forever
+        # until exit_code is not None
+        return exit_code, stdout  # type: ignore
 
 
 def _get_retriable_errors(out: List[str]) -> List[str]:

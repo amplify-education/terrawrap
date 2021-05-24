@@ -43,6 +43,7 @@ def main():
                 dir_path=config_dir,
             ): config_dir
             for config_dir in config_dirs
+            if config_dir
         }
 
         config_dirs_without_terraform_backend = {
