@@ -31,7 +31,13 @@ class TextEnvVarConfig(AbstractEnvVarConfig):
 
 
 class S3BackendConfig:
-    def __init__(self, bucket: str = None, region: str = None, dynamodb_table: str = None, role_arn: str = None):
+    def __init__(
+            self,
+            bucket: str = None,
+            region: str = None,
+            dynamodb_table: str = None,
+            role_arn: str = None,
+    ):
         self.region = region
         self.bucket = bucket
         self.dynamodb_table = dynamodb_table
