@@ -30,6 +30,7 @@ def version_check(current_version: str) -> bool:
                 latest_version,
             ),
             "Please upgrade as soon as possible!\n",
+            "pip install --upgrade terrawrap \n",
             sep="\n",
             file=sys.stderr,
         )
