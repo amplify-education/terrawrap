@@ -40,6 +40,7 @@ from terrawrap.utils.tf_variables import get_auto_var_usage_graph
 
 from networkx import compose_all, descendants
 
+TERRAFORM_PERFORM_ACTIONS = "Terraform will perform the following actions"
 IAM_POLICY_RE = re.compile('[-~+] .*(aws_iam_|aws_s3_bucket_policy).*')
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 CURRENT_DIRECTORY = os.getcwd()
@@ -160,13 +161,20 @@ def check_for_iam_changes(stdout: List[str], directory: str) -> WrapperExitCode:
     :param directory: A directory with the config to be printed along with the notification about IAM changes
     :return: One of the WrapperExitCode enums
     """
-
     iam_resources = []
+    reached_actual_changes = False
 
     for line in stdout:
-        match = re.search(IAM_POLICY_RE, line)
-        if match:
-            iam_resources.append(match.group(0))
+        # TODO: Refactor this to use JSON at some point
+        # https://www.terraform.io/docs/internals/json-format.html
+        if not reached_actual_changes and TERRAFORM_PERFORM_ACTIONS in line:
+            reached_actual_changes = True
+
+        if reached_actual_changes:
+            match = re.search(IAM_POLICY_RE, line)
+            if match:
+                iam_resources.append(match.group(0))
+
     if iam_resources:
         print("Detected IAM resources modified in {0}:\n{1}\n".format(directory, "\n".join(iam_resources)))
         return WrapperExitCode.IAM_CHANGES

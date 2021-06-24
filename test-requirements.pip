@@ -2,6 +2,12 @@
 pycodestyle
 pylint>=2.3.1,<3
 mypy
+# mypy types
+types-PyYAML>=5.4.3,<6
+types-filelock>=0.1.4,<1
+types-mock>=0.1.3,<1
+types-requests>=2.25.0,<3
+types-six>=0.1.7,<1
 # Testing tools
 nose>=1.1,<2
 nose-cov>=1.5,<2
