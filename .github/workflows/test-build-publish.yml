@@ -36,7 +36,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Check version updated
-        run: bash bin/versionCheck.sh ${GITHUB_HEAD_REF##*/} "true"
+        run: bash bin/versionCheck.sh ${GITHUB_BASE_REF##*/} "true"
 
     build-publish:
         name: Build and publish Python distributions
