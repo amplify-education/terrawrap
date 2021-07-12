@@ -118,7 +118,7 @@ def exec_tf_command(
 
         if exit_code != 0 and try_count <= MAX_COUNT:
             error = ''.join([line for line in stdout])
-            if 'Error locking state' in error:
+            if 'Error acquiring the state lock' in error:
                 if tf_unlock(error, path, LOCK_TIMEOUT):
                     continue
             elif 'state data in S3 does not have the expected content' in error:
