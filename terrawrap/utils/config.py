@@ -334,8 +334,7 @@ def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
 
     for variable_file in variable_files:
         with open(variable_file) as var_file:
-            flat_vars = {key: values for key, values in hcl2.load(var_file).items()}
-            variables.update(flat_vars)
+            variables.update(hcl2.load(var_file).items())
 
     return variables
 
