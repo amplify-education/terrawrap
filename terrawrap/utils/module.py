@@ -56,7 +56,7 @@ def _get_modules_for_file(directory: str, file_name: str) -> Tuple[str, Set[str]
             tf_info = hcl2.load(file)
             for module in tf_info.get('module', []):
                 for module_config in module.values():
-                    modules.add(os.path.normpath(module_config['source'][0]))
+                    modules.add(os.path.normpath(module_config['source']))
         except Exception:
             print('Error while parsing file %s' % file.name)
             raise
