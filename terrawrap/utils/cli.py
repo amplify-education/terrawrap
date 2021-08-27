@@ -23,6 +23,8 @@ RETRIABLE_ERRORS = [
     'Client.Timeout exceeded',
     'Request limit for operation',
     'try again later',
+    'handshake timeout',
+    'SSL_ERROR_SYSCALL',
 ]
 
 
@@ -101,7 +103,7 @@ def _execute_command(
     :return: A tuple of the exit code and output of the command.
     """
     stdout_write, stdout_path = tempfile.mkstemp()
-    with open(stdout_path, "rb") as stdout_read, open('/dev/null', 'w') as dev_null:
+    with open(stdout_path, "rb") as stdout_read, open('/dev/null', 'w', encoding='utf-8') as dev_null:
 
         if print_command:
             print("Executing: %s" % " ".join(args))

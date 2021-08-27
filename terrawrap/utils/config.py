@@ -79,7 +79,7 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
     generated_wrapper_config: Dict = {}
 
     for wrapper_config_path in wrapper_config_files:
-        with open(wrapper_config_path) as wrapper_config_file:
+        with open(wrapper_config_path, encoding='utf-8') as wrapper_config_file:
             wrapper_config = yaml.safe_load(wrapper_config_file)
             if wrapper_config and isinstance(wrapper_config, dict):
                 generated_wrapper_config = update(generated_wrapper_config, wrapper_config)
@@ -333,7 +333,7 @@ def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
     variables: Dict = {}
 
     for variable_file in variable_files:
-        with open(variable_file) as var_file:
+        with open(variable_file, encoding='utf-8') as var_file:
             variables.update(hcl2.load(var_file).items())
 
     return variables
@@ -365,7 +365,7 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
 
 
 def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
-    with open(file_path) as tf_file:
+    with open(file_path, encoding='utf-8') as tf_file:
         try:
             configs: Dict[str, List] = hcl2.load(tf_file)
 

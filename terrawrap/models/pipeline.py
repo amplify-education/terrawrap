@@ -24,7 +24,7 @@ class Pipeline:
         if not pipeline_path.endswith(".csv"):
             raise RuntimeError("Config file '%s' doesn't appear to be a CSV file: Should end in .csv")
 
-        with open(pipeline_path) as pipeline_file:
+        with open(pipeline_path, encoding='utf-8') as pipeline_file:
             reader = csv.DictReader(pipeline_file)
             # Lambda function is needed here because the argument to defaultdict needs to be a function that
             # returns an object.

@@ -51,7 +51,7 @@ def _get_modules_for_file(directory: str, file_name: str) -> Tuple[str, Set[str]
     :return:
     """
     modules = set()
-    with open(directory + '/' + file_name, 'r') as file:
+    with open(directory + '/' + file_name, 'r', encoding='utf-8') as file:
         try:
             tf_info = hcl2.load(file)
             for module in tf_info.get('module', []):
