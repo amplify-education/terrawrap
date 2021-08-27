@@ -103,8 +103,7 @@ def _execute_command(
     :return: A tuple of the exit code and output of the command.
     """
     stdout_write, stdout_path = tempfile.mkstemp()
-    with open(stdout_path, "rb", encoding='utf-8') as stdout_read,\
-         open('/dev/null', 'w', encoding='utf-8') as dev_null:
+    with open(stdout_path, "rb") as stdout_read, open('/dev/null', 'w', encoding='utf-8') as dev_null:
 
         if print_command:
             print("Executing: %s" % " ".join(args))
