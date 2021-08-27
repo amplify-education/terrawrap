@@ -25,7 +25,7 @@ def get_auto_vars(root_directory: str) -> Dict[str, Set[Variable]]:
 
         vars_files = [file_name for file_name in files if file_name.endswith('.tfvars')]
         for file_name in vars_files:
-            with open(current_dir + '/' + file_name, 'r') as file:
+            with open(current_dir + '/' + file_name, 'r', encoding='utf-8') as file:
                 variables = hcl2.load(file)
                 for key, value in variables.items():
                     auto_vars[os.path.join(current_dir, file_name)].add(Variable(key, _make_hashable(value)))
@@ -50,7 +50,7 @@ def get_nondefault_variables_for_file(file_path: str) -> Set[str]:
     :return: Set of variable names declared in the file
     """
     variables = set()
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding='utf-8') as file:
         tf_info = hcl2.load(file)
         for variable in tf_info.get('variable', []):
             for variable_name, var_config in variable.items():
