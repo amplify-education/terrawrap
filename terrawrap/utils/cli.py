@@ -23,6 +23,8 @@ RETRIABLE_ERRORS = [
     'Client.Timeout exceeded',
     'Request limit for operation',
     'try again later',
+    'handshake timeout',
+    'SSL_ERROR_SYSCALL',
 ]
 
 
