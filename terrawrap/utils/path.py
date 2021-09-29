@@ -104,4 +104,4 @@ def calc_repo_path(path: str) -> str:
     else:
         raise RuntimeError("Could not determine git repo name, are we in a git repo?")
 
-    return '%s/%s' % (repo_name, path[path.index("/config") + 1:])
+    return f'{repo_name}/{path[path.index("/config") + 1:]}'
