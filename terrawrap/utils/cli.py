@@ -19,6 +19,7 @@ RETRIABLE_ERRORS = [
     'ServiceUnavailable: Service Unavailable',
     'failed to decode query XML error response',
     'connection reset by peer',
+    'connection reset',
     'Please try again.',
     'Client.Timeout exceeded',
     'Request limit for operation',
