@@ -156,11 +156,11 @@ class TestConfig(TestCase):
 
         expected_config = [
             '-reconfigure',
-            ('-backend-config=dynamodb_table=%s' % LOCK_TABLE),
+            (f'-backend-config=dynamodb_table={LOCK_TABLE}'),
             '-backend-config=encrypt=true',
             '-backend-config=key=terrawrap/config/app1.tfstate',
-            ('-backend-config=region=%s' % REGION),
-            ('-backend-config=bucket=%s' % BUCKET),
+            (f'-backend-config=region={REGION}'),
+            (f'-backend-config=bucket={BUCKET}'),
             '-backend-config=skip_region_validation=true',
             '-backend-config=skip_credentials_validation=true'
         ]
@@ -187,11 +187,11 @@ class TestConfig(TestCase):
 
         expected_config = [
             '-reconfigure',
-            '-backend-config=dynamodb_table=%s' % LOCK_TABLE,
+            f'-backend-config=dynamodb_table={LOCK_TABLE}',
             '-backend-config=encrypt=true',
             '-backend-config=key=terrawrap/config/app1.tfstate',
-            '-backend-config=region=%s' % REGION,
-            '-backend-config=bucket=%s' % BUCKET,
+            f'-backend-config=region={REGION}',
+            f'-backend-config=bucket={BUCKET}',
             '-backend-config=skip_region_validation=true',
             '-backend-config=skip_credentials_validation=true'
         ]
@@ -219,14 +219,14 @@ class TestConfig(TestCase):
 
         expected_config = [
             '-reconfigure',
-            '-backend-config=dynamodb_table=%s' % LOCK_TABLE,
+            f'-backend-config=dynamodb_table={LOCK_TABLE}',
             '-backend-config=encrypt=true',
             '-backend-config=key=terrawrap/config/app1.tfstate',
-            '-backend-config=region=%s' % REGION,
-            '-backend-config=bucket=%s' % BUCKET,
+            f'-backend-config=region={REGION}',
+            f'-backend-config=bucket={BUCKET}',
             '-backend-config=skip_region_validation=true',
             '-backend-config=skip_credentials_validation=true',
-            '-backend-config=role_arn=%s' % ROLE_ARN
+            f'-backend-config=role_arn={ROLE_ARN}'
         ]
 
         self.assertEqual(expected_config, actual_config)

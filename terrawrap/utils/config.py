@@ -294,16 +294,15 @@ def calc_backend_config(
 
     # for backwards compatibility, include the default s3 backend options we used to automatically include
     if existing_backend_config.s3 is not None:
-        terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
-            region=variables.get('region'),
-            account_short_name=variables.get('account_short_name')
-        )
+        region = variables.get('region', '')
+        account_short_name = variables.get('account_short_name')
+        terraform_bucket = f"{region}--mclass--terraform--{account_short_name}"
 
         options = {
             'dynamodb_table': variables.get('terraform_lock_table', 'terraform-locking'),
             'encrypt': 'true',
-            'key': '%s.tfstate' % repo_path,
-            'region': variables.get('region', ''),
+            'key': f'{repo_path}.tfstate',
+            'region': region,
             'bucket': variables.get('terraform_state_bucket', terraform_bucket),
             'skip_region_validation': 'true',
             'skip_credentials_validation': 'true'
@@ -320,7 +319,7 @@ def calc_backend_config(
             wrapper_options = vars(wrapper_config.backends.s3)
         options.update({key: value for key, value in wrapper_options.items() if value is not None})
 
-    backend_config.extend(['-backend-config=%s=%s' % (key, value) for key, value in options.items()])
+    backend_config.extend([f'-backend-config={key}={value}' for key, value in options.items()])
     return backend_config
 
 
@@ -375,5 +374,5 @@ def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
                     return jsons.load(terraform_config['backend'][0], BackendsConfig, strict=True)
             return None
         except Exception:
-            print('Error while parsing file %s' % file_path)
+            print(f'Error while parsing file {file_path}')
             raise

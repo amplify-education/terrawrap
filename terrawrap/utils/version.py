@@ -25,10 +25,8 @@ def version_check(current_version: str) -> bool:
             return False
 
         print(
-            "WARNING: Your version of Terrawrap is stale! You have version '%s' but the latest is '%s'" % (
-                current_version,
-                latest_version,
-            ),
+            "WARNING: Your version of Terrawrap is stale!",
+            f"You have version '{current_version}' but the latest is '{latest_version}'",
             "Please upgrade as soon as possible!\n pip install --upgrade terrawrap \n",
             sep="\n",
             file=sys.stderr,
@@ -37,7 +35,7 @@ def version_check(current_version: str) -> bool:
         return True
     except Exception as exp:
         print(
-            "WARNING: Encountered some error while checking for latest version of Terrawrap: %s" % repr(exp),
+            f"WARNING: Encountered some error while checking for latest version of Terrawrap: {repr(exp)}",
         )
     return False
 

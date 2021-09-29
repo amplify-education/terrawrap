@@ -54,7 +54,7 @@ class Pipeline:
         :param print_only_changes: True if only directories which contained changes should be printed.
         """
         for sequence in sorted(self.entries.keys(), reverse=self.reverse_pipeline):
-            print("Executing sequence %s" % sequence)
+            print(f"Executing sequence {sequence}")
             with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
                 self._execute_entries(
                     command=self.command,
@@ -102,7 +102,7 @@ class Pipeline:
         failures = []
 
         for entry in entries:
-            print("Executing %s %s ..." % (entry.path, command))
+            print(f"Executing {entry.path} {command} ...")
             future = executor.submit(entry.execute, command, debug=debug)
             futures_to_paths[future] = entry.path
 
@@ -113,13 +113,14 @@ class Pipeline:
             if print_only_changes and not changes_detected:
                 stdout = ["No changes detected.\n"]
 
-            print("\nFinished executing %s %s ..." % (path, command))
-            print("Output:\n\n%s\n" % "".join(stdout).strip())
+            print(f"\nFinished executing {path} {command} ...")
+            print(f"Output:\n\n{''.join(stdout).strip()}\n")
 
             if exit_code != 0:
                 failures.append(path)
 
         if failures:
+            failures_string = "\n".join(failures)
             raise RuntimeError(
-                "The follow pipeline entries failed with command '%s':\n%s" % (command, "\n".join(failures))
+                f"The follow pipeline entries failed with command '{command}':\n{failures_string}"
             )

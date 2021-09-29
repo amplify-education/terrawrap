@@ -32,7 +32,7 @@ class NoOpGraphEntry(Entry):
         self.state = "no-op"
 
     def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
-        print("Skipping execute for %s %s ..." % (self.path, operation))
+        print(f"Skipping execute for {self.path} {operation} ...")
         return 0, [], False
 
 
@@ -60,7 +60,7 @@ class GraphEntry(Entry):
         :param debug: True if Terraform debug info should be printed.
         :return: A tuple of the exit code, output of the command, and whether changes were detected.
         """
-        print("Executing %s %s ..." % (self.abs_path, operation))
+        print(f"Executing {self.abs_path} {operation} ...")
         self.state = "Executing"
         command_env = os.environ.copy()
         command_env.update(self.envvars)
@@ -107,7 +107,7 @@ class GraphEntry(Entry):
         if any("Resources: 0 added, 0 changed, 0 destroyed" in line for line in operation_stdout):
             changes_detected = False
 
-        print("\nFinished executing %s %s ..." % (self.abs_path, operation))
+        print(f"\nFinished executing {self.abs_path} {operation} ...")
         return (
             operation_exit_code,
             init_stdout + ["\n"] + operation_stdout,
