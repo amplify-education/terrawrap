@@ -78,7 +78,7 @@ def execute_command(
             break
 
         if time_passed >= timeout:
-            raise TimeoutError('Timed out retrying %s command' % args)
+            raise TimeoutError(f'Timed out retrying {args} command')
 
         time_passed = jitter.backoff()
 
@@ -107,7 +107,7 @@ def _execute_command(
     with open(stdout_path, "rb") as stdout_read, open('/dev/null', 'w', encoding='utf-8') as dev_null:
 
         if print_command:
-            print("Executing: %s" % " ".join(args))
+            print(f"Executing: {' '.join(args)}")
 
         kwargs['stdout'] = stdout_write
         kwargs['stderr'] = stdout_write if capture_stderr else dev_null

@@ -31,7 +31,7 @@ class DynamoDB:
         """
         key = {primary_key_name: {'S': primary_key_value}}
         expression_attribute_values = {':d': {'S': attribute_value}}
-        update_expression = 'SET {} = :d'.format(attribute_name)
+        update_expression = f'SET {attribute_name} = :d'
 
         return throttled_call(
             self.client.update_item,

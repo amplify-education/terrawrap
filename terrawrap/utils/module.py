@@ -58,7 +58,7 @@ def _get_modules_for_file(directory: str, file_name: str) -> Tuple[str, Set[str]
                 for module_config in module.values():
                     modules.add(os.path.normpath(module_config['source']))
         except Exception:
-            print('Error while parsing file %s' % file.name)
+            print(f'Error while parsing file {file.name}')
             raise
 
     return directory, modules

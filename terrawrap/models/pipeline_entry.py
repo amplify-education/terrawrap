@@ -56,7 +56,7 @@ class PipelineEntry:
         plan_args = base_args + [
             "plan",
             "-detailed-exitcode",
-            "-out=%s" % plan_file_name
+            f"-out={plan_file_name}"
         ] + self.variables
         operation_args = base_args + [operation] + self.variables
 

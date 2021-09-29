@@ -36,16 +36,16 @@ class PluginDownload:
 
             system = platform.system()
             machine = platform.machine()
-            path_with_platform = '%s/%s/%s' % (path, system, machine)
+            path_with_platform = f'{path}/{system}/{machine}'
 
-            lock_path = '%s.%s' % (file_path, 'lock')
+            lock_path = f'{file_path}.{"lock"}'
             lock = FileLock(lock_path, timeout=600)
             # use a lock to prevent conflicts writing the file if running this command in parallel
             with lock:
                 try:
                     self._download_file(path_with_platform, file_path)
                 except FileDownloadFailed:
-                    print('Unable to get plugin from %s. Attempting %s instead' % (path_with_platform, path))
+                    print(f'Unable to get plugin from {path_with_platform}. Attempting {path} instead')
                     self._download_file(path, file_path)
 
     def _download_file(self, url: str, file_path: str):
@@ -57,7 +57,7 @@ class PluginDownload:
         """
         # get the etag from the etag file if it exists
         etag = None
-        etag_path = '%s.%s' % (file_path, 'etag')
+        etag_path = f'{file_path}.{"etag"}'
         if os.path.isfile(etag_path) and os.path.isfile(file_path):
             with(open(etag_path, 'r', encoding='utf-8')) as etag_file:
                 etag = etag_file.read()
@@ -90,7 +90,7 @@ class PluginDownload:
         :param etag: etag value to use for caching
         :return: File content and the file's etag. Will return None if the file is already cached
         """
-        print('Downloading %s' % url)
+        print(f'Downloading {url}')
 
         parsed_url = urlparse(url)
 
