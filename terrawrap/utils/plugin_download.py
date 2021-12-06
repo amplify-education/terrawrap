@@ -39,6 +39,9 @@ class PluginDownload:
             path_with_platform = f'{path}/{system}/{machine}'
 
             lock_path = f'{file_path}.{"lock"}'
+            # It seems that this is the name of the abstract class, but also an alias for the proper class, so
+            # this warning is not relevant for us.
+            # pylint: disable=abstract-class-instantiated
             lock = FileLock(lock_path, timeout=600)
             # use a lock to prevent conflicts writing the file if running this command in parallel
             with lock:
