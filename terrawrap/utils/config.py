@@ -7,6 +7,7 @@ import networkx
 import hcl2
 import jsons
 import yaml
+from jsons import DeserializationError
 from ssm_cache import SSMParameterGroup
 
 from terrawrap.exceptions import NotTerraformConfigDirectory, NoDependency
@@ -84,8 +85,12 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
             if wrapper_config and isinstance(wrapper_config, dict):
                 generated_wrapper_config = update(generated_wrapper_config, wrapper_config)
 
-    wrapper_config_obj: WrapperConfig = jsons.load(generated_wrapper_config, WrapperConfig, strict=True)
-    return wrapper_config_obj
+    try:
+        wrapper_config_obj: WrapperConfig = jsons.load(generated_wrapper_config, WrapperConfig, strict=True)
+        return wrapper_config_obj
+    except DeserializationError as exception:
+        print(f"Cannot parse wrapper config from files: {wrapper_config_files}")
+        raise exception
 
 
 def is_config_directory(directory: str) -> bool:

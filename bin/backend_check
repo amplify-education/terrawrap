@@ -36,7 +36,7 @@ def main():
         for path in arguments["PATHS"]
     }
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         futures_to_dirs = {
             executor.submit(
                 check_directory_for_backend,
