@@ -273,4 +273,5 @@ class TestConfig(TestCase):
         self.assertEqual("HARDCODED_VALUE", actual_envvars["HARDCODED_KEY"])
         self.assertEqual("SSM_VALUE", actual_envvars["SSM_KEY"])
         self.assertEqual("10", actual_envvars["NOT_A_STRING"])
+        self.assertEqual(None, actual_envvars["FORCE_UNSET"])
         mock_ssm_cache.parameter.assert_called_once_with("FAKE_SSM_PATH")

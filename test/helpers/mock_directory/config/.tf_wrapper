@@ -11,3 +11,5 @@ envvars:
   NOT_A_STRING:
     source: text
     value: 10
+  FORCE_UNSET:
+    source: unset

@@ -11,6 +11,7 @@ import jsons
 class EnvVarSource(Enum):
     SSM = 'ssm'
     TEXT = 'text'
+    UNSET = 'unset'
 
 
 class AbstractEnvVarConfig:
@@ -28,6 +29,11 @@ class TextEnvVarConfig(AbstractEnvVarConfig):
     def __init__(self, value: str):
         super().__init__(EnvVarSource.TEXT)
         self.value = value
+
+
+class UnsetEnvVarConfig(AbstractEnvVarConfig):
+    def __init__(self):
+        super().__init__(EnvVarSource.UNSET)
 
 
 class S3BackendConfig:
@@ -63,6 +69,8 @@ def env_var_deserializer(obj_dict, cls, **kwargs):
         return SSMEnvVarConfig(obj_dict['path'])
     if obj_dict['source'] == EnvVarSource.TEXT.value:
         return TextEnvVarConfig(obj_dict['value'])
+    if obj_dict['source'] == EnvVarSource.UNSET.value:
+        return UnsetEnvVarConfig()
 
     raise RuntimeError('Invalid Source')
 

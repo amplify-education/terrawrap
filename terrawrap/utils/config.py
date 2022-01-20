@@ -16,7 +16,8 @@ from terrawrap.models.wrapper_config import (
     AbstractEnvVarConfig,
     SSMEnvVarConfig,
     TextEnvVarConfig,
-    BackendsConfig
+    BackendsConfig,
+    UnsetEnvVarConfig,
 )
 from terrawrap.utils.collection_utils import update
 from terrawrap.utils.path import get_absolute_path, calc_repo_path
@@ -275,6 +276,8 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
             resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(envvar_config.path).value
         if isinstance(envvar_config, TextEnvVarConfig):
             resolved_envvars[envvar_name] = str(envvar_config.value)
+        if isinstance(envvar_config, UnsetEnvVarConfig):
+            resolved_envvars[envvar_name] = None
     return resolved_envvars
 
 
