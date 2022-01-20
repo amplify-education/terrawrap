@@ -135,9 +135,10 @@ backend_check: True # If true, require this directory to have a terraform backen
 
 envvars:
   <NAME_OF_ENVVAR>:
-    source: # The source of the envvar. One of `['ssm', 'text']`.
+    source: # The source of the envvar. One of `['ssm', 'text', 'unset']`.
     path: # If the source of the envvar is `ssm`, the SSM Parameter Store path to lookup the value of the environment variable from.
     value: # if the source of the envvar is `text`, the string value to set as the environment variable.
+    # If the source is unset, any previous value for the environment variable is removed and the environment variable will not be set.
 
 plugins:
     <NAME_OF_PLUGIN>: <plugin url>
