@@ -272,4 +272,5 @@ class TestConfig(TestCase):
         self.assertEqual("OVERWRITTEN_VALUE", actual_envvars["OVERWRITTEN_KEY"])
         self.assertEqual("HARDCODED_VALUE", actual_envvars["HARDCODED_KEY"])
         self.assertEqual("SSM_VALUE", actual_envvars["SSM_KEY"])
+        self.assertEqual("10", actual_envvars["NOT_A_STRING"])
         mock_ssm_cache.parameter.assert_called_once_with("FAKE_SSM_PATH")

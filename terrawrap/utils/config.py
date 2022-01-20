@@ -274,7 +274,7 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
         if isinstance(envvar_config, SSMEnvVarConfig):
             resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(envvar_config.path).value
         if isinstance(envvar_config, TextEnvVarConfig):
-            resolved_envvars[envvar_name] = envvar_config.value
+            resolved_envvars[envvar_name] = str(envvar_config.value)
     return resolved_envvars
 
 
