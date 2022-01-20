@@ -54,6 +54,14 @@ def execute_command(
     max_tries = MAX_RETRIES if retry else 1
     try_count = 0
 
+    # It's possible for an envvar to be set to none, so exclude those envvars.
+    if 'env' in kwargs:
+        kwargs['env'] = {
+            key: value
+            for key, value in kwargs['env'].items()
+            if value is not None
+        }
+
     jitter = Jitter()
     time_passed = 0
     exit_code = 0
