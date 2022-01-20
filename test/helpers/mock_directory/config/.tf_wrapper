@@ -8,3 +8,6 @@ envvars:
   SSM_KEY:
     source: ssm
     path: FAKE_SSM_PATH
+  NOT_A_STRING:
+    source: text
+    value: 10
