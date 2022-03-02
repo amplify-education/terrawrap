@@ -26,6 +26,7 @@ class ApplyGraph:
         self.not_applied: Set[str] = set()
         self.applied: Set[str] = set()
         self.failures: List[str] = []
+        self.stdout: List[str] = []
 
     # pylint: disable=too-many-locals
     def execute_graph(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
@@ -47,12 +48,12 @@ class ApplyGraph:
 
             for future in concurrent.futures.as_completed(futures_to_paths):
                 path = futures_to_paths[future]
-                exit_code, stdout, changes_detected = future.result()
+                exit_code, tmp_stdout, changes_detected = future.result()
 
-                if stdout and print_only_changes and not changes_detected:
-                    stdout = ["No changes detected.\n"]
+                if tmp_stdout and print_only_changes and not changes_detected:
+                    tmp_stdout = ["No changes detected.\n"]
 
-                print(f"Output for {path}:\n\n{''.join(stdout).strip()}\n")
+                print(f"Output for {path}:\n\n{''.join(tmp_stdout).strip()}\n")
 
                 if exit_code != 0:
                     self.failures.append(path)
@@ -60,6 +61,8 @@ class ApplyGraph:
                 successors = list(self.graph.successors(path))
                 if successors:
                     self.recursive_executor(executor, successors, num_parallel, debug, print_only_changes)
+
+                self.stdout.append(''.join(tmp_stdout))
 
         for node in self.graph:
             item = self.graph_dict.get(node)
@@ -99,12 +102,12 @@ class ApplyGraph:
 
         for future in concurrent.futures.as_completed(futures_to_paths):
             path = futures_to_paths[future]
-            exit_code, stdout, changes_detected = future.result()
+            exit_code, tmp_stdout, changes_detected = future.result()
 
-            if stdout and print_only_changes and not changes_detected:
-                stdout = ["No changes detected.\n"]
+            if tmp_stdout and print_only_changes and not changes_detected:
+                tmp_stdout = ["No changes detected.\n"]
 
-            print(f"Output for {path}:\n\n{''.join(stdout).strip()}\n")
+            print(f"Output for {path}:\n\n{''.join(tmp_stdout).strip()}\n")
             if exit_code != 0:
                 self.failures.append(path)
 
@@ -113,6 +116,8 @@ class ApplyGraph:
                 self.recursive_executor(
                     executor, next_successors, num_parallel, debug, print_only_changes
                 )
+
+            self.stdout.append(''.join(tmp_stdout))
 
     def execute_post_graph(
             self,
@@ -139,15 +144,17 @@ class ApplyGraph:
                 path = futures_to_paths[future]
                 if self.graph_dict[path].state != "no-op":
 
-                    exit_code, stdout, changes_detected = future.result()
+                    exit_code, tmp_stdout, changes_detected = future.result()
 
                     if print_only_changes and not changes_detected:
-                        stdout = ["No changes detected.\n"]
+                        tmp_stdout = ["No changes detected.\n"]
 
-                    print(f"Output for {path}:\n\n{''.join(stdout).strip()}\n")
+                    print(f"Output for {path}:\n\n{''.join(tmp_stdout).strip()}\n")
 
                     if exit_code != 0:
                         self.failures.append(path)
+
+                    self.stdout.append(''.join(tmp_stdout))
 
         for node in self.post_graph:
             item = self.graph_dict.get(node)

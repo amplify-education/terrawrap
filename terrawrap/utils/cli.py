@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import logging
+import requests
 import subprocess
 import tempfile
 from typing import List, Tuple, Union
@@ -37,7 +38,8 @@ def execute_command(
         print_command: bool = False,
         retry: bool = False,
         timeout: int = 15 * 60,
-        **kwargs
+        audit_api_url: str = None,
+        **kwargs,
 ) -> Tuple[int, List[str]]:
     """
     Convenience function for executing a given command and optionally printing the output.
@@ -48,6 +50,7 @@ def execute_command(
     :param print_command: True if the command should be printed before executing. Defaults to False.
     :param timeout: Max amount of time to keep retrying to execute command. Defaults to 15 minutes.
     :param retry: Retry a number of times if network errors. Defaults to False.
+    :param audit_api_url: Audit API URL to submit POST request. Defaults to None so no data is sent.
     :param kwargs: Any additional keyword arguments to Popen.
     :return: A tuple of the exit code and output of the command.
     """
@@ -89,6 +92,21 @@ def execute_command(
             raise TimeoutError(f'Timed out retrying {args} command')
 
         time_passed = jitter.backoff()
+
+    if audit_api_url:
+        data = {
+            'directory': args[0],  # Directory is first element in args
+            'status': 'SUCCESS' if exit_code == 0 else 'FAILED',
+            'run_by': '',  # TODO - How to grab this?
+            'output': stdout
+        }
+
+        try:
+            requests.post(audit_api_url, json=data)
+        except requests.exceptions.RequestException:
+            raise RuntimeError(
+                "Unable to post data to provided url: '%s'." % audit_api_url
+            )
 
     return exit_code, stdout
 

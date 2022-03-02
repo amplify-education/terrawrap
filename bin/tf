@@ -79,7 +79,8 @@ def exec_tf_command(
         path: str,
         variables: Dict[str, str],
         arguments: List[str],
-        additional_envvars: Dict[str, str]
+        additional_envvars: Dict[str, str],
+        audit_api_url: str
 ):
     variable_envvars = convert_variables_to_envvars(variables=variables)
 
@@ -111,7 +112,8 @@ def exec_tf_command(
             capture_stderr=True,
             print_command=True,
             retry=True,
-            env=command_env
+            env=command_env,
+            audit_api_url=audit_api_url
         )
 
         try_count += 1
@@ -278,12 +280,14 @@ def handler():
         plugin_download = PluginDownload(boto3.client('s3'))
         plugin_download.download_plugins(wrapper_config.plugins)
 
+    # TODO - pass audit_api_url from wrapper_config
     exec_tf_command(
         command=command,
         path=tf_config_path,
         variables=variables,
         arguments=additional_arguments,
-        additional_envvars=additional_envvars
+        additional_envvars=additional_envvars,
+        audit_api_url=wrapper_config.audit_api_url
     )
 
 

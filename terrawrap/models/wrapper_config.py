@@ -90,6 +90,7 @@ class WrapperConfig:
             backends: BackendsConfig = None,
             depends_on: List[str] = None,
             config: bool = True,
+            audit_api_url: str = None,
             apply_automatically: bool = True,
             plugins: Dict[str, str] = None
     ):
@@ -101,5 +102,6 @@ class WrapperConfig:
         self.backends = backends
         self.depends_on = depends_on
         self.config = config
+        self.audit_api_url = audit_api_url
         self.apply_automatically = apply_automatically
         self.plugins = plugins or {}
