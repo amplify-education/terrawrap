@@ -101,7 +101,6 @@ def execute_command(
             'run_by': getpass.getuser(),
             'output': stdout
         }
-        print(data)
         try:
             requests.post(audit_api_url, json=data)
         except requests.exceptions.RequestException:
