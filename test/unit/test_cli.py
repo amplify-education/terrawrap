@@ -2,11 +2,15 @@
 from unittest import TestCase
 from mock import patch
 
+import requests_mock
+import getpass
+
 from terrawrap.utils.cli import execute_command, MAX_RETRIES
 
 
 class TestCli(TestCase):
     """Test cli utilities"""
+
     def setUp(self):
         self.popen_patcher = patch('subprocess.Popen')
         self.mock_popen = self.popen_patcher.start()
@@ -66,8 +70,14 @@ class TestCli(TestCase):
         self.assertEqual(exit_code, 255)
         self.assertEqual(stdout, [])
 
-    def test_set_audit_api_url(self):
-        # assert post request is sent to url with data if audit_api_url is set
-        self.mock_process.poll.return_value = 0
-        with self.assertRaises(RuntimeError):
-            execute_command(['test', '0'], audit_api_url='http://example')
+    @patch('getpass.getuser')
+    def test_set_audit_api_url(self, mock_getuser_func):
+        mock_getuser_func.return_value = 'mockuser'
+        expected_body = '{"directory": "test", "status": "FAILED", "run_by": "mockuser", "output": []}'
+
+        with requests_mock.Mocker() as mocker:
+            mocker.register_uri(requests_mock.ANY, requests_mock.ANY, text='test message')
+            execute_command(['test', '0'], audit_api_url='http://test.com')
+
+            assert mocker.called_once
+            assert mocker.last_request.body.decode('utf-8') == expected_body
