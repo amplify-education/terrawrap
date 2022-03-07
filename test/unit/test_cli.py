@@ -3,7 +3,6 @@ from unittest import TestCase
 from mock import patch
 
 import requests_mock
-import getpass
 
 from terrawrap.utils.cli import execute_command, MAX_RETRIES
 
@@ -72,6 +71,7 @@ class TestCli(TestCase):
 
     @patch('getpass.getuser')
     def test_set_audit_api_url(self, mock_getuser_func):
+        """Test sending data to given url"""
         mock_getuser_func.return_value = 'mockuser'
         expected_body = '{"directory": "test", "status": "FAILED", "run_by": "mockuser", "output": []}'
 

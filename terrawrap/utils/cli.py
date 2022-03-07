@@ -3,10 +3,12 @@ from __future__ import print_function
 
 import getpass
 import logging
-import requests
 import subprocess
 import tempfile
+
 from typing import List, Tuple, Union
+
+import requests
 
 from amplify_aws_utils.resource_helper import Jitter
 
@@ -55,7 +57,6 @@ def execute_command(
     :param kwargs: Any additional keyword arguments to Popen.
     :return: A tuple of the exit code and output of the command.
     """
-    max_tries = MAX_RETRIES if retry else 1
     try_count = 0
 
     # It's possible for an envvar to be set to none, so exclude those envvars.
@@ -70,7 +71,7 @@ def execute_command(
     time_passed = 0
     exit_code = 0
     stdout: List[str] = []
-    while try_count < max_tries:
+    while try_count < MAX_RETRIES if retry else 1:
         exit_code, stdout = _execute_command(
             args,
             print_output,
@@ -95,18 +96,7 @@ def execute_command(
         time_passed = jitter.backoff()
 
     if audit_api_url:
-        data = {
-            'directory': args[0],  # Directory is first element in args
-            'status': 'SUCCESS' if exit_code == 0 else 'FAILED',
-            'run_by': getpass.getuser(),
-            'output': stdout
-        }
-        try:
-            requests.post(audit_api_url, json=data)
-        except requests.exceptions.RequestException:
-            raise RuntimeError(
-                "Unable to post data to provided url: '%s'." % audit_api_url
-            )
+        _post_to_audit_api_url(audit_api_url, args[0], exit_code, stdout)
 
     return exit_code, stdout
 
@@ -171,3 +161,18 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
         line for line in out
         if any(error in line for error in RETRIABLE_ERRORS)
     ]
+
+
+def _post_to_audit_api_url(audit_api_url: str, directory: str, exit_code: int, stdout: List[str]):
+    try:
+        requests.post(
+            audit_api_url, json={
+                'directory': directory,
+                'status': 'SUCCESS' if exit_code == 0 else 'FAILED',
+                'run_by': getpass.getuser(),
+                'output': stdout
+            })
+    except requests.exceptions.RequestException as req_exception:
+        raise RuntimeError(
+            f"Unable to post data to provided url: {audit_api_url}"
+        ) from req_exception
