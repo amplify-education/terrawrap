@@ -3,8 +3,7 @@
 This script obtains the dependencies for the terraform config wrapper files and applies them.
 
 Usage:
-    graph_apply --path=PATH [--operation=OPERATION] [--parallel-jobs=NUM_JOBS]
-        [--audit=AUDIT_API_URL] [--debug] [--print-only-changes]
+    graph_apply --path=PATH [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug] [--print-only-changes]
     graph_apply --version
 
 Arguments:
@@ -19,14 +18,12 @@ Options:
     -j, NUM_JOBS --parallel-jobs=NUM_JOBS        The number of Terraform operations to run in parallel.
                                                  [default: 4].
     -v,--debug                                   Turns on debug logging.
-    -a, AUDIT_API_URL --audit=AUDIT_API_URL      Send audit info to terraform audit api
     --print-only-changes                         Only print output for directories that have changes.
     --version                                    Display the current version of Terraform Wrapper.
 """
 
 import os
 import networkx
-import requests
 
 from docopt import docopt
 
@@ -120,21 +117,6 @@ def main():
             "please check above for specific directories." % operation
         )
         exit(1)
-
-    if arguments['--audit']:
-        data = {
-            'directory': config_dir,
-            'status': 'SUCCESS' if not apply.failures else 'FAILED',
-            'run_by': '',  # TODO - How to grab this?
-            'output': apply.stdout
-        }
-
-        try:
-            requests.post(arguments['--audit'], json=data)
-        except requests.exceptions.RequestException:
-            raise RuntimeError(
-                "Unable to post data to provided url: '%s'." % arguments['--audit']
-            )
 
 
 if __name__ == '__main__':

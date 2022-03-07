@@ -47,8 +47,8 @@ class GraphEntry(Entry):
         self.path = path
         self.abs_path = get_absolute_path(path=path)
         wrapper_config_files = find_wrapper_config_files(self.abs_path)
-        wrapper_config = parse_wrapper_configs(wrapper_config_files)
-        self.envvars = resolve_envvars(wrapper_config.envvars)
+        self.wrapper_config = parse_wrapper_configs(wrapper_config_files)
+        self.envvars = resolve_envvars(self.wrapper_config.envvars)
         self.variables = variables
         self.state = "Pending"
 
@@ -96,6 +96,7 @@ class GraphEntry(Entry):
             capture_stderr=True,
             env=command_env,
             shell=shell,
+            audit_api_url=self.wrapper_config.audit_api_url
         )
 
         if operation_exit_code == 0:

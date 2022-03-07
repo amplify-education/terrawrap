@@ -1,6 +1,7 @@
 """Module for containing CLI convenience functions"""
 from __future__ import print_function
 
+import getpass
 import logging
 import requests
 import subprocess
@@ -97,10 +98,10 @@ def execute_command(
         data = {
             'directory': args[0],  # Directory is first element in args
             'status': 'SUCCESS' if exit_code == 0 else 'FAILED',
-            'run_by': '',  # TODO - How to grab this?
+            'run_by': getpass.getuser(),
             'output': stdout
         }
-
+        print(data)
         try:
             requests.post(audit_api_url, json=data)
         except requests.exceptions.RequestException:

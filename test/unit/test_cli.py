@@ -65,3 +65,9 @@ class TestCli(TestCase):
         self.assertEqual(self.mock_popen.call_count, MAX_RETRIES)
         self.assertEqual(exit_code, 255)
         self.assertEqual(stdout, [])
+
+    def test_set_audit_api_url(self):
+        # assert post request is sent to url with data if audit_api_url is set
+        self.mock_process.poll.return_value = 0
+        with self.assertRaises(RuntimeError):
+            execute_command(['test', '0'], audit_api_url='http://example')
