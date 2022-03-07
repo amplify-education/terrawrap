@@ -1,4 +1,4 @@
 """Place of record for the package version"""
 
-__version__ = "0.8.25"
+__version__ = "0.8.26"
 __git_hash__ = "GIT_HASH"
