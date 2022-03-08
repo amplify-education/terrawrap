@@ -1,10 +1,14 @@
 """Module for containing CLI convenience functions"""
 from __future__ import print_function
 
+import getpass
 import logging
 import subprocess
 import tempfile
+
 from typing import List, Tuple, Union
+
+import requests
 
 from amplify_aws_utils.resource_helper import Jitter
 
@@ -37,7 +41,8 @@ def execute_command(
         print_command: bool = False,
         retry: bool = False,
         timeout: int = 15 * 60,
-        **kwargs
+        audit_api_url: str = None,
+        **kwargs,
 ) -> Tuple[int, List[str]]:
     """
     Convenience function for executing a given command and optionally printing the output.
@@ -48,10 +53,10 @@ def execute_command(
     :param print_command: True if the command should be printed before executing. Defaults to False.
     :param timeout: Max amount of time to keep retrying to execute command. Defaults to 15 minutes.
     :param retry: Retry a number of times if network errors. Defaults to False.
+    :param audit_api_url: Audit API URL to submit POST request. Defaults to None so no data is sent.
     :param kwargs: Any additional keyword arguments to Popen.
     :return: A tuple of the exit code and output of the command.
     """
-    max_tries = MAX_RETRIES if retry else 1
     try_count = 0
 
     # It's possible for an envvar to be set to none, so exclude those envvars.
@@ -66,7 +71,7 @@ def execute_command(
     time_passed = 0
     exit_code = 0
     stdout: List[str] = []
-    while try_count < max_tries:
+    while try_count < MAX_RETRIES if retry else 1:
         exit_code, stdout = _execute_command(
             args,
             print_output,
@@ -89,6 +94,9 @@ def execute_command(
             raise TimeoutError(f'Timed out retrying {args} command')
 
         time_passed = jitter.backoff()
+
+    if audit_api_url:
+        _post_to_audit_api_url(audit_api_url, args[0], exit_code, stdout)
 
     return exit_code, stdout
 
@@ -153,3 +161,18 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
         line for line in out
         if any(error in line for error in RETRIABLE_ERRORS)
     ]
+
+
+def _post_to_audit_api_url(audit_api_url: str, directory: str, exit_code: int, stdout: List[str]):
+    try:
+        requests.post(
+            audit_api_url, json={
+                'directory': directory,
+                'status': 'SUCCESS' if exit_code == 0 else 'FAILED',
+                'run_by': getpass.getuser(),
+                'output': stdout
+            })
+    except requests.exceptions.RequestException as req_exception:
+        raise RuntimeError(
+            f"Unable to post data to provided url: {audit_api_url}"
+        ) from req_exception
