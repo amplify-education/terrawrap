@@ -97,7 +97,7 @@ class GraphEntry(Entry):
             env=command_env,
             shell=shell,
             audit_api_url=self.wrapper_config.audit_api_url,
-            path=self.path
+            cwd=self.path
         )
 
         if operation_exit_code == 0:

@@ -77,7 +77,7 @@ class TestCli(TestCase):
 
         with requests_mock.Mocker() as mocker:
             mocker.register_uri(requests_mock.ANY, requests_mock.ANY, text='test message')
-            execute_command(['test', '0'], audit_api_url='http://test.com', path='test/path')
+            execute_command(['test', '0'], audit_api_url='http://test.com', cwd='test/path')
 
             assert mocker.called_once
             assert mocker.last_request.body.decode('utf-8') == expected_body
