@@ -42,6 +42,7 @@ def execute_command(
         retry: bool = False,
         timeout: int = 15 * 60,
         audit_api_url: str = None,
+        path: str = None,
         **kwargs,
 ) -> Tuple[int, List[str]]:
     """
@@ -96,7 +97,7 @@ def execute_command(
         time_passed = jitter.backoff()
 
     if audit_api_url:
-        _post_to_audit_api_url(audit_api_url, args[0], exit_code, stdout)
+        _post_to_audit_api_url(audit_api_url, path, exit_code, stdout)
 
     return exit_code, stdout
 
@@ -163,11 +164,11 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
     ]
 
 
-def _post_to_audit_api_url(audit_api_url: str, directory: str, exit_code: int, stdout: List[str]):
+def _post_to_audit_api_url(audit_api_url: str, path: str, exit_code: int, stdout: List[str]):
     try:
         requests.post(
             audit_api_url, json={
-                'directory': directory,
+                'directory': path,
                 'status': 'SUCCESS' if exit_code == 0 else 'FAILED',
                 'run_by': getpass.getuser(),
                 'output': stdout
