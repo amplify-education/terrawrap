@@ -113,8 +113,7 @@ def exec_tf_command(
             print_command=True,
             retry=True,
             env=command_env,
-            audit_api_url=audit_api_url,
-            path=path
+            audit_api_url=audit_api_url
         )
 
         try_count += 1
