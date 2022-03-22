@@ -73,11 +73,11 @@ class TestCli(TestCase):
     def test_set_audit_api_url(self, mock_getuser_func):
         """Test sending data to given url"""
         mock_getuser_func.return_value = 'mockuser'
-        expected_body = '{"directory": "test", "status": "FAILED", "run_by": "mockuser", "output": []}'
+        expected_body = '{"directory": "test/path", "status": "FAILED", "run_by": "mockuser", "output": []}'
 
         with requests_mock.Mocker() as mocker:
             mocker.register_uri(requests_mock.ANY, requests_mock.ANY, text='test message')
-            execute_command(['test', '0'], audit_api_url='http://test.com')
+            execute_command(['test', '0'], audit_api_url='http://test.com', cwd='test/path')
 
             assert mocker.called_once
             assert mocker.last_request.body.decode('utf-8') == expected_body
