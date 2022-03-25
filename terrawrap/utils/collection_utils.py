@@ -1,7 +1,5 @@
 """Utilities for working with collections"""
-from typing import TypeVar, Dict
-
-Type = TypeVar('Type')
+from typing import Dict
 
 
 def update(dict1: Dict, dict2: Dict) -> Dict:
