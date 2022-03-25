@@ -30,6 +30,7 @@ RETRIABLE_ERRORS = [
     'handshake timeout',
     'SSL_ERROR_SYSCALL',
     'ConditionalCheckFailedException',
+    'Api Rate Limit Exceeded',
 ]
 
 
