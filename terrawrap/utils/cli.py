@@ -32,6 +32,7 @@ RETRIABLE_ERRORS = [
     'SSL_ERROR_SYSCALL',
     'ConditionalCheckFailedException',
     'Api Rate Limit Exceeded',
+    'TooManyUpdates',
 ]
 
 
