@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.8.32] - 2022-04-13
+
+### Changed
+
+-  Add `--output-dir` option to the `plan_check`
+
 ## [0.8.8] - 2021-04-20
 
 ### Changed
