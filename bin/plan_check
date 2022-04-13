@@ -86,8 +86,8 @@ def init_and_plan_directory(
         skip_iam: bool,
         print_diff: bool,
         with_colors: bool,
-        output_directory: Optional[str],
-        additional_envvars: Dict[str, str]
+        additional_envvars: Dict[str, str],
+        output_directory: Optional[str] = None
 ) -> WrapperExitCode:
     """
     Run 'init' and 'plan' against the passed in directory
@@ -199,8 +199,8 @@ def execute_init_and_plan(
         skip_iam: bool,
         print_diff: bool,
         with_colors: bool,
-        output_directory: Optional[str],
-        num_parallel: int
+        num_parallel: int,
+        output_directory: Optional[str] = None
 ) -> Tuple[List[str], List[str]]:
     """
     Execute functions concurrently
@@ -234,8 +234,8 @@ def execute_init_and_plan(
                 skip_iam,
                 print_diff,
                 with_colors,
-                output_directory,
                 envvars,
+                output_directory,
             )
             future_exec[future] = directory
 
@@ -367,7 +367,7 @@ def main():
     )
 
     failing_directories, iam_directories = execute_init_and_plan(
-        regular_directories, symlinked_directories, skip_iam, print_diff, with_colors, output_directory, num_parallel
+        regular_directories, symlinked_directories, skip_iam, print_diff, with_colors, num_parallel, output_directory
     )
 
     if failing_directories:
