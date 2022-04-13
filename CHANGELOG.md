@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
--  Add `--output-dir` option to the `plan_check`
+-   Add `--output-dir` option to the `plan_check`
 
 ## [0.8.8] - 2021-04-20
 
