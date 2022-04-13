@@ -18,6 +18,7 @@ Options:
     --with-colors                           Print the diff with colors [default: False]
     -j NUM_JOBS, --parallel-jobs=NUM_JOBS   The number of Terraform operations to run in parallel.
                                             [default: 4].
+    --output-dir=<dir>                      Directory to write plan output to.[default: None]
      --version                              Show the version.
 """
 
@@ -25,7 +26,8 @@ import os
 import re
 import concurrent.futures
 from enum import Enum
-from typing import Tuple, List, Dict
+from pathlib import Path
+from typing import Optional, Tuple, List, Dict
 
 from docopt import docopt
 
@@ -84,6 +86,7 @@ def init_and_plan_directory(
         skip_iam: bool,
         print_diff: bool,
         with_colors: bool,
+        output_directory: Optional[str],
         additional_envvars: Dict[str, str]
 ) -> WrapperExitCode:
     """
@@ -122,6 +125,14 @@ def init_and_plan_directory(
 
     if os.path.exists('%s/%s' % (directory, 'pr_checker.tfvars')):
         arguments += pr_checker_arguments
+
+    if output_directory:
+        root_directory = get_git_root(directory)
+        rel_directory = Path(directory).relative_to(root_directory)
+        plan_output_directory = Path(output_directory) / rel_directory
+        plan_output_directory.mkdir(parents=True, exist_ok=True)
+        plan_output_file = plan_output_directory / "tfplan.binary"
+        arguments.append(f"-out={plan_output_file}")
 
     # We're using --no-resolve-envvars here because we've already resolved the environment variables in
     # the constructor. We are then passing in those environment variables explicitly in the
@@ -188,6 +199,7 @@ def execute_init_and_plan(
         skip_iam: bool,
         print_diff: bool,
         with_colors: bool,
+        output_directory: Optional[str],
         num_parallel: int
 ) -> Tuple[List[str], List[str]]:
     """
@@ -222,6 +234,7 @@ def execute_init_and_plan(
                 skip_iam,
                 print_diff,
                 with_colors,
+                output_directory,
                 envvars,
             )
             future_exec[future] = directory
@@ -236,7 +249,7 @@ def execute_init_and_plan(
 
     for directory in symlinked_directories:
         envvars = directory_to_envvars[directory]
-        exit_code = init_and_plan_directory(directory, skip_iam, print_diff, with_colors, envvars)
+        exit_code = init_and_plan_directory(directory, skip_iam, print_diff, with_colors, output_directory, envvars)
         if exit_code == WrapperExitCode.IAM_CHANGES:
             directories_with_iam_changes.append(directory)
         if exit_code == WrapperExitCode.TERRAFORM_FAILURE:
@@ -329,6 +342,7 @@ def main():
     modified_only = arguments['--modified-only']
     print_diff = arguments['--print-diff']
     with_colors = arguments['--with-colors']
+    output_directory = arguments['--output-dir']
 
     try:
         num_parallel = int(arguments['--parallel-jobs'])
@@ -353,7 +367,7 @@ def main():
     )
 
     failing_directories, iam_directories = execute_init_and_plan(
-        regular_directories, symlinked_directories, skip_iam, print_diff, with_colors, num_parallel
+        regular_directories, symlinked_directories, skip_iam, print_diff, with_colors, output_directory, num_parallel
     )
 
     if failing_directories:
