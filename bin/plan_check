@@ -18,7 +18,7 @@ Options:
     --with-colors                           Print the diff with colors [default: False]
     -j NUM_JOBS, --parallel-jobs=NUM_JOBS   The number of Terraform operations to run in parallel.
                                             [default: 4].
-    --output-dir=<dir>                      Directory to write plan output to.[default: None]
+    --output-dir=<dir>                      Directory to write plan output to.
      --version                              Show the version.
 """
 
