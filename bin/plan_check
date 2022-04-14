@@ -249,7 +249,7 @@ def execute_init_and_plan(
 
     for directory in symlinked_directories:
         envvars = directory_to_envvars[directory]
-        exit_code = init_and_plan_directory(directory, skip_iam, print_diff, with_colors, output_directory, envvars)
+        exit_code = init_and_plan_directory(directory, skip_iam, print_diff, with_colors, envvars, output_directory)
         if exit_code == WrapperExitCode.IAM_CHANGES:
             directories_with_iam_changes.append(directory)
         if exit_code == WrapperExitCode.TERRAFORM_FAILURE:
