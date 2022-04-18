@@ -87,7 +87,7 @@ def convert_plan_to_json(
     additional_envvars: Dict[str, str],
 ) -> Path:
     """
-    Converts binarty terraform plan to json. Saves it in the same directory.
+    Converts binary terraform plan to json. Saves it in the same directory.
     :param plan_binary_file: File with a plan saved in a binary format
     :param source_directory: Directory with source terraform files
     :param additional_envvars: A dictionary representing additional environment variables to supply
