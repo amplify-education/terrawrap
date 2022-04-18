@@ -81,6 +81,40 @@ def get_subdirectories(root_dir: str) -> Tuple[List[str], List[str]]:
     return regular_directories, symlinked_directories
 
 
+def convert_plan_to_json(
+    plan_binary_file: Path, 
+    source_directory: Path,
+    additional_envvars: Dict[str, str],
+) -> Path:
+    """
+    Converts binary terraform plan to json. Saves it in the same directory.
+    :param plan_binary_file: File with a plan saved in a binary format
+    :param source_directory: Directory with source terraform files
+    :param additional_envvars: A dictionary representing additional environment variables to supply
+    :return: Path object pointing to a json plan file
+    """
+    wrapper_py = os.path.join(SCRIPT_DIR, 'tf')
+    command_env = os.environ.copy()
+    command_env.update(additional_envvars)
+
+    exit_code, stdout = execute_command(
+        [wrapper_py, source_directory, "show", "-json", str(plan_binary_file)],
+        print_output=False,
+        env=command_env,
+    )
+
+    show_stdout = "\n".join(stdout[1:]) #  the first line of `tf` output is a command itself
+
+    if exit_code == PlanExitCode.FAILURE.value:
+        raise RuntimeError(f"'terraform show' failed for {plan_binary_file}:\n{show_stdout}")
+
+    plan_json_file = plan_binary_file.parent / "tfplan.json"
+    with plan_json_file.open("w") as plan_json_stream:
+        plan_json_stream.write(show_stdout)
+
+    return plan_json_file
+
+
 def init_and_plan_directory(
         directory: str,
         skip_iam: bool,
@@ -126,13 +160,15 @@ def init_and_plan_directory(
     if os.path.exists('%s/%s' % (directory, 'pr_checker.tfvars')):
         arguments += pr_checker_arguments
 
+    # If output_directory is provided, creates a subdirectory to save a plan.
+    # Add -out parameter to a terraform plan command.
     if output_directory:
         root_directory = get_git_root(directory)
         rel_directory = Path(directory).relative_to(root_directory)
-        plan_output_directory = Path(output_directory) / rel_directory
-        plan_output_directory.mkdir(parents=True, exist_ok=True)
-        plan_output_file = plan_output_directory / "tfplan.binary"
-        arguments.append(f"-out={plan_output_file}")
+        plan_directory = Path(output_directory) / rel_directory
+        plan_directory.mkdir(parents=True, exist_ok=True)
+        plan_binary_file = plan_directory / "tfplan.binary"
+        arguments.append(f"-out={plan_binary_file}")
 
     # We're using --no-resolve-envvars here because we've already resolved the environment variables in
     # the constructor. We are then passing in those environment variables explicitly in the
@@ -158,6 +194,17 @@ def init_and_plan_directory(
                 "".join(plan_stdout)
             )
         )
+
+    if output_directory:
+        try:
+            convert_plan_to_json(
+                plan_binary_file,
+                directory,
+                additional_envvars,
+            )
+        except RuntimeError as exception:
+            print("\n".join(exception.args))
+            return WrapperExitCode.TERRAFORM_FAILURE
 
     # Check output for IAM changes
     if skip_iam:
