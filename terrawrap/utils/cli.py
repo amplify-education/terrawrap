@@ -8,6 +8,8 @@ import tempfile
 
 from typing import List, Tuple, Union
 
+from terrawrap.utils.git_utils import get_git_root
+
 import requests
 
 from amplify_aws_utils.resource_helper import Jitter
@@ -167,15 +169,15 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
 
 
 def _post_to_audit_api_url(audit_api_url: str, path: str, exit_code: int, stdout: List[str]):
+    root = get_git_root(path)
+
     try:
         requests.post(
             audit_api_url, json={
-                'directory': path,
+                'directory': root,
                 'status': 'SUCCESS' if exit_code == 0 else 'FAILED',
                 'run_by': getpass.getuser(),
                 'output': stdout
             })
-    except requests.exceptions.RequestException as req_exception:
-        raise RuntimeError(
-            f"Unable to post data to provided url: {audit_api_url}"
-        ) from req_exception
+    except requests.exceptions.RequestException:
+        logger.error(f"Unable to post data to provided url: {audit_api_url}")
