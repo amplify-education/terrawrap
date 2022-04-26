@@ -81,7 +81,7 @@ class TestCli(TestCase):
             mocker.register_uri(requests_mock.ANY, requests_mock.ANY, text='test message')
             execute_command(
                 ['test', '0'],
-                audit_api_url='http://test.com',
+                audit_api_url='https://test.com',
                 cwd='/Users/bmontijo/Documents/GitHub/terrawrap/test/helpers/mock_directory/config/.tf_wrapper'
             )
 
