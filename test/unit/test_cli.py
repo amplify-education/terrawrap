@@ -93,5 +93,8 @@ class TestCli(TestCase):
                 cwd=os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper')
             )
 
+            response = mocker.last_request.body.decode('utf-8')
+            actual_body = json.loads(response)
+
             assert mocker.called_once
-            assert json.loads(mocker.last_request.body.decode('utf-8')) == expected_body
+            assert expected_body == actual_body
