@@ -170,14 +170,15 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
 
 def _post_to_audit_api_url(audit_api_url: str, path: str, exit_code: int, stdout: List[str]):
     root = get_git_root(path)
+    path = path.replace(root, '')
 
     try:
         requests.post(
             audit_api_url, json={
-                'directory': root,
+                'directory': path,
                 'status': 'SUCCESS' if exit_code == 0 else 'FAILED',
                 'run_by': getpass.getuser(),
                 'output': stdout
             })
     except requests.exceptions.RequestException:
-        logger.error(f"Unable to post data to provided url: {audit_api_url}")
+        logger.error("Unable to post data to provided url: %s", audit_api_url)
