@@ -96,5 +96,5 @@ class TestCli(TestCase):
             response = mocker.last_request.body.decode('utf-8')
             actual_body = json.loads(response)
 
-            assert mocker.called_once
-            assert expected_body == actual_body
+            self.assertEqual(mocker.call_count, 1)
+            self.assertEqual(expected_body, actual_body)
