@@ -8,11 +8,11 @@ import tempfile
 
 from typing import List, Tuple, Union
 
-from terrawrap.utils.git_utils import get_git_root
-
 import requests
 
 from amplify_aws_utils.resource_helper import Jitter
+
+from terrawrap.utils.git_utils import get_git_root
 
 logger = logging.getLogger(__name__)
 

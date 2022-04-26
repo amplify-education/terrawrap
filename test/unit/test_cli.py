@@ -1,4 +1,5 @@
 """Test git utilities"""
+import os
 from unittest import TestCase
 from mock import patch
 
@@ -77,12 +78,14 @@ class TestCli(TestCase):
         expected_body = '{"directory": "/test/helpers/mock_directory/config/.tf_wrapper", ' \
                         '"status": "FAILED", "run_by": "mockuser", "output": []}'
 
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
+
         with requests_mock.Mocker() as mocker:
             mocker.register_uri(requests_mock.ANY, requests_mock.ANY, text='test message')
             execute_command(
                 ['test', '0'],
                 audit_api_url='https://test.com',
-                cwd='/Users/bmontijo/Documents/GitHub/terrawrap/test/helpers/mock_directory/config/.tf_wrapper'
+                cwd=os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper')
             )
 
             assert mocker.called_once
