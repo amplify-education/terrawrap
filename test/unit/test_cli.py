@@ -1,4 +1,5 @@
 """Test git utilities"""
+import json
 import os
 from unittest import TestCase
 from mock import patch
@@ -75,8 +76,14 @@ class TestCli(TestCase):
         """Test sending data to given url"""
         mock_getuser_func.return_value = 'mockuser'
 
-        expected_body = '{"directory": "/test/helpers/mock_directory/config/.tf_wrapper", ' \
-                        '"status": "FAILED", "run_by": "mockuser", "output": []}'
+        expected_body = json.dumps(
+            {
+                'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
+                'status': 'FAILED',
+                'run_by': 'mockuser',
+                'output': []
+            }
+        )
 
         os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
 
