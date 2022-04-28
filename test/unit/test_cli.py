@@ -1,4 +1,6 @@
 """Test git utilities"""
+import json
+import os
 from unittest import TestCase
 from mock import patch
 
@@ -73,11 +75,26 @@ class TestCli(TestCase):
     def test_set_audit_api_url(self, mock_getuser_func):
         """Test sending data to given url"""
         mock_getuser_func.return_value = 'mockuser'
-        expected_body = '{"directory": "test/path", "status": "FAILED", "run_by": "mockuser", "output": []}'
+
+        expected_body = {
+            'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
+            'status': 'FAILED',
+            'run_by': 'mockuser',
+            'output': []
+        }
+
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
 
         with requests_mock.Mocker() as mocker:
             mocker.register_uri(requests_mock.ANY, requests_mock.ANY, text='test message')
-            execute_command(['test', '0'], audit_api_url='http://test.com', cwd='test/path')
+            execute_command(
+                ['test', '0'],
+                audit_api_url='https://test.com',
+                cwd=os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper')
+            )
 
-            assert mocker.called_once
-            assert mocker.last_request.body.decode('utf-8') == expected_body
+            response = mocker.last_request.body.decode('utf-8')
+            actual_body = json.loads(response)
+
+            self.assertEqual(mocker.call_count, 1)
+            self.assertEqual(expected_body, actual_body)

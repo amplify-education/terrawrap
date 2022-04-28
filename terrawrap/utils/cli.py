@@ -12,6 +12,8 @@ import requests
 
 from amplify_aws_utils.resource_helper import Jitter
 
+from terrawrap.utils.git_utils import get_git_root
+
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 5
@@ -167,6 +169,9 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
 
 
 def _post_to_audit_api_url(audit_api_url: str, path: str, exit_code: int, stdout: List[str]):
+    root = get_git_root(path)
+    path = path.replace(root, '')
+
     try:
         requests.post(
             audit_api_url, json={
@@ -175,7 +180,5 @@ def _post_to_audit_api_url(audit_api_url: str, path: str, exit_code: int, stdout
                 'run_by': getpass.getuser(),
                 'output': stdout
             })
-    except requests.exceptions.RequestException as req_exception:
-        raise RuntimeError(
-            f"Unable to post data to provided url: {audit_api_url}"
-        ) from req_exception
+    except requests.exceptions.RequestException:
+        logger.error("Unable to post data to provided url: %s", audit_api_url)
