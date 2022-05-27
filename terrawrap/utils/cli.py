@@ -172,13 +172,19 @@ def _post_to_audit_api_url(audit_api_url: str, path: str, exit_code: int, stdout
     root = get_git_root(path)
     path = path.replace(root, '')
 
+    status = 'SUCCESS' if exit_code == 0 else 'FAILED'
+    user = getpass.getuser()
+
+    logger.info('Attempting to send data to Audit API: %s run by %s(%s)', path, user, status)
+
     try:
         requests.post(
             audit_api_url, json={
                 'directory': path,
-                'status': 'SUCCESS' if exit_code == 0 else 'FAILED',
-                'run_by': getpass.getuser(),
+                'status': status,
+                'run_by': user,
                 'output': stdout
             })
+        logger.info('Successfully posted data to provided url: %s', audit_api_url)
     except requests.exceptions.RequestException:
         logger.error("Unable to post data to provided url: %s", audit_api_url)
