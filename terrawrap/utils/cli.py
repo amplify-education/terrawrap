@@ -185,6 +185,6 @@ def _post_to_audit_api_url(audit_api_url: str, path: str, exit_code: int, stdout
                 'run_by': user,
                 'output': stdout
             })
-        logger.info('Successfully posted data to provided url: %s', audit_api_url )
+        logger.info('Successfully posted data to provided url: %s', audit_api_url)
     except requests.exceptions.RequestException:
         logger.error("Unable to post data to provided url: %s", audit_api_url)
