@@ -325,6 +325,9 @@ def calc_backend_config(
             wrapper_options['prefix'] = repo_path
         if existing_backend_config.s3 is not None and wrapper_config.backends.s3 is not None:
             wrapper_options = vars(wrapper_config.backends.s3)
+        if existing_backend_config.http is None and wrapper_config.backends.http is not None:
+            options = {}  # No need to include the deprecated options
+            wrapper_options = vars(wrapper_config.backends.http)
         options.update({key: value for key, value in wrapper_options.items() if value is not None})
 
     backend_config.extend([f'-backend-config={key}={value}' for key, value in options.items()])
