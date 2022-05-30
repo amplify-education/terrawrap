@@ -36,6 +36,36 @@ class UnsetEnvVarConfig(AbstractEnvVarConfig):
         super().__init__(EnvVarSource.UNSET)
 
 
+class HTTPBackendConfig:
+    def __init(
+            self,
+            address: str = None,
+            update_method: str = None,
+            lock_address : str = None,
+            lock_method : str = None,
+            unlock_address : str = None,
+            unlock_method : str = None,
+            username : str = None,
+            password : str = None,
+            skip_cert_verification : str = None,
+            retry_max : str = None,
+            retry_wait_min: str = None,
+            retry_wait_max: str = None,
+    ):
+        self.address = address
+        self.update_method = update_method
+        self.lock_address = lock_address
+        self.lock_method = lock_method
+        self.unlock_address = unlock_address
+        self.unlock_method = unlock_method
+        self.username = username
+        self.password = password
+        self.skip_cert_verifications = skip_cert_verification
+        self.retry_max = retry_max
+        self.retry_wait_min = retry_wait_min
+        self.retry_wait_max = retry_wait_max
+
+
 class S3BackendConfig:
     def __init__(
             self,
@@ -57,7 +87,8 @@ class GCSBackendConfig:
 
 class BackendsConfig:
     # pylint: disable=invalid-name
-    def __init__(self, s3: Optional[S3BackendConfig] = None, gcs: Optional[GCSBackendConfig] = None):
+    def __init__(self, s3: Optional[S3BackendConfig] = None, gcs: Optional[GCSBackendConfig] = None, http: Optional[HTTPBackendConfig] = None):
+        self.http = http
         self.s3 = s3
         self.gcs = gcs
 

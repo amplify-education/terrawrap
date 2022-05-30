@@ -209,10 +209,45 @@ terraform init -reconfigure \
 ```
 
 Terrawrap configures the backend by looking for `.tf_wrapper` files in the directory structure. 
-Either `s3` or `gcs` are supported. See the relevant Terraform documentation for the options available
+Either `http`, `s3` or `gcs` are supported. See the relevant Terraform documentation for the options available
 for each type of backend: 
+
+<https://www.terraform.io/docs/backends/types/http.html#configuration-variables>
 <https://www.terraform.io/docs/backends/types/s3.html#configuration-variables>
 <https://www.terraform.io/docs/backends/types/gcs.html#configuration-variables>
+
+#### http Backend
+```yml
+backends:
+    http:
+        address:
+        lock_address:
+        lock_method:
+        unlock_address:
+        unlock_method:
+        username:
+        password:
+        skip_cert_verification:
+        retry_max:
+        retry_wait_min:
+        retry_wait_max:
+```
+
+| Option Name            | Required | Purpose                                                                          |
+| -----------------------| -------- | -------------------------------------------------------------------------------- |
+| address                | Yes      | Address of the REST endpoint                                                     |
+| update_method          | No       | HTTP method to use when updating state. Defaults to POST                         |
+| lock_address           | No       | Address of the lock REST endpoint. Defaults to disabled                          |
+| lock_method            | No       | HTTP method to use when locking. Defaults to LOCK                                |
+| unlock_address         | No       | Address of the unlock REST endpoint. Defaults to disabled                        |
+| unlock_method          | No       | HTTP method to use when unlocking. Defaults to UNLOCK                            |
+| username               | No       | Username for HTTP basic authentication                                           |
+| password               | No       | Password for HTTP basic authentication                                           |
+| skip_cert_verification | No       | Whether to skip TLS verification. Defaults to false                              |
+| retry_max              | No       | Number of HTTP request retires. Defaults to 2                                    |
+| retry_wait_min         | No       | Minimum time in seconds to wait between HTTP request attempts. Defaults to 1     |
+| retry_wait_max         | No       | Maximum time in seconds to wait between HTTP request attempts. Defaults to 30    |
+
 
 #### S3 Backend
 ```yml
