@@ -168,22 +168,29 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
     ]
 
 
-def _post_to_audit_api_url(audit_api_url: str, path: str, exit_code: int, stdout: List[str]):
+def _post_audit_info(
+        audit_api_url: str = None,
+        path: str = None,
+        exit_code: int = None,
+        stdout: List[str] = None,
+        timestamp: int = None,
+        update: bool = False
+):
     root = get_git_root(path)
     path = path.replace(root, '')
 
-    status = 'SUCCESS' if exit_code == 0 else 'FAILED'
-
+    status = 'IN PROGRESS' if not exit_code else ('SUCCESS' if exit_code == 0 else 'FAILED')
     logger.info('Getpass.getuser() will be used to grab the user running path: %s', path)
-
     user = getpass.getuser()
-
     logger.info('Attempting to send data to Audit API: %s run by %s(%s)', path, user, status)
+
+    url = (audit_api_url + 'update_audit_info') if update else (audit_api_url + 'audit_info')
 
     try:
         requests.post(
-            audit_api_url, json={
+            url, json={
                 'directory': path,
+                'timestamp': timestamp,
                 'status': status,
                 'run_by': user,
                 'output': stdout
