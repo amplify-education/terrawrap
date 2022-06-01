@@ -173,6 +173,9 @@ def _post_to_audit_api_url(audit_api_url: str, path: str, exit_code: int, stdout
     path = path.replace(root, '')
 
     status = 'SUCCESS' if exit_code == 0 else 'FAILED'
+
+    logger.info('Getpass.getuser() will be used to grab the user running path: %s', path)
+
     user = getpass.getuser()
 
     logger.info('Attempting to send data to Audit API: %s run by %s(%s)', path, user, status)
