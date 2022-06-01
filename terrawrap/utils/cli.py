@@ -5,6 +5,7 @@ import getpass
 import logging
 import subprocess
 import tempfile
+import time
 
 from typing import List, Tuple, Union
 
@@ -72,6 +73,12 @@ def execute_command(
             if value is not None
         }
 
+    timestamp = 1  # TODO - set this
+
+    if audit_api_url and kwargs['cwd']:
+        # Call _post_audit_info for working directory, setting status to 'in progress'
+        _post_audit_info(audit_api_url, kwargs['cwd'], '', timestamp)  # TODO - update params
+
     jitter = Jitter()
     time_passed = 0
     exit_code = 0
@@ -101,7 +108,8 @@ def execute_command(
         time_passed = jitter.backoff()
 
     if audit_api_url and kwargs['cwd']:
-        _post_to_audit_api_url(audit_api_url, kwargs['cwd'], exit_code, stdout)
+        # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
+        _post_audit_info(audit_api_url, kwargs['cwd'], exit_code, stdout, timestamp)  # TODO - update params
 
     return exit_code, stdout
 
