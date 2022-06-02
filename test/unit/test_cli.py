@@ -2,7 +2,7 @@
 import json
 import os
 from unittest import TestCase
-from mock import patch
+from mock import patch, MagicMock
 
 import requests_mock
 
@@ -72,16 +72,20 @@ class TestCli(TestCase):
         self.assertEqual(stdout, [])
 
     @patch('getpass.getuser')
-    def test_set_audit_api_url(self, mock_getuser_func):
+    @patch('time.time')
+    def test_set_audit_api_url(self, mock_time, mock_getuser_func):
         """Test sending data to given url"""
         mock_getuser_func.return_value = 'mockuser'
+        mock_time.return_value = 123
 
         expected_body = {
             'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
+            'timestamp': 123,
             'status': 'FAILED',
             'run_by': 'mockuser',
             'output': []
         }
+
 
         os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
 
@@ -96,5 +100,7 @@ class TestCli(TestCase):
             response = mocker.last_request.body.decode('utf-8')
             actual_body = json.loads(response)
 
-            self.assertEqual(mocker.call_count, 1)
+            self.assertEqual(mocker.call_count, 2)
+            print(expected_body)
+            print(actual_body)
             self.assertEqual(expected_body, actual_body)

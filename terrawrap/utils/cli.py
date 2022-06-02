@@ -74,13 +74,12 @@ def execute_command(
         }
 
     timestamp = int(time.time())
-    path = kwargs['cwd']
 
-    if audit_api_url and path:
+    if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info for working directory, setting status to 'in progress'
         _post_audit_info(
             audit_api_url=audit_api_url,
-            path=path,
+            path=kwargs['cwd'],
             timestamp=timestamp,
         )
 
@@ -112,11 +111,11 @@ def execute_command(
 
         time_passed = jitter.backoff()
 
-    if audit_api_url and path:
+    if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
         _post_audit_info(
             audit_api_url=audit_api_url,
-            path=path,
+            path=kwargs['cwd'],
             exit_code=exit_code,
             stdout=stdout,
             timestamp=timestamp,
