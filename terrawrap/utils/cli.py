@@ -6,6 +6,7 @@ import logging
 import subprocess
 import tempfile
 import time
+from enum import Enum
 
 from typing import List, Tuple, Union
 
@@ -39,6 +40,12 @@ RETRIABLE_ERRORS = [
 ]
 AUDIT_POST_PATH = '/audit_info'
 AUDIT_UPDATE_PATH = '/update_audit_info'
+
+
+class Status(Enum):
+    SUCCESS = 'SUCCESS'
+    IN_PROGRESS = 'IN PROGRESS'
+    FAILED = 'FAILED'
 
 
 def execute_command(
@@ -75,7 +82,7 @@ def execute_command(
             if value is not None
         }
 
-    timestamp = int(time.time())
+    timestamp = time.time()
 
     if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info for working directory, setting status to 'in progress'
@@ -194,13 +201,16 @@ def _post_audit_info(
         path: str = None,
         exit_code: int = None,
         stdout: List[str] = None,
-        timestamp: int = None,
+        timestamp: float = None,
         update: bool = False
 ):
     root = get_git_root(path)
     path = path.replace(root, '')
 
-    status = 'IN PROGRESS' if not exit_code else ('SUCCESS' if exit_code == 0 else 'FAILED')
+    status = Status.IN_PROGRESS if not exit_code else (
+        Status.SUCCESS if exit_code == 0 else Status.FAILED
+    )
+
     logger.info('Getpass.getuser() will be used to grab the user running path: %s', path)
     user = getpass.getuser()
     logger.info('Attempting to send data to Audit API: %s run by %s(%s)', path, user, status)
