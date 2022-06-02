@@ -73,7 +73,8 @@ def execute_command(
             if value is not None
         }
 
-    timestamp = 1  # TODO - set this
+    timestamp = int(time.time())
+    path = kwargs['cwd']
 
     if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info for working directory, setting status to 'in progress'
