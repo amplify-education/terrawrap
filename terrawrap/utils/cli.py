@@ -203,7 +203,7 @@ def _post_audit_info(
     user = getpass.getuser()
     logger.info('Attempting to send data to Audit API: %s run by %s(%s)', path, user, status)
 
-    url = (audit_api_url + 'update_audit_info') if update else (audit_api_url + 'audit_info')
+    url = (audit_api_url + '/update_audit_info') if update else (audit_api_url + '/audit_info')
 
     try:
         requests.post(
