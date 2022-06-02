@@ -6,7 +6,7 @@ from mock import patch
 
 import requests_mock
 
-from terrawrap.utils.cli import execute_command, MAX_RETRIES
+from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status
 
 
 class TestCli(TestCase):
@@ -81,7 +81,7 @@ class TestCli(TestCase):
         expected_body = {
             'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
             'start_time': 123,
-            'status': 'FAILED',
+            'status': Status.FAILED,
             'run_by': 'mockuser',
             'output': []
         }
@@ -100,6 +100,4 @@ class TestCli(TestCase):
             actual_body = json.loads(response)
 
             self.assertEqual(mocker.call_count, 2)
-            print(expected_body)
-            print(actual_body)
             self.assertEqual(expected_body, actual_body)

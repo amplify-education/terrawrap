@@ -42,7 +42,7 @@ AUDIT_POST_PATH = '/audit_info'
 AUDIT_UPDATE_PATH = '/update_audit_info'
 
 
-class Status(Enum):
+class Status(str, Enum):
     """Enum for status of execute_command"""
     SUCCESS = 'SUCCESS'
     IN_PROGRESS = 'IN PROGRESS'
