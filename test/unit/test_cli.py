@@ -80,7 +80,7 @@ class TestCli(TestCase):
 
         expected_body = {
             'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
-            'timestamp': 123,
+            'start_time': 123,
             'status': 'FAILED',
             'run_by': 'mockuser',
             'output': []

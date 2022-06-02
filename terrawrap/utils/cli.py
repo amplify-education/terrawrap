@@ -83,14 +83,14 @@ def execute_command(
             if value is not None
         }
 
-    timestamp = time.time()
+    start_time = time.time()
 
     if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info for working directory, setting status to 'in progress'
         _post_audit_info(
             audit_api_url=audit_api_url,
             path=kwargs['cwd'],
-            timestamp=timestamp,
+            start_time=start_time,
         )
 
     jitter = Jitter()
@@ -128,7 +128,7 @@ def execute_command(
             path=kwargs['cwd'],
             exit_code=exit_code,
             stdout=stdout,
-            timestamp=timestamp,
+            start_time=start_time,
             update=True
         )
 
@@ -202,7 +202,7 @@ def _post_audit_info(
         path: str = None,
         exit_code: int = None,
         stdout: List[str] = None,
-        timestamp: float = None,
+        start_time: float = None,
         update: bool = False
 ):
     root = get_git_root(path)
@@ -222,7 +222,7 @@ def _post_audit_info(
         requests.post(
             url, json={
                 'directory': path,
-                'timestamp': timestamp,
+                'start_time': start_time,
                 'status': status,
                 'run_by': user,
                 'output': stdout
