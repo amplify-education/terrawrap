@@ -43,6 +43,7 @@ AUDIT_UPDATE_PATH = '/update_audit_info'
 
 
 class Status(Enum):
+    """Enum for status of execute_command"""
     SUCCESS = 'SUCCESS'
     IN_PROGRESS = 'IN PROGRESS'
     FAILED = 'FAILED'
