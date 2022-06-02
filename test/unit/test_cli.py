@@ -86,7 +86,6 @@ class TestCli(TestCase):
             'output': []
         }
 
-
         os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
 
         with requests_mock.Mocker() as mocker:
