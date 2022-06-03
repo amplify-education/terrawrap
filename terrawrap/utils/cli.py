@@ -198,8 +198,8 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
 
 
 def _post_audit_info(
-        audit_api_url: str = None,
-        path: str = None,
+        audit_api_url: str = '',
+        path: str = '',
         exit_code: int = None,
         stdout: List[str] = None,
         start_time: float = None,
