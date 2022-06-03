@@ -198,11 +198,11 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
 
 
 def _post_audit_info(
-        audit_api_url: str = '',
-        path: str = '',
+        audit_api_url: str,
+        path: str,
+        start_time: float,
         exit_code: int = None,
         stdout: List[str] = None,
-        start_time: float = None,
         update: bool = False
 ):
     root = get_git_root(path)
