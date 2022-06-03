@@ -2,11 +2,12 @@
 import json
 import os
 from unittest import TestCase
+
 from mock import patch
 
 import requests_mock
 
-from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status
+from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info
 
 
 class TestCli(TestCase):
@@ -101,3 +102,80 @@ class TestCli(TestCase):
 
             self.assertEqual(mocker.call_count, 2)
             self.assertEqual(expected_body, actual_body)
+
+    @patch('getpass.getuser')
+    @patch('requests.post')
+    def test_post_audit_info_in_progress(self, mock_post, mock_getuser_func):
+        """Test Audit API helper function with no status code"""
+        mock_getuser_func.return_value = 'mockuser'
+        fake_url = 'foo.bar'
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
+
+        _post_audit_info(
+            fake_url,
+            os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
+            12345,
+        )
+
+        mock_post.assert_called_once_with(
+            'foo.bar/audit_info',
+            json={
+                'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
+                'start_time': 12345,
+                'status': Status.IN_PROGRESS,
+                'run_by': 'mockuser',
+                'output': None
+            }
+        )
+
+    @patch('getpass.getuser')
+    @patch('requests.post')
+    def test_post_audit_info_success(self, mock_post, mock_getuser_func):
+        """Test Audit API helper function with status code 0"""
+        mock_getuser_func.return_value = 'mockuser'
+        fake_url = 'foo.bar'
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
+
+        _post_audit_info(
+            fake_url,
+            os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
+            12345,
+            0
+        )
+
+        mock_post.assert_called_once_with(
+            'foo.bar/audit_info',
+            json={
+                'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
+                'start_time': 12345,
+                'status': Status.SUCCESS,
+                'run_by': 'mockuser',
+                'output': None
+            }
+        )
+
+    @patch('getpass.getuser')
+    @patch('requests.post')
+    def test_post_audit_info_failed(self, mock_post, mock_getuser_func):
+        """Test Audit API helper function with status code 4"""
+        mock_getuser_func.return_value = 'mockuser'
+        fake_url = 'foo.bar'
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
+
+        _post_audit_info(
+            fake_url,
+            os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
+            12345,
+            4
+        )
+
+        mock_post.assert_called_once_with(
+            'foo.bar/audit_info',
+            json={
+                'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
+                'start_time': 12345,
+                'status': Status.FAILED,
+                'run_by': 'mockuser',
+                'output': None
+            }
+        )
