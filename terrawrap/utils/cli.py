@@ -208,7 +208,7 @@ def _post_audit_info(
     root = get_git_root(path)
     path = path.replace(root, '')
 
-    status = Status.IN_PROGRESS if not exit_code else (
+    status = Status.IN_PROGRESS if exit_code is None else (
         Status.SUCCESS if exit_code == 0 else Status.FAILED
     )
 
