@@ -2,6 +2,7 @@
 import json
 import os
 from unittest import TestCase
+from unittest.mock import MagicMock
 
 from mock import patch
 
@@ -87,8 +88,6 @@ class TestCli(TestCase):
             'output': []
         }
 
-        os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
-
         with requests_mock.Mocker() as mocker:
             mocker.register_uri(requests_mock.ANY, requests_mock.ANY, text='test message')
             execute_command(
@@ -105,77 +104,33 @@ class TestCli(TestCase):
 
     @patch('getpass.getuser')
     @patch('requests.post')
-    def test_post_audit_info_in_progress(self, mock_post, mock_getuser_func):
-        """Test Audit API helper function with no status code"""
+    def test_post_audit_info_statuses(self, mock_post, mock_getuser_func):
+        """Test Audit API helper function for each possible status"""
+        statuses = {
+            Status.IN_PROGRESS: None,
+            Status.FAILED: 2,
+            Status.SUCCESS: 0
+        }
+
         mock_getuser_func.return_value = 'mockuser'
         fake_url = 'foo.bar'
         os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
 
-        _post_audit_info(
-            fake_url,
-            os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
-            12345,
-        )
+        for status, exit_code in statuses.items():
+            _post_audit_info(
+                audit_api_url=fake_url,
+                path=os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
+                start_time=12345,
+                exit_code=exit_code
+            )
 
-        mock_post.assert_called_once_with(
-            'foo.bar/audit_info',
-            json={
-                'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
-                'start_time': 12345,
-                'status': Status.IN_PROGRESS,
-                'run_by': 'mockuser',
-                'output': None
-            }
-        )
-
-    @patch('getpass.getuser')
-    @patch('requests.post')
-    def test_post_audit_info_success(self, mock_post, mock_getuser_func):
-        """Test Audit API helper function with status code 0"""
-        mock_getuser_func.return_value = 'mockuser'
-        fake_url = 'foo.bar'
-        os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
-
-        _post_audit_info(
-            fake_url,
-            os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
-            12345,
-            0
-        )
-
-        mock_post.assert_called_once_with(
-            'foo.bar/audit_info',
-            json={
-                'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
-                'start_time': 12345,
-                'status': Status.SUCCESS,
-                'run_by': 'mockuser',
-                'output': None
-            }
-        )
-
-    @patch('getpass.getuser')
-    @patch('requests.post')
-    def test_post_audit_info_failed(self, mock_post, mock_getuser_func):
-        """Test Audit API helper function with status code 4"""
-        mock_getuser_func.return_value = 'mockuser'
-        fake_url = 'foo.bar'
-        os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
-
-        _post_audit_info(
-            fake_url,
-            os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
-            12345,
-            4
-        )
-
-        mock_post.assert_called_once_with(
-            'foo.bar/audit_info',
-            json={
-                'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
-                'start_time': 12345,
-                'status': Status.FAILED,
-                'run_by': 'mockuser',
-                'output': None
-            }
-        )
+            mock_post.assert_called_with(
+                'foo.bar/audit_info',
+                json={
+                    'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
+                    'start_time': 12345,
+                    'status': status,
+                    'run_by': 'mockuser',
+                    'output': None
+                }
+            )
