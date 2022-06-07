@@ -5,6 +5,7 @@ import getpass
 import logging
 import subprocess
 import tempfile
+import time
 from enum import Enum
 
 from typing import List, Tuple, Union
@@ -82,16 +83,16 @@ def execute_command(
             if value is not None
         }
 
-    # start_time = time.time() TODO - UNCOMMENT BELOW ONCE API IS UPDATED
+    # Get time - nanoseconds since epoch
+    start_time = time.time_ns()
 
     if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info for working directory, setting status to 'in progress'
-        pass  # TODO - REMOVE THIS AND UNCOMMENT BELOW ONCE API IS UPDATED
-        # _post_audit_info(
-        #     audit_api_url=audit_api_url,
-        #     path=kwargs['cwd'],
-        #     start_time=start_time,
-        # )
+        _post_audit_info(
+            audit_api_url=audit_api_url,
+            path=kwargs['cwd'],
+            start_time=start_time,
+        )
 
     jitter = Jitter()
     time_passed = 0
@@ -123,15 +124,14 @@ def execute_command(
 
     if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
-        pass  # TODO - REMOVE THIS AND UNCOMMENT BELOW ONCE API IS UPDATED
-        # _post_audit_info(
-        #     audit_api_url=audit_api_url,
-        #     path=kwargs['cwd'],
-        #     exit_code=exit_code,
-        #     stdout=stdout,
-        #     start_time=start_time,
-        #     update=True
-        # )
+        _post_audit_info(
+            audit_api_url=audit_api_url,
+            path=kwargs['cwd'],
+            exit_code=exit_code,
+            stdout=stdout,
+            start_time=start_time,
+            update=True
+        )
 
     return exit_code, stdout
 
@@ -201,7 +201,7 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
 def _post_audit_info(
         audit_api_url: str,
         path: str,
-        start_time: float,
+        start_time: int,
         exit_code: int = None,
         stdout: List[str] = None,
         update: bool = False
