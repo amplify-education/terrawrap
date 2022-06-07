@@ -82,7 +82,7 @@ Learn more at <https://www.amplify.com>
 
 ### Prerequisites
 
-Terrawrap requires Python 3.6.0 or higher to run.
+Terrawrap requires Python 3.7.0 or higher to run.
 
 ### Installing
 
