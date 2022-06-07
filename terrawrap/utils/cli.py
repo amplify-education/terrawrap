@@ -5,7 +5,6 @@ import getpass
 import logging
 import subprocess
 import tempfile
-import time
 from enum import Enum
 
 from typing import List, Tuple, Union
