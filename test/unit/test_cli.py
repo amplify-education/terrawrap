@@ -72,34 +72,34 @@ class TestCli(TestCase):
         self.assertEqual(exit_code, 255)
         self.assertEqual(stdout, [])
 
-    @patch('getpass.getuser')
-    @patch('time.time')
-    def test_set_audit_api_url(self, mock_time, mock_getuser_func):
-        """Test sending data to given url"""
-        mock_getuser_func.return_value = 'mockuser'
-        mock_time.return_value = 123
-
-        expected_body = {
-            'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
-            'start_time': 123,
-            'status': Status.FAILED,
-            'run_by': 'mockuser',
-            'output': []
-        }
-
-        with requests_mock.Mocker() as mocker:
-            mocker.register_uri(requests_mock.ANY, requests_mock.ANY, text='test message')
-            execute_command(
-                ['test', '0'],
-                audit_api_url='https://test.com',
-                cwd=os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper')
-            )
-
-            response = mocker.last_request.body.decode('utf-8')
-            actual_body = json.loads(response)
-
-            self.assertEqual(mocker.call_count, 2)
-            self.assertEqual(expected_body, actual_body)
+    # @patch('getpass.getuser')
+    # @patch('time.time')
+    # def test_set_audit_api_url(self, mock_time, mock_getuser_func):
+    #     """Test sending data to given url"""
+    #     mock_getuser_func.return_value = 'mockuser'
+    #     mock_time.return_value = 123
+    #
+    #     expected_body = {
+    #         'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
+    #         'start_time': 123,
+    #         'status': Status.FAILED,
+    #         'run_by': 'mockuser',
+    #         'output': []
+    #     }
+    #
+    #     with requests_mock.Mocker() as mocker:
+    #         mocker.register_uri(requests_mock.ANY, requests_mock.ANY, text='test message')
+    #         execute_command(
+    #             ['test', '0'],
+    #             audit_api_url='https://test.com',
+    #             cwd=os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper')
+    #         )
+    #
+    #         response = mocker.last_request.body.decode('utf-8')
+    #         actual_body = json.loads(response)
+    #
+    #         self.assertEqual(mocker.call_count, 2)
+    #         self.assertEqual(expected_body, actual_body)
 
     @patch('getpass.getuser')
     @patch('requests.post')
