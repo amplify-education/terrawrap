@@ -72,7 +72,7 @@ class TestCli(TestCase):
         self.assertEqual(exit_code, 255)
         self.assertEqual(stdout, [])
 
-    # @patch('getpass.getuser')
+    # @patch('getpass.getuser')  TODO - UNCOMMENT BELOW ONCE API IS UPDATED
     # @patch('time.time')
     # def test_set_audit_api_url(self, mock_time, mock_getuser_func):
     #     """Test sending data to given url"""
