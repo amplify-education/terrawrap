@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import getpass
+import json
 import logging
 import subprocess
 import tempfile
@@ -48,6 +49,13 @@ class Status(str, Enum):
     SUCCESS = 'SUCCESS'
     IN_PROGRESS = 'IN PROGRESS'
     FAILED = 'FAILED'
+
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, Decimal):
+            return str(o)
+        return super(DecimalEncoder, self).default(o)
 
 
 def execute_command(
@@ -230,7 +238,8 @@ def _post_audit_info(
                 'status': status,
                 'run_by': user,
                 'output': stdout
-            })
+            }
+        )
         logger.info('Successfully posted data to provided url: %s', audit_api_url)
     except requests.exceptions.RequestException:
         logger.error("Unable to post data to provided url: %s", audit_api_url)
