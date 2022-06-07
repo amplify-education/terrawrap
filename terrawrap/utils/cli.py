@@ -6,7 +6,6 @@ import logging
 import subprocess
 import tempfile
 import time
-from decimal import Decimal
 from enum import Enum
 
 from typing import List, Tuple, Union
@@ -84,7 +83,7 @@ def execute_command(
             if value is not None
         }
 
-    start_time = Decimal(time.time())
+    start_time = time.time_ns()
 
     if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info for working directory, setting status to 'in progress'
@@ -201,7 +200,7 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
 def _post_audit_info(
         audit_api_url: str,
         path: str,
-        start_time: Decimal,
+        start_time: int,
         exit_code: int = None,
         stdout: List[str] = None,
         update: bool = False
@@ -230,8 +229,7 @@ def _post_audit_info(
                 'status': status,
                 'run_by': user,
                 'output': stdout
-            }
-        )
+            })
         logger.info('Successfully posted data to provided url: %s', audit_api_url)
     except requests.exceptions.RequestException:
         logger.error("Unable to post data to provided url: %s", audit_api_url)
