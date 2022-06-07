@@ -213,7 +213,10 @@ def _post_audit_info(
     )
 
     logger.info('Getpass.getuser() will be used to grab the user running path: %s', path)
-    user = getpass.getuser()
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = 'System'
     logger.info('Attempting to send data to Audit API: %s run by %s(%s)', path, user, status)
 
     url = (audit_api_url + AUDIT_UPDATE_PATH) if update else (audit_api_url + AUDIT_POST_PATH)
