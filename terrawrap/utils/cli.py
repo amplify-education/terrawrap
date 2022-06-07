@@ -5,7 +5,6 @@ import getpass
 import logging
 import subprocess
 import tempfile
-import time
 from enum import Enum
 
 from typing import List, Tuple, Union
@@ -87,11 +86,12 @@ def execute_command(
 
     if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info for working directory, setting status to 'in progress'
-        _post_audit_info(
-            audit_api_url=audit_api_url,
-            path=kwargs['cwd'],
-            start_time=start_time,
-        )
+        pass  # TODO - REMOVE THIS AND UNCOMMENT BELOW ONCE API IS UPDATED
+        # _post_audit_info(
+        #     audit_api_url=audit_api_url,
+        #     path=kwargs['cwd'],
+        #     start_time=start_time,
+        # )
 
     jitter = Jitter()
     time_passed = 0
@@ -123,14 +123,15 @@ def execute_command(
 
     if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
-        _post_audit_info(
-            audit_api_url=audit_api_url,
-            path=kwargs['cwd'],
-            exit_code=exit_code,
-            stdout=stdout,
-            start_time=start_time,
-            update=True
-        )
+        pass  # TODO - REMOVE THIS AND UNCOMMENT BELOW ONCE API IS UPDATED
+        # _post_audit_info(
+        #     audit_api_url=audit_api_url,
+        #     path=kwargs['cwd'],
+        #     exit_code=exit_code,
+        #     stdout=stdout,
+        #     start_time=start_time,
+        #     update=True
+        # )
 
     return exit_code, stdout
 
