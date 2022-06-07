@@ -6,6 +6,7 @@ import logging
 import subprocess
 import tempfile
 import time
+from decimal import Decimal
 from enum import Enum
 
 from typing import List, Tuple, Union
@@ -200,7 +201,7 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
 def _post_audit_info(
         audit_api_url: str,
         path: str,
-        start_time: float,
+        start_time: Decimal,
         exit_code: int = None,
         stdout: List[str] = None,
         update: bool = False
