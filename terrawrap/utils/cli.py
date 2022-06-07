@@ -2,7 +2,6 @@
 from __future__ import print_function
 
 import getpass
-import json
 import logging
 import subprocess
 import tempfile
@@ -49,13 +48,6 @@ class Status(str, Enum):
     SUCCESS = 'SUCCESS'
     IN_PROGRESS = 'IN PROGRESS'
     FAILED = 'FAILED'
-
-
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, Decimal):
-            return str(o)
-        return super(DecimalEncoder, self).default(o)
 
 
 def execute_command(
