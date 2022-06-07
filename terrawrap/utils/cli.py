@@ -83,6 +83,7 @@ def execute_command(
             if value is not None
         }
 
+    # Get time - nanoseconds since epoch
     start_time = time.time_ns()
 
     if audit_api_url and kwargs['cwd']:
