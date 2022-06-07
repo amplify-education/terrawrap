@@ -2,11 +2,12 @@
 import json
 import os
 from unittest import TestCase
+
 from mock import patch
 
 import requests_mock
 
-from terrawrap.utils.cli import execute_command, MAX_RETRIES
+from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info
 
 
 class TestCli(TestCase):
@@ -72,18 +73,19 @@ class TestCli(TestCase):
         self.assertEqual(stdout, [])
 
     @patch('getpass.getuser')
-    def test_set_audit_api_url(self, mock_getuser_func):
+    @patch('time.time')
+    def test_set_audit_api_url(self, mock_time, mock_getuser_func):
         """Test sending data to given url"""
         mock_getuser_func.return_value = 'mockuser'
+        mock_time.return_value = 123
 
         expected_body = {
             'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
-            'status': 'FAILED',
+            'start_time': 123,
+            'status': Status.FAILED,
             'run_by': 'mockuser',
             'output': []
         }
-
-        os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
 
         with requests_mock.Mocker() as mocker:
             mocker.register_uri(requests_mock.ANY, requests_mock.ANY, text='test message')
@@ -96,5 +98,38 @@ class TestCli(TestCase):
             response = mocker.last_request.body.decode('utf-8')
             actual_body = json.loads(response)
 
-            self.assertEqual(mocker.call_count, 1)
+            self.assertEqual(mocker.call_count, 2)
             self.assertEqual(expected_body, actual_body)
+
+    @patch('getpass.getuser')
+    @patch('requests.post')
+    def test_post_audit_info_statuses(self, mock_post, mock_getuser_func):
+        """Test Audit API helper function for each possible status"""
+        statuses = {
+            Status.IN_PROGRESS: None,
+            Status.FAILED: 2,
+            Status.SUCCESS: 0
+        }
+
+        mock_getuser_func.return_value = 'mockuser'
+        fake_url = 'foo.bar'
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
+
+        for status, exit_code in statuses.items():
+            _post_audit_info(
+                audit_api_url=fake_url,
+                path=os.path.join(os.getcwd(), 'mock_directory/config/.tf_wrapper'),
+                start_time=12345,
+                exit_code=exit_code
+            )
+
+            mock_post.assert_called_with(
+                'foo.bar/audit_info',
+                json={
+                    'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
+                    'start_time': 12345,
+                    'status': status,
+                    'run_by': 'mockuser',
+                    'output': None
+                }
+            )

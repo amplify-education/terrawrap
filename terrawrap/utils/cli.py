@@ -5,6 +5,8 @@ import getpass
 import logging
 import subprocess
 import tempfile
+import time
+from enum import Enum
 
 from typing import List, Tuple, Union
 
@@ -36,6 +38,15 @@ RETRIABLE_ERRORS = [
     'Api Rate Limit Exceeded',
     'TooManyUpdates',
 ]
+AUDIT_POST_PATH = '/audit_info'
+AUDIT_UPDATE_PATH = '/update_audit_info'
+
+
+class Status(str, Enum):
+    """Enum for status of execute_command"""
+    SUCCESS = 'SUCCESS'
+    IN_PROGRESS = 'IN PROGRESS'
+    FAILED = 'FAILED'
 
 
 def execute_command(
@@ -72,6 +83,16 @@ def execute_command(
             if value is not None
         }
 
+    start_time = time.time()
+
+    if audit_api_url and kwargs['cwd']:
+        # Call _post_audit_info for working directory, setting status to 'in progress'
+        _post_audit_info(
+            audit_api_url=audit_api_url,
+            path=kwargs['cwd'],
+            start_time=start_time,
+        )
+
     jitter = Jitter()
     time_passed = 0
     exit_code = 0
@@ -101,7 +122,15 @@ def execute_command(
         time_passed = jitter.backoff()
 
     if audit_api_url and kwargs['cwd']:
-        _post_to_audit_api_url(audit_api_url, kwargs['cwd'], exit_code, stdout)
+        # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
+        _post_audit_info(
+            audit_api_url=audit_api_url,
+            path=kwargs['cwd'],
+            exit_code=exit_code,
+            stdout=stdout,
+            start_time=start_time,
+            update=True
+        )
 
     return exit_code, stdout
 
@@ -168,22 +197,35 @@ def _get_retriable_errors(out: List[str]) -> List[str]:
     ]
 
 
-def _post_to_audit_api_url(audit_api_url: str, path: str, exit_code: int, stdout: List[str]):
+def _post_audit_info(
+        audit_api_url: str,
+        path: str,
+        start_time: float,
+        exit_code: int = None,
+        stdout: List[str] = None,
+        update: bool = False
+):
     root = get_git_root(path)
     path = path.replace(root, '')
 
-    status = 'SUCCESS' if exit_code == 0 else 'FAILED'
+    status = Status.IN_PROGRESS if exit_code is None else (
+        Status.SUCCESS if exit_code == 0 else Status.FAILED
+    )
 
     logger.info('Getpass.getuser() will be used to grab the user running path: %s', path)
-
-    user = getpass.getuser()
-
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = 'System'
     logger.info('Attempting to send data to Audit API: %s run by %s(%s)', path, user, status)
+
+    url = (audit_api_url + AUDIT_UPDATE_PATH) if update else (audit_api_url + AUDIT_POST_PATH)
 
     try:
         requests.post(
-            audit_api_url, json={
+            url, json={
                 'directory': path,
+                'start_time': start_time,
                 'status': status,
                 'run_by': user,
                 'output': stdout
