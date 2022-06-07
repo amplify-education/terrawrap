@@ -84,7 +84,7 @@ def execute_command(
             if value is not None
         }
 
-    start_time = time.time()
+    start_time = Decimal(time.time())
 
     if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info for working directory, setting status to 'in progress'
