@@ -1,12 +1,9 @@
 """Test git utilities"""
-import json
 import os
-from decimal import Decimal
 from unittest import TestCase
 
 from mock import patch
 
-import requests_mock
 
 from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info
 
