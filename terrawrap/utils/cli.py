@@ -133,10 +133,10 @@ def execute_command(
                 update=True
             )
 
-        if time_passed >= timeout:
-            raise TimeoutError(f'Timed out retrying {args} command')
+    if time_passed >= timeout:
+        raise TimeoutError(f'Timed out retrying {args} command')
 
-        return exit_code, stdout
+    return exit_code, stdout
 
 
 def _execute_command(
