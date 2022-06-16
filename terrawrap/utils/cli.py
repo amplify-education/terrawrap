@@ -118,7 +118,7 @@ def execute_command(
             break
 
         if time_passed >= timeout:
-            raise TimeoutError(f'Timed out retrying {args} command')
+            break
 
         time_passed = jitter.backoff()
 
@@ -132,6 +132,9 @@ def execute_command(
             start_time=start_time,
             update=True
         )
+
+    if time_passed >= timeout:
+        raise TimeoutError(f'Timed out retrying {args} command')
 
     return exit_code, stdout
 
