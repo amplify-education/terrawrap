@@ -119,7 +119,8 @@ def execute_command(
 
         if time_passed >= timeout:
             if audit_api_url and kwargs['cwd']:
-                # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
+                # Call _post_audit_info again, this time to update the
+                # 'in progress' entry with new status and output
                 _post_audit_info(
                     audit_api_url=audit_api_url,
                     path=kwargs['cwd'],
