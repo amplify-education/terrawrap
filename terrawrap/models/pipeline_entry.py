@@ -68,6 +68,7 @@ class PipelineEntry:
             print_output=False,
             capture_stderr=True,
             env=command_env,
+            cwd=self.path
         )
 
         if init_exit_code != 0:
@@ -79,7 +80,8 @@ class PipelineEntry:
                 plan_args,
                 print_output=False,
                 capture_stderr=True,
-                env=command_env
+                env=command_env,
+                cwd=self.path
             )
 
             output += ["\n"] + plan_stdout
@@ -100,7 +102,8 @@ class PipelineEntry:
             operation_args,
             print_output=False,
             capture_stderr=True,
-            env=command_env
+            env=command_env,
+            cwd=self.path
         )
 
         output += ["\n"] + operation_stdout
