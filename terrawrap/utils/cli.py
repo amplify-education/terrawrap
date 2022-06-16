@@ -118,33 +118,25 @@ def execute_command(
             break
 
         if time_passed >= timeout:
-            if audit_api_url and kwargs['cwd']:
-                # Call _post_audit_info again, this time to update the
-                # 'in progress' entry with new status and output
-                _post_audit_info(
-                    audit_api_url=audit_api_url,
-                    path=kwargs['cwd'],
-                    exit_code=exit_code,
-                    stdout=stdout,
-                    start_time=start_time,
-                    update=True
-                )
-            raise TimeoutError(f'Timed out retrying {args} command')
+            break
 
         time_passed = jitter.backoff()
 
-    if audit_api_url and kwargs['cwd']:
-        # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
-        _post_audit_info(
-            audit_api_url=audit_api_url,
-            path=kwargs['cwd'],
-            exit_code=exit_code,
-            stdout=stdout,
-            start_time=start_time,
-            update=True
-        )
+        if audit_api_url and kwargs['cwd']:
+            # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
+            _post_audit_info(
+                audit_api_url=audit_api_url,
+                path=kwargs['cwd'],
+                exit_code=exit_code,
+                stdout=stdout,
+                start_time=start_time,
+                update=True
+            )
 
-    return exit_code, stdout
+        if time_passed >= timeout:
+            raise TimeoutError(f'Timed out retrying {args} command')
+
+        return exit_code, stdout
 
 
 def _execute_command(
