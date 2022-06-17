@@ -93,6 +93,8 @@ def execute_command(
             path=kwargs['cwd'],
             start_time=start_time,
         )
+    else:
+        logger.info('No audit_api_url provided')
 
     jitter = Jitter()
     time_passed = 0
@@ -132,6 +134,8 @@ def execute_command(
             start_time=start_time,
             update=True
         )
+    else:
+        logger.info('No audit_api_url provided')
 
     if time_passed >= timeout:
         raise TimeoutError(f'Timed out retrying {args} command')
@@ -216,11 +220,11 @@ def _post_audit_info(
         Status.SUCCESS if exit_code == 0 else Status.FAILED
     )
 
-    logger.info('Getpass.getuser() will be used to grab the user running path: %s', path)
     try:
         user = getpass.getuser()
     except Exception:
         user = 'System'
+
     logger.info('Attempting to send data to Audit API: %s run by %s(%s)', path, user, status)
 
     url = (audit_api_url + AUDIT_UPDATE_PATH) if update else (audit_api_url + AUDIT_POST_PATH)
