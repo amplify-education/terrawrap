@@ -2,8 +2,7 @@
 import os
 from unittest import TestCase
 
-from mock import patch
-
+from mock import patch, ANY
 
 from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info
 
@@ -93,7 +92,8 @@ class TestCli(TestCase):
             )
 
             mock_post.assert_called_with(
-                'foo.bar/audit_info',
+                url='foo.bar/audit_info',
+                auth=ANY,
                 json={
                     'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
                     'start_time': 12345,
