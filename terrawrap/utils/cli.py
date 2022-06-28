@@ -13,7 +13,7 @@ from typing import List, Tuple, Union
 import requests
 
 from amplify_aws_utils.resource_helper import Jitter
-from aws_requests_auth.aws_auth import AWSRequestsAuth
+from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
 
 from terrawrap.utils.git_utils import get_git_root
 
@@ -230,12 +230,10 @@ def _post_audit_info(
 
     url = (audit_api_url + AUDIT_UPDATE_PATH) if update else (audit_api_url + AUDIT_POST_PATH)
 
-    auth = AWSRequestsAuth(
-        aws_access_key='',
-        aws_secret_access_key='',
-        aws_host='',
-        aws_region='',
-        aws_service=''
+    auth = BotoAWSRequestsAuth(
+        aws_host='terraform-audit-api.devops.amplify.com',
+        aws_region='us-west-2',
+        aws_service='execute-api'
     )
 
     try:
