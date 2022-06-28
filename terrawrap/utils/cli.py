@@ -13,6 +13,7 @@ from typing import List, Tuple, Union
 import requests
 
 from amplify_aws_utils.resource_helper import Jitter
+from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
 
 from terrawrap.utils.git_utils import get_git_root
 
@@ -229,15 +230,24 @@ def _post_audit_info(
 
     url = (audit_api_url + AUDIT_UPDATE_PATH) if update else (audit_api_url + AUDIT_POST_PATH)
 
+    auth = BotoAWSRequestsAuth(
+        aws_host='terraform-audit-api.devops.amplify.com',
+        aws_region='us-west-2',
+        aws_service='execute-api'
+    )
+
     try:
         requests.post(
-            url, json={
+            url=url,
+            auth=auth,
+            json={
                 'directory': path,
                 'start_time': start_time,
                 'status': status,
                 'run_by': user,
                 'output': stdout
-            })
+            }
+        )
         logger.info('Successfully posted data to provided url: %s', audit_api_url)
     except requests.exceptions.RequestException:
         logger.error("Unable to post data to provided url: %s", audit_api_url)
