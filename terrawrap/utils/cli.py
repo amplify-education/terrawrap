@@ -245,7 +245,7 @@ def _post_audit_info(
                 'start_time': start_time,
                 'status': status,
                 'run_by': user,
-                'output': stdout
+                'output': stdout if stdout else ''
             }
         )
         logger.info('Successfully posted data to provided url: %s', audit_api_url)
