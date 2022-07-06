@@ -99,6 +99,6 @@ class TestCli(TestCase):
                     'start_time': 12345,
                     'status': status,
                     'run_by': 'mockuser',
-                    'output': None
+                    'output': ''
                 }
             )
