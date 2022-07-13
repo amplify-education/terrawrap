@@ -148,7 +148,7 @@ def init_and_plan_directory(
     # the constructor. We are then passing in those environment variables explicitly in the
     # execute_command call below.
     init_exit_code, init_stdout = execute_command(
-        [wrapper_py, "--no-resolve-envvars", directory, 'init'] + arguments,
+        [wrapper_py, "--no-resolve-envvars", directory, 'init', '-upgrade'] + arguments,
         print_output=False,
         env=command_env
     )
