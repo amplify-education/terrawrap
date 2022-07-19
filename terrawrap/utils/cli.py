@@ -221,12 +221,7 @@ def _post_audit_info(
         Status.SUCCESS if exit_code == 0 else Status.FAILED
     )
 
-    try:
-        user = getpass.getuser()
-    except Exception:
-        user = 'System'
-
-    logger.info('Attempting to send data to Audit API: %s run by %s(%s)', path, user, status)
+    logger.info('Attempting to send data to Audit API: %s - %s', path, status)
 
     url = (audit_api_url + AUDIT_UPDATE_PATH) if update else (audit_api_url + AUDIT_POST_PATH)
 
@@ -244,7 +239,6 @@ def _post_audit_info(
                 'directory': path,
                 'start_time': start_time,
                 'status': status,
-                'run_by': user,
                 'output': stdout or ''
             }
         )
