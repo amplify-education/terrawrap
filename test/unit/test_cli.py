@@ -69,9 +69,8 @@ class TestCli(TestCase):
         self.assertEqual(exit_code, 255)
         self.assertEqual(stdout, [])
 
-    @patch('getpass.getuser')
     @patch('requests.post')
-    def test_post_audit_info_statuses(self, mock_post, mock_getuser_func):
+    def test_post_audit_info_statuses(self, mock_post):
         """Test Audit API helper function for each possible status"""
         statuses = {
             Status.IN_PROGRESS: None,
@@ -79,7 +78,6 @@ class TestCli(TestCase):
             Status.SUCCESS: 0
         }
 
-        mock_getuser_func.return_value = 'mockuser'
         fake_url = 'foo.bar'
         os.chdir(os.path.normpath(os.path.dirname(__file__) + '/../helpers'))
 
@@ -98,7 +96,6 @@ class TestCli(TestCase):
                     'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
                     'start_time': 12345,
                     'status': status,
-                    'run_by': 'mockuser',
                     'output': ''
                 }
             )
