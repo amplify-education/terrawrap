@@ -1,7 +1,6 @@
 """Module for containing CLI convenience functions"""
 from __future__ import print_function
 
-import getpass
 import logging
 import subprocess
 import tempfile
