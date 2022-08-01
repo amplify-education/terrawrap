@@ -84,7 +84,7 @@ def execute_command(
         }
 
     # Get time - nanoseconds since epoch
-    start_time = time.time_ns()
+    start_time = int(time.time())
 
     if audit_api_url and kwargs['cwd']:
         # Call _post_audit_info for working directory, setting status to 'in progress'
