@@ -62,7 +62,7 @@ class PluginDownload:
         etag = None
         etag_path = f'{file_path}.{"etag"}'
         if os.path.isfile(etag_path) and os.path.isfile(file_path):
-            with(open(etag_path, 'r', encoding='utf-8')) as etag_file:
+            with (open(etag_path, 'r', encoding='utf-8')) as etag_file:
                 etag = etag_file.read()
 
         download_info = self._get_file_content(url, etag)
@@ -71,7 +71,7 @@ class PluginDownload:
             content = download_info[0]
             etag = download_info[1]
 
-            with(open(file_path, 'wb', encoding='utf-8')) as out_file:
+            with (open(file_path, 'wb', encoding='utf-8')) as out_file:
                 out_file.write(content)
 
             mode = os.stat(file_path)
@@ -82,7 +82,7 @@ class PluginDownload:
                 # remove them if that happens
                 if etag[0] == '"':
                     etag = etag[1:-1]
-                with(open(etag_path, 'w', encoding='utf-8')) as etag_file:
+                with (open(etag_path, 'w', encoding='utf-8')) as etag_file:
                     etag_file.write(etag)
 
     def _get_file_content(self, url: str, etag: Optional[str]) -> Optional[Tuple[bytes, Optional[str]]]:

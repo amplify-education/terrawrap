@@ -75,7 +75,7 @@ class TestPluginDownload(TestCase):
     @patch('platform.machine', MagicMock(return_value='x86_42'))
     def test_download_plugins(self):
         """Test downloading plugins"""
-        with(patch.object(self.plugin_download, '_download_file')) as download_file_mock:
+        with (patch.object(self.plugin_download, '_download_file')) as download_file_mock:
             self.plugin_download.download_plugins({
                 'foo': 'http://example.com'
             })
@@ -92,7 +92,7 @@ class TestPluginDownload(TestCase):
     @patch('platform.machine', MagicMock(return_value='x86_42'))
     def test_download_plugins_platform_missing(self):
         """Test downloading plugins and falling back to non-platform specific files"""
-        with(patch.object(self.plugin_download, '_download_file')) as download_file_mock:
+        with (patch.object(self.plugin_download, '_download_file')) as download_file_mock:
             def _download_mock_side_effect(url, _):
                 if url != 'http://example.com':
                     raise FileDownloadFailed()
