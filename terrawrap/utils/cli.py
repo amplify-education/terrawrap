@@ -230,6 +230,8 @@ def _post_audit_info(
         aws_service='execute-api'
     )
 
+    stdout_str = ''.join(stdout) if stdout else ''
+
     try:
         requests.post(
             url=url,
@@ -238,7 +240,7 @@ def _post_audit_info(
                 'directory': path,
                 'start_time': start_time,
                 'status': status,
-                'output': stdout or ''
+                'output': stdout_str
             }
         )
         logger.info('Successfully posted data to provided url: %s', audit_api_url)
