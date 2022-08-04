@@ -230,7 +230,7 @@ def _post_audit_info(
         aws_service='execute-api'
     )
 
-    stdout_str = ''.join(stdout) if stdout else ''
+    stdout_str = '\n'.join(stdout) if stdout else ''
 
     try:
         requests.post(
