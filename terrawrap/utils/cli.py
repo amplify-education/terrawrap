@@ -34,7 +34,6 @@ RETRIABLE_ERRORS = [
     'try again later',
     'handshake timeout',
     'SSL_ERROR_SYSCALL',
-    'ConditionalCheckFailedException',
     'Api Rate Limit Exceeded',
     'TooManyUpdates',
 ]
