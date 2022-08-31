@@ -114,7 +114,7 @@ class PluginDownload:
             headers['If-None-Match'] = etag
 
         try:
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=5)
             response.raise_for_status()
 
             if response.status_code == 304:
