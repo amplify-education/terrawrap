@@ -97,5 +97,6 @@ class TestCli(TestCase):
                     'start_time': 12345,
                     'status': status,
                     'output': ''
-                }
+                },
+                timeout=30,
             )
