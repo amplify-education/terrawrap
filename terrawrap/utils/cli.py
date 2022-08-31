@@ -240,7 +240,8 @@ def _post_audit_info(
                 'start_time': start_time,
                 'status': status,
                 'output': stdout_str
-            }
+            },
+            timeout=30,
         )
         logger.info('Successfully posted data to provided url: %s', audit_api_url)
     except requests.exceptions.RequestException:
