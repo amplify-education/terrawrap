@@ -96,7 +96,8 @@ class TestCli(TestCase):
                     'directory': '/test/helpers/mock_directory/config/.tf_wrapper',
                     'start_time': 12345,
                     'status': status,
-                    'output': ''
+                    'output': '',
+                    'git_hash': ANY
                 },
                 timeout=30,
             )
