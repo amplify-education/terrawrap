@@ -14,7 +14,7 @@ import requests
 from amplify_aws_utils.resource_helper import Jitter
 from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
 
-from terrawrap.utils.git_utils import get_git_root
+from terrawrap.utils.git_utils import get_git_root, get_git_hash
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +213,8 @@ def _post_audit_info(
         update: bool = False
 ):
     root = get_git_root(path)
+    sha = get_git_hash(path)
+
     path = path.replace(root, '')
 
     status = Status.IN_PROGRESS if exit_code is None else (
@@ -239,7 +241,8 @@ def _post_audit_info(
                 'directory': path,
                 'start_time': start_time,
                 'status': status,
-                'output': stdout_str
+                'output': stdout_str,
+                'git_hash': sha
             },
             timeout=30,
         )
