@@ -7,7 +7,7 @@ filelock>=3.0.12,<4
 gitpython>=2.1.10
 PyYAML>=5.3.1,<6
 ssm-cache>=2.7,<3
-jsons>=1.0.0,<2.0.0
+jsons>=1.6.3,<2.0.0
 python-hcl2>=3,<4
 # Packaging does not obey semver
 packaging==19.1
