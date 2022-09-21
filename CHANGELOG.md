@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.9.19] - 2022-09-21
+
+### Changed
+
+-   Bump required version for jsons package because the old failed with python >= 3.8
+
 ## [0.8.8] - 2021-04-20
 
 ### Changed
