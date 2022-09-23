@@ -14,7 +14,7 @@ class TestGit(TestCase):
     @patch('terrawrap.utils.git_utils.Repo')
     def test_get_git_changed_files(self, repo):
         """Test getting list of changed files in git"""
-        repo.return_value.commit.return_value.diff.return_value = [
+        repo.return_value.merge_base.return_value[0].diff.return_value = [
             Change('/foo', '/foo', False, False),
             Change(None, '/bar', True, False),
             Change('/baz', None, False, True)
