@@ -12,7 +12,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 -   Change `--modified-only` behavior of `plan_check` command. `--modified-only` will now compare with `merge-base`
     using `git merge-base` command instead of directly comparing against the master branch
 
-
 ## [0.9.19] - 2022-09-21
 
 ### Changed
