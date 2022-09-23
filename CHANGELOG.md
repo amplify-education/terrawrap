@@ -66,7 +66,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 -   Terraform provider version lock files are not automatically deleted
 
-
 ## [0.8.0] - 2021-02-11
 
 ### Changed
@@ -80,7 +79,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 -   Fixed a bug in `graph_apply` when there are symlinks to directories above the directory being applied
-
 
 ## [0.6.15] - 2020-12-15
 
