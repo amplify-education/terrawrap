@@ -69,6 +69,7 @@ class TestVersion(TestCase):
         )
 
     @patch("requests.get")
+    @patch("terrawrap.utils.version.Cache", MagicMock())
     def test_get_latest_version_happy(self, mock_get):
         """VersionUtils get latest version happy path"""
         current_version = "1.0.0"

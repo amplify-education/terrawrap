@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.9.20] - 2022-09-23
+
+### Changed
+
+-   Change `--modified-only` behavior of `plan_check` command. `--modified-only` will now compare with `merge-base`
+    using `git merge-base` command instead of directly comparing against the master branch
+
 ## [0.9.19] - 2022-09-21
 
 ### Changed
@@ -59,7 +66,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 -   Terraform provider version lock files are not automatically deleted
 
-
 ## [0.8.0] - 2021-02-11
 
 ### Changed
@@ -73,7 +79,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 -   Fixed a bug in `graph_apply` when there are symlinks to directories above the directory being applied
-
 
 ## [0.6.15] - 2020-12-15
 
