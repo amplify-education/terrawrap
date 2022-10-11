@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
--   Added support to assume a different role when running the `tf` command. A new `assume_role` block is now available
+-   Added support for assuming AWS roles when running terraform commands. A new `assume_role` block is now available
     in `.tf_wrapper` config files with `account_id`, `role_name` and `for_commands` options. `account_id` and `role_name` 
     are required and are used to specify which role should be assumed. `for_commands` is an optional list of `terraform`
     commands (such as `plan`, `apply`, `init`, etc) which should be run with an assumed role.
