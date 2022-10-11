@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2022-10-11
+
+### Added
+
+-   Added support for assuming AWS roles when running terraform commands. A new `assume_role` block is now available
+    in `.tf_wrapper` config files with `account_id`, `role_name` and `for_commands` options. `account_id` and `role_name` 
+    are required and are used to specify which role should be assumed. `for_commands` is an optional list of `terraform`
+    commands (such as `plan`, `apply`, `init`, etc) which should be run with an assumed role.
+
 ## [0.9.20] - 2022-09-23
 
 ### Changed

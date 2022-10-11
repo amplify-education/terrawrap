@@ -62,6 +62,13 @@ class BackendsConfig:
         self.gcs = gcs
 
 
+class AssumeRoleConfig:
+    def __init__(self, account_id: str, role_name: str, for_commands: List[str] = None):
+        self.account_id = account_id
+        self.role_name = role_name
+        self.for_commands = for_commands or []
+
+
 # pylint: disable=unused-argument
 def env_var_deserializer(obj_dict, cls, **kwargs):
     """convert a dict to a subclass of AbstractEnvVarConfig"""
@@ -92,7 +99,8 @@ class WrapperConfig:
             config: bool = True,
             audit_api_url: str = None,
             apply_automatically: bool = True,
-            plugins: Dict[str, str] = None
+            plugins: Dict[str, str] = None,
+            assume_role: AssumeRoleConfig = None
     ):
         self.configure_backend = configure_backend
         self.pipeline_check = pipeline_check
@@ -105,3 +113,4 @@ class WrapperConfig:
         self.audit_api_url = audit_api_url
         self.apply_automatically = apply_automatically
         self.plugins = plugins or {}
+        self.assume_role = assume_role

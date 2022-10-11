@@ -28,6 +28,8 @@ from typing import List, Dict, Tuple
 
 import boto3
 
+from amplify_aws_utils.clients.sts import STS
+
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
     find_variable_files,
@@ -275,6 +277,20 @@ def handler():
                 existing_backend_config=existing_backend_config
             )
             additional_arguments = backend_config + additional_arguments
+
+    if wrapper_config.assume_role:
+        role_config = wrapper_config.assume_role
+        if command in role_config.for_commands:
+            print(f"Assuming role '{role_config.role_name}' in account '{role_config.account_id}'")
+            sts = STS(boto3.client('sts'))
+            creds = sts.assume_role(
+                account_id=role_config.account_id,
+                role_name=role_config.role_name,
+            )
+
+            additional_envvars["AWS_ACCESS_KEY_ID"] = creds["AccessKeyId"]
+            additional_envvars["AWS_SECRET_ACCESS_KEY"] = creds["SecretAccessKey"]
+            additional_envvars["AWS_SESSION_TOKEN"] = creds["SessionToken"]
 
     if command == "init":
         plugin_download = PluginDownload(boto3.client('s3'))
