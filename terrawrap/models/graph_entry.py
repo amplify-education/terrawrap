@@ -80,7 +80,6 @@ class GraphEntry(Entry):
             print_output=False,
             capture_stderr=True,
             env=command_env,
-            audit_api_url=self.wrapper_config.audit_api_url,
             cwd=self.abs_path
         )
         if init_exit_code != 0:
@@ -98,7 +97,6 @@ class GraphEntry(Entry):
             capture_stderr=True,
             env=command_env,
             shell=shell,
-            audit_api_url=self.wrapper_config.audit_api_url,
             cwd=self.path
         )
 
