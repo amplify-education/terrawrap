@@ -147,7 +147,7 @@ def tf_unlock(error: str, path: str, lock_timeout: timedelta) -> bool:
     # strptime can handle microseconds, not nanoseconds
     # utcnow object does not have offset and timezone name
     # Strip last 13 characters from lock creation time
-    created_time = re.search(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d+', error).group()
+    created_time = re.search(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{1,6}', error).group()
     delta = datetime.utcnow() - datetime.strptime(created_time, '%Y-%m-%d %H:%M:%S.%f')
     if delta > lock_timeout:
         exit_code, output = execute_command(
