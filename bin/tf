@@ -24,6 +24,8 @@ import re
 import shutil
 import sys
 from datetime import datetime, timedelta
+from dateutil.parser import parse
+from pytz import timezone
 from typing import List, Dict, Tuple
 
 import boto3
@@ -144,11 +146,8 @@ def tf_unlock(error: str, path: str, lock_timeout: timedelta) -> bool:
 
     lock_id = match.group()
     # Creation time example: '2018-10-10 15:23:09.715308766 +0000 UTC'
-    # strptime can handle microseconds, not nanoseconds
-    # utcnow object does not have offset and timezone name
-    # Strip last 13 characters from lock creation time
-    created_time = re.search(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d+', error).group()
-    delta = datetime.utcnow() - datetime.strptime(created_time, '%Y-%m-%d %H:%M:%S.%f')
+    created_time = error.split("Created:")[1].split("\n")[0]
+    delta = datetime.now(timezone('UTC')) - parse(created_time, fuzzy=True)
     if delta > lock_timeout:
         exit_code, output = execute_command(
             ["terraform", "force-unlock", "-force", lock_id],
