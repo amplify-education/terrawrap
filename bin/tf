@@ -51,7 +51,16 @@ MAX_COUNT = 5
 
 
 def does_command_get_variables(command: str, path: str, arguments: List[str]) -> bool:
-    commands_with_variables = ["init", "plan", "import", "refresh", "console", "destroy", "push", "validate"]
+    commands_with_variables = [
+        "init",
+        "plan",
+        "import",
+        "refresh",
+        "console",
+        "destroy",
+        "push",
+        "validate",
+    ]
 
     if command == "apply":
         if arguments:
@@ -77,12 +86,12 @@ def convert_variables_to_envvars(variables: Dict[str, str]) -> Dict[str, str]:
 
 
 def exec_tf_command(
-        command: str,
-        path: str,
-        variables: Dict[str, str],
-        arguments: List[str],
-        additional_envvars: Dict[str, str],
-        audit_api_url: str
+    command: str,
+    path: str,
+    variables: Dict[str, str],
+    arguments: List[str],
+    additional_envvars: Dict[str, str],
+    audit_api_url: str,
 ):
     variable_envvars = convert_variables_to_envvars(variables=variables)
 
@@ -103,7 +112,9 @@ def exec_tf_command(
             "automated apply jobs first.\nAre you sure you want to run 'import' now? (y/N): "
         )
         if response.lower().strip() != "y":
-            print("Please do better by taking one of the appropriate precautions suggested above.")
+            print(
+                "Please do better by taking one of the appropriate precautions suggested above."
+            )
             sys.exit(1)
 
     try_count = 0
@@ -115,17 +126,17 @@ def exec_tf_command(
             print_command=True,
             retry=True,
             env=command_env,
-            audit_api_url=audit_api_url
+            audit_api_url=audit_api_url,
         )
 
         try_count += 1
 
         if exit_code != 0 and try_count <= MAX_COUNT:
-            error = ''.join([line for line in stdout])
-            if 'Error acquiring the state lock' in error:
+            error = "".join([line for line in stdout])
+            if "Error acquiring the state lock" in error:
                 if tf_unlock(error, path, LOCK_TIMEOUT):
                     continue
-            elif 'state data in S3 does not have the expected content' in error:
+            elif "state data in S3 does not have the expected content" in error:
                 if update_digest(error, path, variables):
                     continue
 
@@ -140,20 +151,20 @@ def tf_unlock(error: str, path: str, lock_timeout: timedelta) -> bool:
     :param lock_timeout: Time to wait before running unlock command (timedelta object)
     :return: True if unlock command runs successfully, otherwise False
     """
-    match = re.search(r'[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}', error)
+    match = re.search(r"[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}", error)
     if not match:
         return False
 
     lock_id = match.group()
     # Creation time example: '2018-10-10 15:23:09.715308766 +0000 UTC'
     created_time = error.split("Created:")[1].split("\n")[0]
-    delta = datetime.now(timezone('UTC')) - parse(created_time, fuzzy=True)
+    delta = datetime.now(timezone("UTC")) - parse(created_time, fuzzy=True)
     if delta > lock_timeout:
         exit_code, output = execute_command(
             ["terraform", "force-unlock", "-force", lock_id],
             print_command=True,
             cwd=path,
-            retry=True
+            retry=True,
         )
         if exit_code == 0:
             return True
@@ -169,38 +180,40 @@ def update_digest(error: str, path: str, variables: Dict[str, str]) -> bool:
     :param variables: Terraform command variables (dictionary)
     :return: True if digest is updated, otherwise False
     """
-    dynamodb = DynamoDB(region=variables['region'])
+    dynamodb = DynamoDB(region=variables["region"])
     try:
-        digest = re.search(r'[\da-f]{32}', error).group()
+        digest = re.search(r"[\da-f]{32}", error).group()  # type: ignore
     except AttributeError:
         digest = ""
 
-    default_terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
-        region=variables.get('region'),
-        account_short_name=variables.get('account_short_name')
+    default_terraform_bucket = (
+        "{region}--mclass--terraform--{account_short_name}".format(
+            region=variables.get("region"),
+            account_short_name=variables.get("account_short_name"),
+        )
     )
 
-    terraform_bucket = variables.get('terraform_state_bucket', default_terraform_bucket)
+    terraform_bucket = variables.get("terraform_state_bucket", default_terraform_bucket)
 
-    lock_id = '{bucket_name}/{path}.tfstate-md5'.format(
+    lock_id = "{bucket_name}/{path}.tfstate-md5".format(
         bucket_name=terraform_bucket,
         path=calc_repo_path(path=path),
     )
     if digest:
         response = dynamodb.upsert_item(
-            table_name='terraform-locking',
-            primary_key_name='LockID',
+            table_name="terraform-locking",
+            primary_key_name="LockID",
             primary_key_value=lock_id,
-            attribute_name='Digest',
-            attribute_value=digest
+            attribute_name="Digest",
+            attribute_value=digest,
         )
     else:
         response = dynamodb.delete_item(
-            table_name='terraform-locking',
-            primary_key_name='LockID',
+            table_name="terraform-locking",
+            primary_key_name="LockID",
             primary_key_value=lock_id,
         )
-    if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+    if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
         return True
 
     return False
@@ -234,26 +247,29 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
 
 def handler():
     version_check(current_version=__version__)
-    path, command, additional_arguments, should_resolve_envvars = process_arguments(sys.argv)
+    path, command, additional_arguments, should_resolve_envvars = process_arguments(
+        sys.argv
+    )
 
     tf_config_path = get_absolute_path(path=path)
 
     if not os.path.isdir(tf_config_path):
         print(__doc__)
         print(
-            "Error: Path '%s' evaluated as '%s' and is not a directory." % (path, tf_config_path),
-            file=sys.stderr
+            "Error: Path '%s' evaluated as '%s' and is not a directory."
+            % (path, tf_config_path),
+            file=sys.stderr,
         )
         sys.exit(1)
 
     wrapper_config_files = find_wrapper_config_files(path=tf_config_path)
     wrapper_config = parse_wrapper_configs(wrapper_config_files=wrapper_config_files)
-    additional_envvars = resolve_envvars(wrapper_config.envvars) if should_resolve_envvars else {}
+    additional_envvars = (
+        resolve_envvars(wrapper_config.envvars) if should_resolve_envvars else {}
+    )
 
     add_variables = does_command_get_variables(
-        command=command,
-        path=tf_config_path,
-        arguments=additional_arguments
+        command=command, path=tf_config_path, arguments=additional_arguments
     )
 
     if add_variables:
@@ -263,7 +279,7 @@ def handler():
 
     variables = parse_variable_files(variable_files=variable_files)
 
-    if command == 'init' and wrapper_config.configure_backend:
+    if command == "init" and wrapper_config.configure_backend:
         # insert extra backend specific arguments to the command if a backend has been defined in the config
         existing_backend_config = parse_backend_config_for_dir(tf_config_path)
         if existing_backend_config:
@@ -271,12 +287,12 @@ def handler():
                 path=tf_config_path,
                 variables=variables,
                 wrapper_config=wrapper_config,
-                existing_backend_config=existing_backend_config
+                existing_backend_config=existing_backend_config,
             )
             additional_arguments = backend_config + additional_arguments
 
     if command == "init":
-        plugin_download = PluginDownload(boto3.client('s3'))
+        plugin_download = PluginDownload(boto3.client("s3"))
         plugin_download.download_plugins(wrapper_config.plugins)
 
     exec_tf_command(
@@ -285,7 +301,7 @@ def handler():
         variables=variables,
         arguments=additional_arguments,
         additional_envvars=additional_envvars,
-        audit_api_url=wrapper_config.audit_api_url
+        audit_api_url=wrapper_config.audit_api_url,
     )
 
 

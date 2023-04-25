@@ -44,7 +44,7 @@ class TestPluginDownload(TestCase):
             content=b"fake content",
         )
 
-        self.plugin_download._download_file("http://example.com", "/tmp/plugins/foo")
+        self.plugin_download._download_file("https://example.com", "/tmp/plugins/foo")
 
         etag_write_call = call("fake_etag")
         file_write_call = call(b"fake content")
@@ -58,9 +58,9 @@ class TestPluginDownload(TestCase):
     @patch("os.path.isfile", MagicMock(return_value=True))
     def test_file_download_cached(self, mock_requests, open_mock):
         """Test downloading a file and saving it's etag"""
-        mock_requests.register_uri("GET", "http://example.com", status_code=304)
+        mock_requests.register_uri("GET", "https://example.com", status_code=304)
 
-        self.plugin_download._download_file("http://example.com", "/tmp/plugins/foo")
+        self.plugin_download._download_file("https://example.com", "/tmp/plugins/foo")
 
         # assert we don't write anything if response returns a 304
         # 304 response means we sent a matching Etag and therefore should use the cached version of the file
@@ -74,10 +74,10 @@ class TestPluginDownload(TestCase):
     def test_download_plugins(self):
         """Test downloading plugins"""
         with patch.object(self.plugin_download, "_download_file") as download_file_mock:
-            self.plugin_download.download_plugins({"foo": "http://example.com"})
+            self.plugin_download.download_plugins({"foo": "https://example.com"})
 
             download_file_mock.assert_called_with(
-                "http://example.com/FakeLinux/x86_42",
+                "https://example.com/FakeLinux/x86_42",
                 "/home/fake_user/.terraform.d/plugins/foo",
             )
 
@@ -91,19 +91,19 @@ class TestPluginDownload(TestCase):
         with patch.object(self.plugin_download, "_download_file") as download_file_mock:
 
             def _download_mock_side_effect(url, _):
-                if url != "http://example.com":
+                if url != "https://example.com":
                     raise FileDownloadFailed()
 
             download_file_mock.side_effect = _download_mock_side_effect
 
-            self.plugin_download.download_plugins({"foo": "http://example.com"})
+            self.plugin_download.download_plugins({"foo": "https://example.com"})
 
             platform_specific_call = call(
-                "http://example.com/FakeLinux/x86_42",
+                "https://example.com/FakeLinux/x86_42",
                 "/home/fake_user/.terraform.d/plugins/foo",
             )
             generic_call = call(
-                "http://example.com", "/home/fake_user/.terraform.d/plugins/foo"
+                "https://example.com", "/home/fake_user/.terraform.d/plugins/foo"
             )
 
             download_file_mock.assert_has_calls([platform_specific_call, generic_call])

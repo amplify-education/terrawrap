@@ -20,8 +20,9 @@ from docopt import docopt
 
 from terrawrap.exceptions import NotTerraformConfigDirectory
 from terrawrap.utils.config import (
-    parse_backend_config_for_dir, find_wrapper_config_files,
-    parse_wrapper_configs
+    parse_backend_config_for_dir,
+    find_wrapper_config_files,
+    parse_wrapper_configs,
 )
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
@@ -53,10 +54,14 @@ def main():
         }
 
     if config_dirs_without_terraform_backend:
-        print("The following config directories do not have Terraform Backends defined:")
+        print(
+            "The following config directories do not have Terraform Backends defined:"
+        )
         for config_dir in config_dirs_without_terraform_backend:
             print("\t", config_dir)
-        print("\nPlease define a Terraform Backend: https://www.terraform.io/docs/backends/")
+        print(
+            "\nPlease define a Terraform Backend: https://www.terraform.io/docs/backends/"
+        )
         sys.exit(1)
 
 
@@ -75,5 +80,5 @@ def check_directory_for_backend(dir_path: str) -> bool:
         return True
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
