@@ -20,44 +20,45 @@ logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 5
 RETRIABLE_ERRORS = [
-    'RequestError: send request failed',
-    'unexpected EOF',
-    'Throttling',
-    'timeout while waiting for state',
-    'ServiceUnavailable: Service Unavailable',
-    'failed to decode query XML error response',
-    'connection reset',
-    'Connection reset',
-    'Please try again.',
-    'Client.Timeout exceeded',
-    'Request limit for operation',
-    'try again later',
-    'handshake timeout',
-    'SSL_ERROR_SYSCALL',
-    'Api Rate Limit Exceeded',
-    'TooManyUpdates',
+    "RequestError: send request failed",
+    "unexpected EOF",
+    "Throttling",
+    "timeout while waiting for state",
+    "ServiceUnavailable: Service Unavailable",
+    "failed to decode query XML error response",
+    "connection reset",
+    "Connection reset",
+    "Please try again.",
+    "Client.Timeout exceeded",
+    "Request limit for operation",
+    "try again later",
+    "handshake timeout",
+    "SSL_ERROR_SYSCALL",
+    "Api Rate Limit Exceeded",
+    "TooManyUpdates",
 ]
-AUDIT_POST_PATH = '/audit_info'
-AUDIT_UPDATE_PATH = '/update_audit_info'
+AUDIT_POST_PATH = "/audit_info"
+AUDIT_UPDATE_PATH = "/update_audit_info"
 
 
 class Status(str, Enum):
     """Enum for status of execute_command"""
-    SUCCESS = 'SUCCESS'
-    IN_PROGRESS = 'IN PROGRESS'
-    FAILED = 'FAILED'
+
+    SUCCESS = "SUCCESS"
+    IN_PROGRESS = "IN PROGRESS"
+    FAILED = "FAILED"
 
 
 def execute_command(
-        args: Union[List[str], str],
-        *pargs,
-        print_output: bool = True,
-        capture_stderr: bool = True,
-        print_command: bool = False,
-        retry: bool = False,
-        timeout: int = 15 * 60,
-        audit_api_url: str = None,
-        **kwargs
+    args: Union[List[str], str],
+    *pargs,
+    print_output: bool = True,
+    capture_stderr: bool = True,
+    print_command: bool = False,
+    retry: bool = False,
+    timeout: int = 15 * 60,
+    audit_api_url: str = None,
+    **kwargs,
 ) -> Tuple[int, List[str]]:
     """
     Convenience function for executing a given command and optionally printing the output.
@@ -75,25 +76,23 @@ def execute_command(
     try_count = 0
 
     # It's possible for an envvar to be set to none, so exclude those envvars.
-    if 'env' in kwargs:
-        kwargs['env'] = {
-            key: value
-            for key, value in kwargs['env'].items()
-            if value is not None
+    if "env" in kwargs:
+        kwargs["env"] = {
+            key: value for key, value in kwargs["env"].items() if value is not None
         }
 
     # Get time - nanoseconds since epoch
     start_time = int(time.time())
 
-    if audit_api_url and kwargs['cwd'] and 'apply' in args:
+    if audit_api_url and kwargs["cwd"] and "apply" in args:
         # Call _post_audit_info for working directory, setting status to 'in progress'
         _post_audit_info(
             audit_api_url=audit_api_url,
-            path=kwargs['cwd'],
+            path=kwargs["cwd"],
             start_time=start_time,
         )
     else:
-        logger.info('No audit_api_url provided')
+        logger.info("No audit_api_url provided")
 
     jitter = Jitter()
     time_passed = 0
@@ -113,7 +112,11 @@ def execute_command(
 
         network_errors = _get_retriable_errors(stdout)
         if exit_code != 0 and network_errors and retry:
-            logger.warning('Found network errors while running %s command: %s', args, network_errors)
+            logger.warning(
+                "Found network errors while running %s command: %s",
+                args,
+                network_errors,
+            )
         else:
             # The command either succeeded or failed with a non network error. don't retry
             break
@@ -123,32 +126,32 @@ def execute_command(
 
         time_passed = jitter.backoff()
 
-    if audit_api_url and kwargs['cwd'] and 'apply' in args:
+    if audit_api_url and kwargs["cwd"] and "apply" in args:
         # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
         _post_audit_info(
             audit_api_url=audit_api_url,
-            path=kwargs['cwd'],
+            path=kwargs["cwd"],
             exit_code=exit_code,
             stdout=stdout,
             start_time=start_time,
-            update=True
+            update=True,
         )
     else:
-        logger.info('No audit_api_url provided')
+        logger.info("No audit_api_url provided")
 
     if time_passed >= timeout:
-        raise TimeoutError(f'Timed out retrying {args} command')
+        raise TimeoutError(f"Timed out retrying {args} command")
 
     return exit_code, stdout
 
 
 def _execute_command(
-        args: Union[List[str], str],
-        print_output: bool,
-        capture_stderr: bool,
-        print_command: bool,
-        *pargs,
-        **kwargs
+    args: Union[List[str], str],
+    print_output: bool,
+    capture_stderr: bool,
+    print_command: bool,
+    *pargs,
+    **kwargs,
 ) -> Tuple[int, List[str]]:
     """
     Private function for executing a given command and optionally printing the output.
@@ -161,25 +164,22 @@ def _execute_command(
     :return: A tuple of the exit code and output of the command.
     """
     stdout_write, stdout_path = tempfile.mkstemp()
-    with open(stdout_path, "rb") as stdout_read, open('/dev/null', 'w', encoding='utf-8') as dev_null:
-
+    with open(stdout_path, "rb") as stdout_read, open(
+        "/dev/null", "w", encoding="utf-8"
+    ) as dev_null:
         if print_command:
             print(f"Executing: {' '.join(args)}")
 
-        kwargs['stdout'] = stdout_write
-        kwargs['stderr'] = stdout_write if capture_stderr else dev_null
+        kwargs["stdout"] = stdout_write
+        kwargs["stderr"] = stdout_write if capture_stderr else dev_null
 
         # pylint: disable=consider-using-with
-        process = subprocess.Popen(
-            args,
-            *pargs,
-            **kwargs
-        )
+        process = subprocess.Popen(args, *pargs, **kwargs)
 
         while True:
             output = stdout_read.read(1).decode(errors="replace")
 
-            if output == '' and process.poll() is not None:
+            if output == "" and process.poll() is not None:
                 break
 
             if print_output and output:
@@ -198,54 +198,57 @@ def _execute_command(
 
 def _get_retriable_errors(out: List[str]) -> List[str]:
     """Filter line output for retriable errors"""
-    return [
-        line for line in out
-        if any(error in line for error in RETRIABLE_ERRORS)
-    ]
+    return [line for line in out if any(error in line for error in RETRIABLE_ERRORS)]
 
 
 def _post_audit_info(
-        audit_api_url: str,
-        path: str,
-        start_time: int,
-        exit_code: int = None,
-        stdout: List[str] = None,
-        update: bool = False
+    audit_api_url: str,
+    path: str,
+    start_time: int,
+    exit_code: int = None,
+    stdout: List[str] = None,
+    update: bool = False,
 ):
     root = get_git_root(path)
     sha = get_git_hash(path)
 
-    path = path.replace(root, '')
+    path = path.replace(root, "")
 
-    status = Status.IN_PROGRESS if exit_code is None else (
-        Status.SUCCESS if exit_code == 0 else Status.FAILED
+    status = (
+        Status.IN_PROGRESS
+        if exit_code is None
+        else (Status.SUCCESS if exit_code == 0 else Status.FAILED)
     )
 
-    logger.info('Attempting to send data to Audit API: %s - %s', path, status)
+    logger.info("Attempting to send data to Audit API: %s - %s", path, status)
 
-    url = (audit_api_url + AUDIT_UPDATE_PATH) if update else (audit_api_url + AUDIT_POST_PATH)
+    url = (
+        (audit_api_url + AUDIT_UPDATE_PATH)
+        if update
+        else (audit_api_url + AUDIT_POST_PATH)
+    )
 
     auth = BotoAWSRequestsAuth(
-        aws_host='terraform-audit-api.devops.amplify.com',
-        aws_region='us-west-2',
-        aws_service='execute-api'
+        aws_host="terraform-audit-api.devops.amplify.com",
+        aws_region="us-west-2",
+        aws_service="execute-api",
     )
 
-    stdout_str = ''.join(stdout) if stdout else ''
+    stdout_str = "".join(stdout) if stdout else ""
 
     try:
         requests.post(
             url=url,
             auth=auth,
             json={
-                'directory': path,
-                'start_time': start_time,
-                'status': status,
-                'output': stdout_str,
-                'git_hash': sha
+                "directory": path,
+                "start_time": start_time,
+                "status": status,
+                "output": stdout_str,
+                "git_hash": sha,
             },
             timeout=30,
         )
-        logger.info('Successfully posted data to provided url: %s', audit_api_url)
+        logger.info("Successfully posted data to provided url: %s", audit_api_url)
     except requests.exceptions.RequestException:
         logger.error("Unable to post data to provided url: %s", audit_api_url)

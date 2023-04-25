@@ -11,7 +11,9 @@ from terrawrap.models.graph_entry import GraphEntry, NoOpGraphEntry, Entry
 class ApplyGraph:
     """Class for representing an Apply Graph."""
 
-    def __init__(self, command: str, graph: networkx.DiGraph, post_graph: List[str], prefix: str):
+    def __init__(
+        self, command: str, graph: networkx.DiGraph, post_graph: List[str], prefix: str
+    ):
         """
         :param command: The Terraform command that this pipeline should execute.
         :param graph: The graph to be executed.
@@ -28,7 +30,12 @@ class ApplyGraph:
         self.failures: List[str] = []
 
     # pylint: disable=too-many-locals
-    def execute_graph(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
+    def execute_graph(
+        self,
+        num_parallel: int = 4,
+        debug: bool = False,
+        print_only_changes: bool = False,
+    ):
         """
         Function for executing the graph. Will execute in parallel, up to the limit given in num_parallel.
         :param num_parallel: The number of pipeline entries to run in parallel.
@@ -38,7 +45,9 @@ class ApplyGraph:
         sources = find_source_nodes(self.graph)
         futures_to_paths = {}
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=num_parallel
+        ) as executor:
             for source in sources:
                 entry = self._get_or_create_entry(source)
 
@@ -59,7 +68,9 @@ class ApplyGraph:
 
                 successors = list(self.graph.successors(path))
                 if successors:
-                    self.recursive_executor(executor, successors, num_parallel, debug, print_only_changes)
+                    self.recursive_executor(
+                        executor, successors, num_parallel, debug, print_only_changes
+                    )
 
         for node in self.graph:
             item = self.graph_dict.get(node)
@@ -71,12 +82,13 @@ class ApplyGraph:
                 self.applied.add(node)
 
     def recursive_executor(
-            self,
-            executor: concurrent.futures.Executor,
-            successors: List[str],
-            num_parallel: int,
-            debug: bool,
-            print_only_changes: bool):
+        self,
+        executor: concurrent.futures.Executor,
+        successors: List[str],
+        num_parallel: int,
+        debug: bool,
+        print_only_changes: bool,
+    ):
         """
         Helper function for executing graph entries recursively
         :param executor: The Executor to use. See concurrent.futures.Executor.
@@ -115,10 +127,11 @@ class ApplyGraph:
                 )
 
     def execute_post_graph(
-            self,
-            num_parallel: int = 4,
-            debug: bool = False,
-            print_only_changes: bool = False):
+        self,
+        num_parallel: int = 4,
+        debug: bool = False,
+        print_only_changes: bool = False,
+    ):
         """
         Function for executing entries not in the graph in parallel.
         :param num_parallel: The number of pipeline entries to run in parallel.
@@ -127,7 +140,9 @@ class ApplyGraph:
         """
         futures_to_paths = {}
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=num_parallel
+        ) as executor:
             for node in self.post_graph:
                 entry = self._get_or_create_entry(node)
 
@@ -135,10 +150,8 @@ class ApplyGraph:
                 futures_to_paths[future] = entry.path
 
             for future in concurrent.futures.as_completed(futures_to_paths):
-
                 path = futures_to_paths[future]
                 if self.graph_dict[path].state != "no-op":
-
                     exit_code, stdout, changes_detected = future.result()
 
                     if print_only_changes and not changes_detected:
