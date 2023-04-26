@@ -13,7 +13,7 @@ on:
 jobs:
   test:
     name: Check code against linter/unit tests
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: [3.7, 3.8, 3.9]
@@ -30,7 +30,7 @@ jobs:
 
   version-check:
     name: Verify that version was updated
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     if: github.ref != 'refs/heads/master'
     steps:
       - uses: actions/checkout@master
@@ -41,7 +41,7 @@ jobs:
 
   build-publish:
     name: Build and publish Python distributions
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     needs: [test]
     if: github.ref == 'refs/heads/master'
     steps:
