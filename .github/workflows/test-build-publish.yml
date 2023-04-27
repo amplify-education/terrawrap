@@ -12,7 +12,7 @@ on:
 
 jobs:
   test:
-    name: Check code against unit tests
+    name: Check code against linter/unit tests
     runs-on: ubuntu-22.04
     strategy:
       matrix:
