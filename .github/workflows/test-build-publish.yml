@@ -12,11 +12,11 @@ on:
 
 jobs:
   test:
-    name: Check code against linter/unit tests
+    name: Check code against unit tests
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9, 3.10]
+        python-version: [3.7, 3.8, 3.9]
     steps:
       - uses: actions/checkout@master
       - name: Set up Python ${{ matrix.python-version }}

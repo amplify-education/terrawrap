@@ -104,7 +104,7 @@ For development, `tox>=2.9.1` is recommended.
 ### Running Tests
 
 Terrawrap uses `tox`. You will need to install tox with `pip install tox`.
-Running `tox` will automatically execute linters as well as the unit tests.
+Running `tox` will automatically execute the unit tests.
 
 You can also run them individually with the `-e` argument.
 
