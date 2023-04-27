@@ -10,8 +10,12 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: Check out
+        uses: actions/checkout@v3
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v4
         with:
           python-version: '3.8'
-      - uses: pre-commit/action@v3.0.0
+      - run: pip install pylint
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.0
