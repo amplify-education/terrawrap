@@ -19,33 +19,41 @@ class Pipeline:
         """
         self.command = command
 
-        self.reverse_pipeline = command == 'destroy'
+        self.reverse_pipeline = command == "destroy"
 
         if not pipeline_path.endswith(".csv"):
-            raise RuntimeError("Config file '%s' doesn't appear to be a CSV file: Should end in .csv")
+            raise RuntimeError(
+                "Config file '%s' doesn't appear to be a CSV file: Should end in .csv"
+            )
 
-        with open(pipeline_path, encoding='utf-8') as pipeline_file:
+        with open(pipeline_path, encoding="utf-8") as pipeline_file:
             reader = csv.DictReader(pipeline_file)
             # Lambda function is needed here because the argument to defaultdict needs to be a function that
             # returns an object.
-            entries: DefaultDict[int, DefaultDict[str, List[PipelineEntry]]] = \
-                defaultdict(lambda: defaultdict(list))
+            entries: DefaultDict[
+                int, DefaultDict[str, List[PipelineEntry]]
+            ] = defaultdict(lambda: defaultdict(list))
 
             for row in reader:
                 entry = PipelineEntry(
-                    path=row['directory'],
-                    variables=row['variables'].split(' ') if row['variables'] else []
+                    path=row["directory"],
+                    variables=row["variables"].split(" ") if row["variables"] else [],
                 )
-                seq = int(row['seq'])
-                path = Path(row['directory'])
+                seq = int(row["seq"])
+                path = Path(row["directory"])
                 if not path.is_symlink():
-                    entries[seq]['parallel'].append(entry)
+                    entries[seq]["parallel"].append(entry)
                 else:
-                    entries[seq]['sequential'].append(entry)
+                    entries[seq]["sequential"].append(entry)
 
         self.entries = entries
 
-    def execute(self, num_parallel: int = 4, debug: bool = False, print_only_changes: bool = False):
+    def execute(
+        self,
+        num_parallel: int = 4,
+        debug: bool = False,
+        print_only_changes: bool = False,
+    ):
         """
         Function for executing the pipeline. Will execute each sequence separately, with the entries inside
         each sequence being executed in parallel, up to the limit given in num_parallel.
@@ -55,17 +63,19 @@ class Pipeline:
         """
         for sequence in sorted(self.entries.keys(), reverse=self.reverse_pipeline):
             print(f"Executing sequence {sequence}")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=num_parallel
+            ) as executor:
                 self._execute_entries(
                     command=self.command,
-                    entries=self.entries[sequence]['parallel'],
+                    entries=self.entries[sequence]["parallel"],
                     debug=debug,
                     executor=executor,
                     print_only_changes=print_only_changes,
                 )
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                for entry in self.entries[sequence]['sequential']:
+                for entry in self.entries[sequence]["sequential"]:
                     # It's very important that these sequential entries run init and then plan, and not all
                     # the inits and then all the plans, because the symlink directories might share the same
                     # real directories, and then running init multiple times in that directory will break
@@ -81,12 +91,12 @@ class Pipeline:
         print("Pipeline executed successfully.")
 
     def _execute_entries(
-            self,
-            entries: Iterable[PipelineEntry],
-            executor: concurrent.futures.Executor,
-            command: Optional[str] = None,
-            debug: bool = False,
-            print_only_changes: bool = False,
+        self,
+        entries: Iterable[PipelineEntry],
+        executor: concurrent.futures.Executor,
+        command: Optional[str] = None,
+        debug: bool = False,
+        print_only_changes: bool = False,
     ):
         """
         Convenience function for executing the given entries with the given command.

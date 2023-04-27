@@ -15,23 +15,29 @@ from terrawrap.utils.path import get_absolute_path
 
 class Entry(ABC):
     """Abstract Graph Entry class"""
+
     path = ""
     state = ""
 
     @abstractmethod
-    def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
+    def execute(
+        self, operation: str, debug: bool = False
+    ) -> Tuple[int, List[str], bool]:
         """Execute a graph entry"""
         return 0, [], False
 
 
 class NoOpGraphEntry(Entry):
     """NoOp Graph Entry class. Use this for graph entries that should not be executed"""
+
     def __init__(self, path: str, variables: List[str]):
         self.path = path
         self.variables = variables
         self.state = "no-op"
 
-    def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
+    def execute(
+        self, operation: str, debug: bool = False
+    ) -> Tuple[int, List[str], bool]:
         print(f"Skipping execute for {self.path} {operation} ...")
         return 0, [], False
 
@@ -53,7 +59,9 @@ class GraphEntry(Entry):
         self.state = "Pending"
 
     # pylint: disable=too-many-locals
-    def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
+    def execute(
+        self, operation: str, debug: bool = False
+    ) -> Tuple[int, List[str], bool]:
         """
         Function for executing this Graph Entry.
         :param operation: The Terraform operation to execute. IE: apply, plan
@@ -80,7 +88,7 @@ class GraphEntry(Entry):
             print_output=False,
             capture_stderr=True,
             env=command_env,
-            cwd=self.abs_path
+            cwd=self.abs_path,
         )
         if init_exit_code != 0:
             self.state = "Failed"
@@ -97,7 +105,7 @@ class GraphEntry(Entry):
             capture_stderr=True,
             env=command_env,
             shell=shell,
-            cwd=self.path
+            cwd=self.path,
         )
 
         if operation_exit_code == 0:
@@ -106,7 +114,10 @@ class GraphEntry(Entry):
             self.state = "Failed"
 
         changes_detected = True
-        if any("Resources: 0 added, 0 changed, 0 destroyed" in line for line in operation_stdout):
+        if any(
+            "Resources: 0 added, 0 changed, 0 destroyed" in line
+            for line in operation_stdout
+        ):
             changes_detected = False
 
         print(f"\nFinished executing {self.abs_path} {operation} ...")

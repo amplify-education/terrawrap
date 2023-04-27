@@ -18,11 +18,11 @@ def get_module_usage_graph(root_directory: str) -> DiGraph:
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
         # pylint: disable=unused-variable
         for current_dir, dirs, files in os.walk(root_directory, followlinks=True):
-            if '.terraform' in current_dir or '.git' in current_dir:
+            if ".terraform" in current_dir or ".git" in current_dir:
                 continue
 
             for file in files:
-                if not file.endswith('.tf'):
+                if not file.endswith(".tf"):
                     continue
                 future = executor.submit(_get_modules_for_file, current_dir, file)
                 future_list.append(future)
@@ -30,7 +30,7 @@ def get_module_usage_graph(root_directory: str) -> DiGraph:
         for future in concurrent.futures.as_completed(future_list):
             directory, modules = future.result()
             for mod in modules:
-                module_source_path = os.path.normpath(directory + '/' + mod)
+                module_source_path = os.path.normpath(directory + "/" + mod)
                 target_path = os.path.normpath(directory)
 
                 if module_source_path not in graph.nodes:
@@ -51,14 +51,14 @@ def _get_modules_for_file(directory: str, file_name: str) -> Tuple[str, Set[str]
     :return:
     """
     modules = set()
-    with open(directory + '/' + file_name, 'r', encoding='utf-8') as file:
+    with open(directory + "/" + file_name, "r", encoding="utf-8") as file:
         try:
             tf_info = hcl2.load(file)
-            for module in tf_info.get('module', []):
+            for module in tf_info.get("module", []):
                 for module_config in module.values():
-                    modules.add(os.path.normpath(module_config['source']))
+                    modules.add(os.path.normpath(module_config["source"]))
         except Exception:
-            print(f'Error while parsing file {file.name}')
+            print(f"Error while parsing file {file.name}")
             raise
 
     return directory, modules

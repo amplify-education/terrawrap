@@ -9,9 +9,9 @@ import jsons
 
 
 class EnvVarSource(Enum):
-    SSM = 'ssm'
-    TEXT = 'text'
-    UNSET = 'unset'
+    SSM = "ssm"
+    TEXT = "text"
+    UNSET = "unset"
 
 
 class AbstractEnvVarConfig:
@@ -38,11 +38,11 @@ class UnsetEnvVarConfig(AbstractEnvVarConfig):
 
 class S3BackendConfig:
     def __init__(
-            self,
-            bucket: str = None,
-            region: str = None,
-            dynamodb_table: str = None,
-            role_arn: str = None,
+        self,
+        bucket: str = None,
+        region: str = None,
+        dynamodb_table: str = None,
+        role_arn: str = None,
     ):
         self.region = region
         self.bucket = bucket
@@ -57,7 +57,11 @@ class GCSBackendConfig:
 
 class BackendsConfig:
     # pylint: disable=invalid-name
-    def __init__(self, s3: Optional[S3BackendConfig] = None, gcs: Optional[GCSBackendConfig] = None):
+    def __init__(
+        self,
+        s3: Optional[S3BackendConfig] = None,
+        gcs: Optional[GCSBackendConfig] = None,
+    ):
         self.s3 = s3
         self.gcs = gcs
 
@@ -65,14 +69,14 @@ class BackendsConfig:
 # pylint: disable=unused-argument
 def env_var_deserializer(obj_dict, cls, **kwargs):
     """convert a dict to a subclass of AbstractEnvVarConfig"""
-    if obj_dict['source'] == EnvVarSource.SSM.value:
-        return SSMEnvVarConfig(obj_dict['path'])
-    if obj_dict['source'] == EnvVarSource.TEXT.value:
-        return TextEnvVarConfig(obj_dict['value'])
-    if obj_dict['source'] == EnvVarSource.UNSET.value:
+    if obj_dict["source"] == EnvVarSource.SSM.value:
+        return SSMEnvVarConfig(obj_dict["path"])
+    if obj_dict["source"] == EnvVarSource.TEXT.value:
+        return TextEnvVarConfig(obj_dict["value"])
+    if obj_dict["source"] == EnvVarSource.UNSET.value:
         return UnsetEnvVarConfig()
 
-    raise RuntimeError('Invalid Source')
+    raise RuntimeError("Invalid Source")
 
 
 jsons.set_deserializer(env_var_deserializer, AbstractEnvVarConfig)
@@ -81,18 +85,18 @@ jsons.set_deserializer(env_var_deserializer, AbstractEnvVarConfig)
 # pylint: disable=too-many-arguments
 class WrapperConfig:
     def __init__(
-            self,
-            configure_backend: bool = True,
-            pipeline_check: bool = True,
-            backend_check: bool = True,
-            plan_check: bool = True,
-            envvars: Dict[str, AbstractEnvVarConfig] = None,
-            backends: BackendsConfig = None,
-            depends_on: List[str] = None,
-            config: bool = True,
-            audit_api_url: str = None,
-            apply_automatically: bool = True,
-            plugins: Dict[str, str] = None
+        self,
+        configure_backend: bool = True,
+        pipeline_check: bool = True,
+        backend_check: bool = True,
+        plan_check: bool = True,
+        envvars: Dict[str, AbstractEnvVarConfig] = None,
+        backends: BackendsConfig = None,
+        depends_on: List[str] = None,
+        config: bool = True,
+        audit_api_url: str = None,
+        apply_automatically: bool = True,
+        plugins: Dict[str, str] = None,
     ):
         self.configure_backend = configure_backend
         self.pipeline_check = pipeline_check

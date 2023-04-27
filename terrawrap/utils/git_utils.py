@@ -24,7 +24,7 @@ def get_git_changed_files(path) -> Set[str]:
     if merge_base and merge_base[0] is not None:
         base_commit = merge_base[0]
     else:
-        base_commit = repo.commit('origin/master')
+        base_commit = repo.commit("origin/master")
 
     for change in base_commit.diff():
         if not change.new_file:

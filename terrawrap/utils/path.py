@@ -35,11 +35,13 @@ def get_symlinks(directory: str) -> Dict[str, Set[str]]:
     links: Dict[str, Set[str]] = defaultdict(set)
     # pylint: disable=unused-variable
     for current_dir, dirs, files in os.walk(directory, followlinks=True):
-        if '.terraform' in current_dir:
+        if ".terraform" in current_dir:
             continue
 
         if os.path.islink(current_dir):
-            link_source = os.path.join(os.path.dirname(current_dir), os.readlink(current_dir))
+            link_source = os.path.join(
+                os.path.dirname(current_dir), os.readlink(current_dir)
+            )
             links[os.path.normpath(link_source)].add(os.path.normpath(current_dir))
 
     return dict(links)
@@ -53,7 +55,7 @@ def get_file_graph(directory: str) -> DiGraph:
     """
     graph = DiGraph()
     for current_dir, dirs, files in os.walk(directory):
-        if '.terraform' in current_dir or '.git' in current_dir:
+        if ".terraform" in current_dir or ".git" in current_dir:
             continue
 
         if current_dir not in graph.nodes:
@@ -69,7 +71,9 @@ def get_file_graph(directory: str) -> DiGraph:
             graph.add_edge(norm_path, current_dir)
 
             if os.path.islink(norm_path):
-                link_source = os.path.normpath(os.path.join(current_dir, os.readlink(norm_path)))
+                link_source = os.path.normpath(
+                    os.path.join(current_dir, os.readlink(norm_path))
+                )
 
                 if link_source not in graph.nodes:
                     graph.add_node(link_source)
@@ -80,7 +84,9 @@ def get_file_graph(directory: str) -> DiGraph:
         for path in dirs:
             norm_path = os.path.normpath(os.path.join(current_dir, path))
             if os.path.islink(norm_path):
-                link_source = os.path.normpath(os.path.join(current_dir, os.readlink(norm_path)))
+                link_source = os.path.normpath(
+                    os.path.join(current_dir, os.readlink(norm_path))
+                )
 
                 if link_source not in graph.nodes:
                     graph.add_node(link_source)
@@ -96,7 +102,9 @@ def calc_repo_path(path: str) -> str:
     :param path: The absolute path to a TF directory.
     :return: New path to the TF directory
     """
-    byte_output = subprocess.check_output(["git", "remote", "show", "origin", "-n"], cwd=path)
+    byte_output = subprocess.check_output(
+        ["git", "remote", "show", "origin", "-n"], cwd=path
+    )
     output = byte_output.decode("utf-8", errors="replace")
     match = re.search(GIT_REPO_REGEX, output)
     if match:
