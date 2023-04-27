@@ -31,8 +31,16 @@ from terrawrap.exceptions import NoDependency
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
-from terrawrap.utils.config import walk_and_graph_directory, walk_without_graph_directory
-from terrawrap.utils.graph import find_source_nodes, generate_dependencies, visualize, connect_symlinks
+from terrawrap.utils.config import (
+    walk_and_graph_directory,
+    walk_without_graph_directory,
+)
+from terrawrap.utils.graph import (
+    find_source_nodes,
+    generate_dependencies,
+    visualize,
+    connect_symlinks,
+)
 from terrawrap.models.graph import ApplyGraph
 from terrawrap.utils.path import get_symlinks
 
@@ -45,17 +53,18 @@ def main():
     version_check(current_version=__version__)
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
 
-    operation = arguments['--operation'].strip()
-    debug = arguments['--debug']
-    print_only_changes = arguments['--print-only-changes']
+    operation = arguments["--operation"].strip()
+    debug = arguments["--debug"]
+    print_only_changes = arguments["--print-only-changes"]
     try:
-        num_parallel = int(arguments['--parallel-jobs'])
+        num_parallel = int(arguments["--parallel-jobs"])
     except ValueError:
         raise RuntimeError(
-            "Unable to parse number of parallel jobs, '%s' is not an integer." % arguments['--parallel-jobs']
+            "Unable to parse number of parallel jobs, '%s' is not an integer."
+            % arguments["--parallel-jobs"]
         )
 
-    config_dir = arguments['--path']
+    config_dir = arguments["--path"]
     if not os.path.isabs(config_dir):
         config_dir = os.path.abspath(os.path.join(CURRENT_DIRECTORY, config_dir))
     if not os.path.isdir:
@@ -67,14 +76,20 @@ def main():
     try:
         graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
     except ValueError:
-        print("Terrawrap has detected no dependency information in this graph, attempting to apply all directories")
+        print(
+            "Terrawrap has detected no dependency information in this graph, attempting to apply all directories"
+        )
         graph = networkx.DiGraph()
         try:
             post_graph = walk_without_graph_directory(config_dir)
         except NoDependency:
             post_graph = []
-            print("Discovered dependency information, please either remove all dependency info or fix existing.")
-            print("This error generally occurs due to malformed dependency information.")
+            print(
+                "Discovered dependency information, please either remove all dependency info or fix existing."
+            )
+            print(
+                "This error generally occurs due to malformed dependency information."
+            )
             exit(1)
 
     symlinks_dict = get_symlinks(config_dir)
@@ -85,7 +100,9 @@ def main():
     dependencies = generate_dependencies(sources, graph)
     visualize(dependencies)
     if post_graph:
-        print("The following files have not been configured and will be run in parallel after the graph has run.")
+        print(
+            "The following files have not been configured and will be run in parallel after the graph has run."
+        )
         relative_post_graph = []
         for directory in post_graph:
             relative_path = directory.replace(os.getcwd(), "")
@@ -94,14 +111,10 @@ def main():
 
     apply = ApplyGraph(operation, graph, post_graph, config_dir)
     apply.execute_graph(
-        num_parallel=num_parallel,
-        debug=debug,
-        print_only_changes=print_only_changes
+        num_parallel=num_parallel, debug=debug, print_only_changes=print_only_changes
     )
     apply.execute_post_graph(
-        num_parallel=num_parallel,
-        debug=debug,
-        print_only_changes=print_only_changes
+        num_parallel=num_parallel, debug=debug, print_only_changes=print_only_changes
     )
     if apply.not_applied:
         print("SKIPPED DIRECTORIES")
@@ -110,8 +123,9 @@ def main():
     if apply.failures:
         print("FAILED DIRECTORIES")
         print(
-            "The following directories failed with command '%s':\n%s" % (operation, "\n".join(apply.failures))
-            )
+            "The following directories failed with command '%s':\n%s"
+            % (operation, "\n".join(apply.failures))
+        )
         print(
             "Terrawrap has detected failures while running terraform %s, "
             "please check above for specific directories." % operation
@@ -119,5 +133,5 @@ def main():
         exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -49,5 +49,7 @@ def get_latest_version(current_version: str) -> str:
     :param current_version: The current version of Terrawrap.
     :return: The latest version of Terrawrap, potentially delayed by one day.
     """
-    response = requests.get("https://pypi.python.org/pypi/terrawrap/json", timeout=5).json()
+    response = requests.get(
+        "https://pypi.python.org/pypi/terrawrap/json", timeout=5
+    ).json()
     return response["info"]["version"]
