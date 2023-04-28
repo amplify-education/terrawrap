@@ -84,7 +84,7 @@ def execute_command(
     # Get time - nanoseconds since epoch
     start_time = int(time.time())
 
-    if audit_api_url and kwargs["cwd"] and "apply" in args:
+    if audit_api_url and kwargs["cwd"] and ("apply" in args or "destroy" in args):
         # Call _post_audit_info for working directory, setting status to 'in progress'
         _post_audit_info(
             audit_api_url=audit_api_url,
@@ -126,7 +126,7 @@ def execute_command(
 
         time_passed = jitter.backoff()
 
-    if audit_api_url and kwargs["cwd"] and "apply" in args:
+    if audit_api_url and kwargs["cwd"] and ("apply" in args or "destroy" in args):
         # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
         _post_audit_info(
             audit_api_url=audit_api_url,
