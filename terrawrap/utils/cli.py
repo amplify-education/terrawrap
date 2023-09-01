@@ -36,6 +36,7 @@ RETRIABLE_ERRORS = [
     "SSL_ERROR_SYSCALL",
     "Api Rate Limit Exceeded",
     "TooManyUpdates",
+    "409 Conflict",
 ]
 AUDIT_POST_PATH = "/audit_info"
 AUDIT_UPDATE_PATH = "/update_audit_info"
