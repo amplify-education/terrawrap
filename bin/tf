@@ -101,9 +101,6 @@ def exec_tf_command(
 
     if command == "init":
         shutil.rmtree(os.path.join(path, ".terraform"), ignore_errors=True)
-        lock_file_path = os.path.join(path, ".terraform.lock.hcl")
-        if os.path.exists(lock_file_path):
-            os.remove(lock_file_path)
 
     if command == "import":
         response = input(
