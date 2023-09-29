@@ -22,7 +22,7 @@ from terrawrap.models.wrapper_config import (
 from terrawrap.utils.collection_utils import update
 from terrawrap.utils.path import get_absolute_path, calc_repo_path
 
-DEFAULT_REGION = 'us-west-2'
+DEFAULT_REGION = "us-west-2"
 SSM_ENVVAR_CACHE = SSMParameterGroup(max_age=600)
 TF_WRAP_FILE = ".tf_wrapper"
 
@@ -81,13 +81,17 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
     generated_wrapper_config: Dict = {}
 
     for wrapper_config_path in wrapper_config_files:
-        with open(wrapper_config_path, encoding='utf-8') as wrapper_config_file:
+        with open(wrapper_config_path, encoding="utf-8") as wrapper_config_file:
             wrapper_config = yaml.safe_load(wrapper_config_file)
             if wrapper_config and isinstance(wrapper_config, dict):
-                generated_wrapper_config = update(generated_wrapper_config, wrapper_config)
+                generated_wrapper_config = update(
+                    generated_wrapper_config, wrapper_config
+                )
 
     try:
-        wrapper_config_obj: WrapperConfig = jsons.load(generated_wrapper_config, WrapperConfig, strict=True)
+        wrapper_config_obj: WrapperConfig = jsons.load(
+            generated_wrapper_config, WrapperConfig, strict=True
+        )
         return wrapper_config_obj
     except DeserializationError as exception:
         print(f"Cannot parse wrapper config from files: {wrapper_config_files}")
@@ -135,7 +139,9 @@ def create_wrapper_config_obj(config_dir, wrapper_file=None):
     return wrapper_config_obj
 
 
-def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.DiGraph, List[str]]:
+def walk_and_graph_directory(
+    starting_dir: str, config_dict
+) -> Tuple[networkx.DiGraph, List[str]]:
     """
     Given a starting directory, walks it and returns all dependency info.
     :param starting_dir: The starting directory
@@ -160,7 +166,9 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
                     continue
                 single_config_dependency_graph = networkx.DiGraph()
                 visited: List[str] = []
-                graph_wrapper_dependencies(root, config_dict, single_config_dependency_graph, visited)
+                graph_wrapper_dependencies(
+                    root, config_dict, single_config_dependency_graph, visited
+                )
                 graph_list.append(single_config_dependency_graph)
         if not has_tf_wrapper and is_config_directory(root):
             post_graph_runs.append(root)
@@ -197,7 +205,9 @@ def walk_without_graph_directory(starting_dir: str) -> List[str]:
 
 
 # pylint: disable=R0912
-def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiGraph, visited: List[str]):
+def graph_wrapper_dependencies(
+    config_dir: str, config_dict, graph: networkx.DiGraph, visited: List[str]
+):
     """
     Given a directory, recursively finds all other directories it depends on and builds a graph.
     :param config_dir: The config directory to obtain a dependency graph for
@@ -213,9 +223,7 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
         wrapper_config_obj = config_dict[config_dir].get("wrapper_config")
     else:
         wrapper_config_obj = create_wrapper_config_obj(config_dir)
-        config_dict[config_dir] = {
-            "wrapper_config": wrapper_config_obj
-        }
+        config_dict[config_dir] = {"wrapper_config": wrapper_config_obj}
 
     if wrapper_config_obj.config:
         graph.add_node(config_dir)
@@ -223,7 +231,10 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
     tf_dependencies = wrapper_config_obj.depends_on
 
     if tf_dependencies is None:
-        print("Cannot list a dependency without tf_wrapper dependency configuration:", config_dir)
+        print(
+            "Cannot list a dependency without tf_wrapper dependency configuration:",
+            config_dir,
+        )
         sys.exit(1)
 
     for dependency in tf_dependencies:
@@ -235,13 +246,13 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
     wrappers.reverse()  # we want the closest wrapper file that gives inherited dependencies
     for wrapper in wrappers:
         wrapper_dir = os.path.dirname(wrapper)
-        if config_dict.get(wrapper_dir):  # add to dictionary so we only read the file once
+        if config_dict.get(
+            wrapper_dir
+        ):  # add to dictionary so we only read the file once
             new_wrapper_config_obj = config_dict[wrapper_dir].get("wrapper_config")
         else:
             new_wrapper_config_obj = create_wrapper_config_obj(wrapper_dir)
-            config_dict[wrapper_dir] = {
-                "wrapper_config": new_wrapper_config_obj
-            }
+            config_dict[wrapper_dir] = {"wrapper_config": new_wrapper_config_obj}
 
         if wrapper_dir == config_dir:
             continue
@@ -273,7 +284,9 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
     resolved_envvars = {}
     for envvar_name, envvar_config in envvar_configs.items():
         if isinstance(envvar_config, SSMEnvVarConfig):
-            resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(envvar_config.path).value
+            resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(
+                envvar_config.path
+            ).value
         if isinstance(envvar_config, TextEnvVarConfig):
             resolved_envvars[envvar_name] = str(envvar_config.value)
         if isinstance(envvar_config, UnsetEnvVarConfig):
@@ -282,10 +295,10 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
 
 
 def calc_backend_config(
-        path: str,
-        variables: Dict[str, str],
-        wrapper_config: WrapperConfig,
-        existing_backend_config: BackendsConfig
+    path: str,
+    variables: Dict[str, str],
+    wrapper_config: WrapperConfig,
+    existing_backend_config: BackendsConfig,
 ) -> List[str]:
     """
     Convenience function for calculating the backend config of the given Terraform directory.
@@ -296,38 +309,50 @@ def calc_backend_config(
     :return: A dictionary representing the backend configuration for the Terraform directory.
     """
 
-    backend_config = ['-reconfigure']
+    backend_config = ["-reconfigure"]
     options: Dict[str, str] = {}
     repo_path = calc_repo_path(path=path)
 
     # for backwards compatibility, include the default s3 backend options we used to automatically include
     if existing_backend_config.s3 is not None:
-        region = variables.get('region', '')
-        account_short_name = variables.get('account_short_name')
+        region = variables.get("region", "")
+        account_short_name = variables.get("account_short_name")
         terraform_bucket = f"{region}--mclass--terraform--{account_short_name}"
 
         options = {
-            'dynamodb_table': variables.get('terraform_lock_table', 'terraform-locking'),
-            'encrypt': 'true',
-            'key': f'{repo_path}.tfstate',
-            'region': region,
-            'bucket': variables.get('terraform_state_bucket', terraform_bucket),
-            'skip_region_validation': 'true',
-            'skip_credentials_validation': 'true'
+            "dynamodb_table": variables.get(
+                "terraform_lock_table", "terraform-locking"
+            ),
+            "encrypt": "true",
+            "key": f"{repo_path}.tfstate",
+            "region": region,
+            "bucket": variables.get("terraform_state_bucket", terraform_bucket),
+            "skip_region_validation": "true",
+            "skip_credentials_validation": "true",
         }
 
     # copy any backend options from the backend config
     if wrapper_config.backends:
         wrapper_options: Dict[str, Optional[str]] = {}
-        if existing_backend_config.gcs is not None and wrapper_config.backends.gcs is not None:
+        if (
+            existing_backend_config.gcs is not None
+            and wrapper_config.backends.gcs is not None
+        ):
             # convert the object into a dict so we can append each field to the backend config dynamically
             wrapper_options = vars(wrapper_config.backends.gcs)
-            wrapper_options['prefix'] = repo_path
-        if existing_backend_config.s3 is not None and wrapper_config.backends.s3 is not None:
+            wrapper_options["prefix"] = repo_path
+        if (
+            existing_backend_config.s3 is not None
+            and wrapper_config.backends.s3 is not None
+        ):
             wrapper_options = vars(wrapper_config.backends.s3)
-        options.update({key: value for key, value in wrapper_options.items() if value is not None})
+        options.update(
+            {key: value for key, value in wrapper_options.items() if value is not None}
+        )
 
-    backend_config.extend([f'-backend-config={key}={value}' for key, value in options.items()])
+    backend_config.extend(
+        [f"-backend-config={key}={value}" for key, value in options.items()]
+    )
     return backend_config
 
 
@@ -340,7 +365,7 @@ def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
     variables: Dict = {}
 
     for variable_file in variable_files:
-        with open(variable_file, encoding='utf-8') as var_file:
+        with open(variable_file, encoding="utf-8") as var_file:
             variables.update(hcl2.load(var_file).items())
 
     return variables
@@ -354,7 +379,7 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
     """
     has_tf_files = False
     for file_path in os.listdir(dir_path):
-        if '.terraform' in file_path or not file_path.endswith('.tf'):
+        if ".terraform" in file_path or not file_path.endswith(".tf"):
             continue
 
         has_tf_files = True
@@ -372,15 +397,17 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
 
 
 def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
-    with open(file_path, encoding='utf-8') as tf_file:
+    with open(file_path, encoding="utf-8") as tf_file:
         try:
             configs: Dict[str, List] = hcl2.load(tf_file)
 
-            terraform_config_blocks: List[Dict] = configs.get('terraform', [])
+            terraform_config_blocks: List[Dict] = configs.get("terraform", [])
             for terraform_config in terraform_config_blocks:
-                if 'backend' in terraform_config:
-                    return jsons.load(terraform_config['backend'][0], BackendsConfig, strict=True)
+                if "backend" in terraform_config:
+                    return jsons.load(
+                        terraform_config["backend"][0], BackendsConfig, strict=True
+                    )
             return None
         except Exception:
-            print(f'Error while parsing file {file_path}')
+            print(f"Error while parsing file {file_path}")
             raise

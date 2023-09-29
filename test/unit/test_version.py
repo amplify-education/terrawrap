@@ -74,11 +74,7 @@ class TestVersion(TestCase):
         """VersionUtils get latest version happy path"""
         current_version = "1.0.0"
         latest_version = "1.0.1"
-        mock_get.return_value.json.return_value = {
-            "info": {
-                "version": latest_version
-            }
-        }
+        mock_get.return_value.json.return_value = {"info": {"version": latest_version}}
 
         response = get_latest_version(current_version=current_version)
 

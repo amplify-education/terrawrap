@@ -9,60 +9,62 @@ from terrawrap.models.pipeline_entry import PipelineEntry
 class TestPipelineEntry(TestCase):
     """Tests for PipelineEntrys"""
 
-    @patch('terrawrap.models.pipeline_entry.execute_command')
+    @patch("terrawrap.models.pipeline_entry.execute_command")
     def test_execute(self, exec_command):
         """Test executing a command successfully"""
         exec_command.side_effect = [
-            (0, ['Success']),  # init
-            (0, ['Success']),  # plan with no changes
+            (0, ["Success"]),  # init
+            (0, ["Success"]),  # plan with no changes
         ]
 
-        entry = PipelineEntry('/var', [])
-        exit_code, stdout, changes_detected = entry.execute('plan')
+        entry = PipelineEntry("/var", [])
+        exit_code, stdout, changes_detected = entry.execute("plan")
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(stdout, ['Success', '\n', 'Success'])
+        self.assertEqual(stdout, ["Success", "\n", "Success"])
         self.assertEqual(changes_detected, False)
 
-    @patch('terrawrap.models.pipeline_entry.execute_command')
+    @patch("terrawrap.models.pipeline_entry.execute_command")
     def test_execute_fail(self, exec_command):
         """Test executing a command unsuccessfully"""
-        exec_command.side_effect = [(1, ['Fail'])]
+        exec_command.side_effect = [(1, ["Fail"])]
 
-        entry = PipelineEntry('/var', [])
-        exit_code, stdout, changes_detected = entry.execute('plan')
+        entry = PipelineEntry("/var", [])
+        exit_code, stdout, changes_detected = entry.execute("plan")
 
         self.assertEqual(exit_code, 1)
-        self.assertEqual(stdout, ['Fail'])
+        self.assertEqual(stdout, ["Fail"])
         self.assertEqual(changes_detected, True)
 
-    @patch('terrawrap.models.pipeline_entry.execute_command')
+    @patch("terrawrap.models.pipeline_entry.execute_command")
     def test_execute_apply_changes(self, exec_command):
         """Test executing apply with changes"""
         exec_command.side_effect = [
-            (0, ['Success']),
-            (2, ['Something changed']),
-            (0, ['Success']),
+            (0, ["Success"]),
+            (2, ["Something changed"]),
+            (0, ["Success"]),
         ]
 
-        entry = PipelineEntry('/var', [])
-        exit_code, stdout, changes_detected = entry.execute('apply')
+        entry = PipelineEntry("/var", [])
+        exit_code, stdout, changes_detected = entry.execute("apply")
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(stdout, ['Success', '\n', 'Something changed', '\n', 'Success'])
+        self.assertEqual(
+            stdout, ["Success", "\n", "Something changed", "\n", "Success"]
+        )
         self.assertEqual(changes_detected, True)
 
-    @patch('terrawrap.models.pipeline_entry.execute_command')
+    @patch("terrawrap.models.pipeline_entry.execute_command")
     def test_execute_apply_no_changes(self, exec_command):
         """Test executing apply with no changes"""
         exec_command.side_effect = [
-            (0, ['Success']),
-            (0, ['Nothing changed']),
+            (0, ["Success"]),
+            (0, ["Nothing changed"]),
         ]
 
-        entry = PipelineEntry('/var', [])
-        exit_code, stdout, changes_detected = entry.execute('apply')
+        entry = PipelineEntry("/var", [])
+        exit_code, stdout, changes_detected = entry.execute("apply")
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(stdout, ['Success', '\n', 'Nothing changed'])
+        self.assertEqual(stdout, ["Success", "\n", "Nothing changed"])
         self.assertEqual(changes_detected, False)

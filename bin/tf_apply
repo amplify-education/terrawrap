@@ -32,23 +32,24 @@ def handler():
     version_check(current_version=__version__)
     args = docopt(__doc__, version="Terrawrap %s" % __version__)
 
-    pipeline_file = get_absolute_path(args['--pipeline'])
+    pipeline_file = get_absolute_path(args["--pipeline"])
 
-    operation = args['--operation'].strip()
+    operation = args["--operation"].strip()
 
     try:
-        num_parallel = int(args['--parallel-jobs'])
+        num_parallel = int(args["--parallel-jobs"])
     except ValueError:
         raise RuntimeError(
-            "Unable to parse number of parallel jobs, '%s' is not an integer." % args['--parallel-jobs']
+            "Unable to parse number of parallel jobs, '%s' is not an integer."
+            % args["--parallel-jobs"]
         )
 
     pipeline = Pipeline(operation, pipeline_path=pipeline_file)
 
     pipeline.execute(
         num_parallel=num_parallel,
-        debug=args['--debug'],
-        print_only_changes=args['--print-only-changes'],
+        debug=args["--debug"],
+        print_only_changes=args["--print-only-changes"],
     )
 
 
