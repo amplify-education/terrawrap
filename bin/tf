@@ -101,6 +101,8 @@ def exec_tf_command(
 
     if command == "init":
         shutil.rmtree(os.path.join(path, ".terraform"), ignore_errors=True)
+        # Respect whatever is set, but default to true if it isn't set
+        command_env.setdefault("TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE", "true")
 
     if command == "import":
         response = input(
