@@ -43,7 +43,7 @@ jobs:
     name: Build and publish Python distributions
     runs-on: ubuntu-22.04
     needs: [test]
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@master
       - name: Set up Python
