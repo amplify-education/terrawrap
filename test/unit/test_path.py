@@ -1,10 +1,11 @@
 """Test path utilities"""
 import os
 from unittest import TestCase
+from unittest.mock import patch, MagicMock
 
 from networkx import DiGraph
 
-from terrawrap.utils.path import get_file_graph
+from terrawrap.utils.path import get_file_graph, calc_repo_path
 
 
 class TestPath(TestCase):
@@ -64,3 +65,22 @@ class TestPath(TestCase):
         )
         self.assertEqual(set(actual.nodes), set(expected.nodes))
         self.assertEqual(set(actual.edges), set(expected.edges))
+
+    @patch("terrawrap.utils.path.subprocess.check_output")
+    def test_calc_repo_path(self, check_output_mock: MagicMock):
+        """test getting repo path based on repo remote"""
+        check_output_mock.return_value = b"git@github.com:amplify-education/repo-1.git"
+        result = calc_repo_path("path/config")
+        self.assertEqual(result, "repo-1/config")
+
+        check_output_mock.return_value = (
+            b"https://github.com/amplify-education/repo-2.git"
+        )
+        result = calc_repo_path("path/config")
+        self.assertEqual(result, "repo-2/config")
+
+        check_output_mock.return_value = (
+            b"Fetch URL: https://github.com/amplify-education/repo-3.git"
+        )
+        result = calc_repo_path("path/config")
+        self.assertEqual(result, "repo-3/config")

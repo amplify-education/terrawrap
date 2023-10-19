@@ -7,7 +7,7 @@ from typing import Dict, Set
 
 from networkx import DiGraph
 
-GIT_REPO_REGEX = r"URL.*/([\w-]*)(?:\.git)?"
+GIT_REPO_REGEX = r"(URL)?.*/([\w-]*)(?:\.git)?"
 
 
 def get_absolute_path(path: str, root_dir: str = None) -> str:
@@ -108,7 +108,7 @@ def calc_repo_path(path: str) -> str:
     output = byte_output.decode("utf-8", errors="replace")
     match = re.search(GIT_REPO_REGEX, output)
     if match:
-        repo_name = match.group(1)
+        repo_name = match.group(2)
     else:
         raise RuntimeError("Could not determine git repo name, are we in a git repo?")
 
