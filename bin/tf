@@ -138,6 +138,9 @@ def exec_tf_command(
             elif "state data in S3 does not have the expected content" in error:
                 if update_digest(error, path, variables):
                     continue
+            elif "Error: Failed to persist state to backend" in error:
+                if repush_state(path):
+                    continue
 
         sys.exit(exit_code)
 
@@ -213,6 +216,24 @@ def update_digest(error: str, path: str, variables: Dict[str, str]) -> bool:
             primary_key_value=lock_id,
         )
     if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+        return True
+
+    return False
+
+
+def repush_state(path: str) -> bool:
+    """
+    Repush terraform state if there was an error pushing it originally
+    :param path: Terraform path with errored state
+    :return: True if state is pushed successfully, false otherwise
+    """
+    exit_code, output = execute_command(
+        ["terraform", "state", "push", "errored.tfstate"],
+        print_command=True,
+        cwd=path,
+        retry=True,
+    )
+    if exit_code == 0:
         return True
 
     return False
