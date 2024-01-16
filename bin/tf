@@ -138,7 +138,7 @@ def exec_tf_command(
             elif "state data in S3 does not have the expected content" in error:
                 if update_digest(error, path, variables):
                     continue
-            elif "Error: Failed to persist state to backend" in error:
+            elif "Failed to persist state to backend" in error:
                 if repush_state(path):
                     continue
 
