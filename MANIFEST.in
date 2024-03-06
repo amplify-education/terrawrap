@@ -1,5 +1,5 @@
 # Manifest file for the egg
-include *.pip
+include *.txt
 include *.md
 include *.rst
 include *.py
