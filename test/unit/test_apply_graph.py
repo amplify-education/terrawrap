@@ -1,9 +1,9 @@
 """Tests for Graph applyinhs"""
 from typing import List
 from unittest import TestCase
+from unittest.mock import patch, MagicMock, call
 
 import os
-from unittest.mock import patch, MagicMock, call
 
 import networkx
 
