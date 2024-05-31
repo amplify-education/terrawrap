@@ -1,9 +1,8 @@
 """Tests for pipelines"""
 from unittest import TestCase
+from unittest.mock import patch, call
 
 import os
-
-from mock import patch, call
 
 from terrawrap.models.pipeline import Pipeline
 

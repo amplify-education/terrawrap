@@ -1,10 +1,10 @@
 """Tests for Graph applyinhs"""
 from typing import List
 from unittest import TestCase
+from unittest.mock import patch, MagicMock, call
 
 import os
 
-from mock import patch, call, MagicMock
 import networkx
 
 from terrawrap.models.graph import ApplyGraph

@@ -1,7 +1,6 @@
 """Test version utils"""
 from unittest import TestCase
-
-from mock import patch, MagicMock
+from unittest.mock import patch, MagicMock
 
 from terrawrap.utils.version import version_check, get_latest_version, cache
 

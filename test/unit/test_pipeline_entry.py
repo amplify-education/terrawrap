@@ -1,7 +1,6 @@
 """Tests for PipelineEntrys"""
 from unittest import TestCase
-
-from mock import patch
+from unittest.mock import patch
 
 from terrawrap.models.pipeline_entry import PipelineEntry
 

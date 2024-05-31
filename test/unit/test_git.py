@@ -2,7 +2,7 @@
 import os
 from collections import namedtuple
 from unittest import TestCase
-from mock import patch
+from unittest.mock import patch
 
 from terrawrap.utils.git_utils import get_git_changed_files
 
