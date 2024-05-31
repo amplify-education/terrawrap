@@ -3,8 +3,8 @@ from typing import List
 from unittest import TestCase
 
 import os
+from unittest.mock import patch, MagicMock, call
 
-from mock import patch, call, MagicMock
 import networkx
 
 from terrawrap.models.graph import ApplyGraph

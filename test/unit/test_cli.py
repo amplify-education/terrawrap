@@ -1,8 +1,7 @@
 """Test git utilities"""
 import os
 from unittest import TestCase
-
-from mock import patch, ANY
+from unittest.mock import patch, ANY
 
 from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info
 
@@ -69,8 +68,9 @@ class TestCli(TestCase):
         self.assertEqual(exit_code, 255)
         self.assertEqual(stdout, [])
 
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")
-    def test_post_audit_info_statuses(self, mock_post):
+    def test_post_audit_info_statuses(self, mock_post, _):
         """Test Audit API helper function for each possible status"""
         statuses = {Status.IN_PROGRESS: None, Status.FAILED: 2, Status.SUCCESS: 0}
 

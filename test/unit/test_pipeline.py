@@ -2,8 +2,7 @@
 from unittest import TestCase
 
 import os
-
-from mock import patch, call
+from unittest.mock import patch, call
 
 from terrawrap.models.pipeline import Pipeline
 
