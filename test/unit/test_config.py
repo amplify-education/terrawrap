@@ -157,6 +157,7 @@ class TestConfig(TestCase):
 
         expected_config = [
             "-reconfigure",
+            "-upgrade",
             (f"-backend-config=dynamodb_table={LOCK_TABLE}"),
             "-backend-config=encrypt=true",
             "-backend-config=key=terrawrap/config/app1.tfstate",
@@ -183,6 +184,7 @@ class TestConfig(TestCase):
 
         expected_config = [
             "-reconfigure",
+            "-upgrade",
             f"-backend-config=dynamodb_table={LOCK_TABLE}",
             "-backend-config=encrypt=true",
             "-backend-config=key=terrawrap/config/app1.tfstate",
@@ -211,6 +213,7 @@ class TestConfig(TestCase):
 
         expected_config = [
             "-reconfigure",
+            "-upgrade",
             f"-backend-config=dynamodb_table={LOCK_TABLE}",
             "-backend-config=encrypt=true",
             "-backend-config=key=terrawrap/config/app1.tfstate",
