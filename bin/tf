@@ -99,12 +99,12 @@ def exec_tf_command(
     command_env.update(variable_envvars)
     command_env.update(additional_envvars)
 
-    if command == "init":
+    if command == "init" and not any("-help" in argument for argument in arguments):
         shutil.rmtree(os.path.join(path, ".terraform"), ignore_errors=True)
         # Respect whatever is set, but default to true if it isn't set
         command_env.setdefault("TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE", "true")
 
-    if command == "import":
+    if command == "import" and not any("-help" in argument for argument in arguments):
         response = input(
             "WARNING: Running 'import' inside of an existing Terraform directory/state file can result in "
             "resources being deleted when apply is run.\nPlease make sure to merge your changes or disable "
