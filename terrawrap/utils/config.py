@@ -309,7 +309,7 @@ def calc_backend_config(
     :return: A dictionary representing the backend configuration for the Terraform directory.
     """
 
-    backend_config = ["-reconfigure"]
+    backend_config = ["-reconfigure", "-upgrade"]
     options: Dict[str, str] = {}
     repo_path = calc_repo_path(path=path)
 
