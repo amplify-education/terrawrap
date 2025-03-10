@@ -86,5 +86,6 @@ setup(
         "bin/plan_check",
         "bin/visualize",
         "bin/graph_apply",
+        "bin/tf_move",
     ],
 )
