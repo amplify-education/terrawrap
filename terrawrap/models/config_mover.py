@@ -1,12 +1,14 @@
 # pylint:disable=C0114,C0301
 import os
 from functools import lru_cache
+from os.path import relpath
 from pathlib import Path
-from typing import List, Union, Iterable
+from typing import List, Union, Iterable, Any
 
 import boto3
 import git
 from botocore.exceptions import ClientError
+import hcl2
 
 from terrawrap.utils.config import find_variable_files, parse_variable_files
 from terrawrap.utils.terminal_colors import TerminalColors as Colors
@@ -20,32 +22,6 @@ class ConfigMover:
 
     tf_config_repo_root = "terraform-config"
     tf_state_file_extension = ".tfstate"
-
-    @staticmethod
-    @lru_cache()
-    def _find_variable_files(path: Path) -> List[str]:
-        """Find and cache .auto.tfvars files available at the scope of given path"""
-        return find_variable_files(str(path))
-
-    @classmethod
-    def _to_repo_root_path(cls, path: Union[str, Path]) -> Path:
-        """
-        Convert to path relative to terraform-config repository root
-        /Users/home/terraform-config/config/aws/amplify-learning-dev ->
-        terraform-config/config/aws/amplify-learning-dev
-        """
-        # [1:] removes leading slash
-        return Path(str(path).partition(cls.tf_config_repo_root)[2][1:])
-
-    @classmethod
-    def _build_state_file_s3_key(cls, terraform_path: Union[str, Path]) -> str:
-        """
-        Given path (absolute or relative) of terraform directory,
-        return name of this directory's state file, example:
-        Documents/terraform-config/config/aws/amplify-learning-dev/devci/astrotools/test/ ->
-        terraform-config/config/aws/amplify-learning-dev/devci/astrotools/test.tfstate
-        """
-        return f"{cls.tf_config_repo_root}/{cls._to_repo_root_path(terraform_path)}{cls.tf_state_file_extension}"
 
     def __init__(self, source_directory: Path, target_directory: Path):
         self.source_directory = source_directory
@@ -62,16 +38,72 @@ class ConfigMover:
         return self._s3
 
     @property
-    def repo(self):
+    def repo(self) -> git.Repo:
         """Git repository"""
         return self._repo
+
+    def _to_repo_root_path(self, path: Union[str, Path]) -> Path:
+        """
+        Convert to path relative to terraform-config repository root
+        /Users/home/terraform-config/config/aws/amplify-learning-dev ->
+        terraform-config/config/aws/amplify-learning-dev
+        """
+        # [1:] removes leading slash
+        return Path(str(path).partition(self.tf_config_repo_root)[2][1:])
+
+    def _build_state_file_s3_key(self, terraform_path: Union[str, Path]) -> str:
+        """
+        Given path (absolute or relative) of terraform directory,
+        return name of this directory's state file, example:
+        Documents/terraform-config/config/aws/amplify-learning-dev/devci/astrotools/test/ ->
+        terraform-config/config/aws/amplify-learning-dev/devci/astrotools/test.tfstate
+        """
+        return f"{self.tf_config_repo_root}/{self._to_repo_root_path(terraform_path)}{self.tf_state_file_extension}"
+
+    @lru_cache
+    def _find_auto_variable(self, path: Path, variable_name: str) -> Any:
+        return parse_variable_files(self._find_variable_files(path))[variable_name]
+
+    @lru_cache
+    def _find_variable_files(self, path: Path) -> List[str]:
+        """Find and cache .auto.tfvars files available at the scope of given path"""
+        return find_variable_files(str(path))
 
     @lru_cache
     def _find_state_bucket(self) -> str:
         """Search for state bucket name across .auto.tfvars files and return it"""
-        return parse_variable_files(
-            self._find_variable_files(self.source_directory_abs.parent)
-        )["terraform_state_bucket"]
+        return self._find_auto_variable(
+            self.source_directory_abs.parent, "terraform_state_bucket"
+        )
+
+    def _adjust_modules_sources(self, tf_files: Iterable[Path]):
+        """
+        For each module block in tf_files, adjusts path to its source depending on the location of target directory,
+        for example, given that the target directory is one level deeper than the source directory:
+        source = "../../../../../../modules/aws/s3_bucket/v3" ->
+        source = "../../../../../../../modules/aws/s3_bucket/v3"
+        This method works with paths virtually - it doesn't check their existence nor looks up them whatsoever.
+        """
+
+        for path in tf_files:
+            content = path.read_text()
+            config = hcl2.loads(content)
+            modules = config.get("module", [])
+
+            for module in modules:
+                # get modules source relative path, e.g. '../../../modules/aws/s3_bucket/v3'
+                module_source = list(module.values())[0]["source"]
+                # convert above to absolute path
+                module_source_absolute = (path.parent / module_source).resolve()
+                # find modules source path relative to the new directory
+                new_module_source = relpath(
+                    module_source_absolute, self.target_directory_abs
+                )
+                content = content.replace(
+                    f'"{module_source}"', f'"{new_module_source}"'
+                )
+
+            path.write_text(content)
 
     def _move_state_file_object(self):
         """Moves state file object inside S3 bucket"""
@@ -159,8 +191,11 @@ class ConfigMover:
                 )
             )
 
-    def run(self):
+    def run(self, skip_confirmation: bool = False):
         """Run"""
+
+        if self.source_directory_abs == self.target_directory_abs:
+            raise RuntimeError(Colors.RED("Source and target paths are the same."))
 
         self._verify_source_directory()
         self._verify_target_directory()
@@ -168,9 +203,9 @@ class ConfigMover:
         state_bucket = self._find_state_bucket()
         source_state_file = self._build_state_file_s3_key(self.source_directory_abs)
         target_state_file = self._build_state_file_s3_key(self.target_directory_abs)
-        print("")  # for vertical spacing
+
         print(
-            "Remote state:\n"
+            "\nRemote state:\n"
             f"\tBucket:\t\t{Colors.BOLD(state_bucket)}\n"
             f"\tSource key: \t{Colors.BOLD(source_state_file)}\n"
             f"\tTarget key: \t{Colors.BOLD(target_state_file)}\n"
@@ -202,18 +237,19 @@ class ConfigMover:
         )
 
         self._diff_autovars()
-
+        # fmt: off
         if (
-            input(
-                Colors.BOLD(
-                    "This tool will move remote state file and local directory contents; proceed? (y/N) "
-                )
-            )
-            != "y"
+            not skip_confirmation
+            and input(Colors.BOLD(
+                "This tool will move remote state file and local directory contents; proceed? (y/N) "
+                )) != "y"
         ):
-            raise RuntimeError("Aborted")
-        print("")
+            raise RuntimeError("Aborted.\n")
+        # fmt: on
 
+        self._adjust_modules_sources(
+            file for file in files_to_move if file.name.endswith(".tf")
+        )
         self._move_files(files_to_move)
         self._move_state_file_object()
 
@@ -222,7 +258,9 @@ class ConfigMover:
             f"{Colors.GREEN('Local directory contents moved successfuly.')}"
         )
         print(
-            f"Run {Colors.UNDERLINE('tf ' + str(self.target_directory) + ' plan')} "
+            f"Adjust configuration in the target directory if needed.\n"
+            f"Run {Colors.UNDERLINE('tf ' + str(self.target_directory) + ' init')}\n"
+            f"and then {Colors.UNDERLINE('tf ' + str(self.target_directory) + ' plan')}\n"
             f"to make sure that there are no undesired infrastructure changes.\n"
             f"Remember to {Colors.UNDERLINE('commit local changes and create a PR')}.\n"
         )

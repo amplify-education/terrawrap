@@ -8,23 +8,9 @@ import requests
 from packaging import version
 from diskcache import Cache
 
-from terrawrap.version import __version__
 
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
 cache = Cache(os.path.join(tempfile.gettempdir(), "terrawrap_version_cache"))
-
-
-def version_check_decorator(current_version: str = __version__):
-    """Decorator version of version_check function"""
-
-    def decorator(func):
-        def wrapped():
-            version_check(current_version)
-            return func()
-
-        return wrapped
-
-    return decorator
 
 
 def version_check(current_version: str) -> bool:

@@ -11,6 +11,7 @@ from unittest.mock import patch, MagicMock
 import os
 
 import git
+import hcl2
 import pytest
 from botocore.exceptions import ClientError
 
@@ -20,13 +21,20 @@ from terrawrap.models.config_mover import ConfigMover
 class TestConfigMover(TestCase):
     """Tests for ConfigMover"""
 
-    _base_mock_path = (
-        Path(os.path.normpath(os.path.dirname(__file__)))
-        / "config-mover-mocks"
-        / "terraform-config"
-    )
-    _default_source = _base_mock_path / "aws" / "default_source"
-    _default_target = _base_mock_path / "aws" / "default_target"
+    _base_path = (Path(__file__) / "../../helpers").resolve() / "mock_config_mover"
+    _mocks_path = _base_path / "mocks"
+    _temp_config_path = _base_path / "terraform-config"
+    _default_source = _temp_config_path / "aws" / "default_source"
+    _default_target = _temp_config_path / "aws" / "default_target"
+
+    @staticmethod
+    def _read_hcl2_modules(hcl2_content: str):
+        config = hcl2.loads(hcl2_content)
+        result = {}
+        modules = config.get("module", [])
+        for module in modules:
+            result[list(module.keys())[0]] = list(module.values())[0]
+        return result
 
     @classmethod
     def config_mover(
@@ -39,14 +47,14 @@ class TestConfigMover(TestCase):
         self._default_target.mkdir(parents=True, exist_ok=True)
 
     def tearDown(self):
-        shutil.rmtree(self._base_mock_path, ignore_errors=True)
-        ConfigMover._find_variable_files.cache_clear()
+        shutil.rmtree(self._temp_config_path, ignore_errors=True)
 
     @patch("terrawrap.models.config_mover.find_variable_files")
     def test__find_variable_files(self, find_variable_files_mock: MagicMock):
+        config_mover = self.config_mover()
         actual = find_variable_files_mock.return_value = MagicMock()
 
-        expected = ConfigMover._find_variable_files(self._default_source)
+        expected = config_mover._find_variable_files(self._default_source)
 
         find_variable_files_mock.assert_called_once_with(str(self._default_source))
         assert actual == expected
@@ -60,34 +68,34 @@ class TestConfigMover(TestCase):
         }
 
         for path, expected in paths.items():
-            actual = ConfigMover._to_repo_root_path(path)
+            actual = self.config_mover()._to_repo_root_path(path)
             assert actual == expected
 
     def test__build_state_file_s3_key(self):
         paths = {
-            Path(
-                "/root/terraform-config/config/dir1/"
-            ): "terraform-config/config/dir1.tfstate",
             "/root/terraform-config/config/dir1/": "terraform-config/config/dir1.tfstate",
             "/terraform-config/config/dir2": "terraform-config/config/dir2.tfstate",
             "terraform-config/config/dir3": "terraform-config/config/dir3.tfstate",
+            Path(
+                "terraform-config/config/dir4/"
+            ): "terraform-config/config/dir4.tfstate",
         }
 
         for path, expected in paths.items():
-            actual = ConfigMover._build_state_file_s3_key(path)
+            actual = self.config_mover()._build_state_file_s3_key(path)
             assert actual == expected
 
     def test_read_repo(self):
         cwd = os.getcwd()
 
-        os.chdir(self._base_mock_path)
-        expected_repo = git.Repo.init(self._base_mock_path)
+        os.chdir(self._temp_config_path)
+        expected_repo = git.Repo.init(self._temp_config_path)
         config_mover = self.config_mover()
         assert config_mover.repo == expected_repo
 
         # test that the repo can be found from subdirectories
         os.chdir(self._default_source)
-        expected_repo = git.Repo.init(self._base_mock_path)
+        expected_repo = git.Repo.init(self._temp_config_path)
         config_mover = self.config_mover()
         assert config_mover.repo == expected_repo
 
@@ -96,7 +104,7 @@ class TestConfigMover(TestCase):
     def test__find_state_bucket(self):
         expected_bucket = "amplify-devops-uw2-terraform"
 
-        auto_tfvars = self._base_mock_path / "mock.auto.tfvars"
+        auto_tfvars = self._temp_config_path / "mock.auto.tfvars"
         auto_tfvars.touch()
         auto_tfvars.write_text(f'terraform_state_bucket = "{expected_bucket}"')
 
@@ -147,63 +155,63 @@ class TestConfigMover(TestCase):
         with pytest.raises(ClientError):
             config_mover._move_state_file_object()
 
-    # def test__move_files_same_depth(self):
-    #     # case where source and target are on the same depth in dir tree
-    #     tf_file_name = "backend.tf"
-    #
-    #     source_file = self._default_source / tf_file_name
-    #     source_file.touch()
-    #     expected_target_file = self._default_target / tf_file_name
-    #     config_mover = self.config_mover()
-    #     config_mover.repo.index.add(source_file)
-    #     config_mover._move_files()
-    #     assert expected_target_file.exists()
-    #
-    # def test__move_files_exclude_subdirs(self):
-    #     # case where source directory contains .tf files and subdirectories
-    #     tf_file_name = "backend.tf"
-    #
-    #     source_file = self._default_source / tf_file_name
-    #     source_file.touch()
-    #     subdirectory = self._default_source / "subdir"
-    #     subdirectory.mkdir()
-    #     expected_target_file = self._default_target / tf_file_name
-    #     unexpected_target_directory = self._default_target / subdirectory.name
-    #     config_mover = self.config_mover()
-    #     config_mover.repo.index.add(source_file)
-    #     config_mover._move_files()
-    #     assert expected_target_file.exists()
-    #     assert not unexpected_target_directory.exists()
-    #
-    # def test__move_files_different_depth(self):
-    #     # case where target is on different depth
-    #     tf_file_name = "backend.tf"
-    #
-    #     source_file = self._default_source / tf_file_name
-    #     source_file.touch()
-    #     expected_target = self._default_target / "app"
-    #     expected_target_file = expected_target / tf_file_name
-    #
-    #     config_mover = self.config_mover(target=expected_target)
-    #     config_mover.repo.index.add(source_file)
-    #     config_mover._move_files()
-    #
-    #     assert expected_target_file.exists()
-    #
-    # def test__move_files_different_depth_2(self):
-    #     # case where target is on different depth
-    #     tf_file_name = "backend.tf"
-    #
-    #     source_file = self._default_source / tf_file_name
-    #     source_file.touch()
-    #     expected_target = self._default_target / ".."
-    #     expected_target_file = expected_target / tf_file_name
-    #
-    #     config_mover = self.config_mover(target=expected_target)
-    #     config_mover.repo.index.add(source_file)
-    #     config_mover._move_files()
-    #
-    #     assert expected_target_file.exists()
+    def test__move_files_same_depth(self):
+        # case where source and target are on the same depth in dir tree
+        tf_file_name = "backend.tf"
+
+        source_file = self._default_source / tf_file_name
+        source_file.touch()
+        expected_target_file = self._default_target / tf_file_name
+        config_mover = self.config_mover()
+        config_mover.repo.index.add(source_file)
+        config_mover._move_files([source_file])
+        assert expected_target_file.exists()
+
+    def test__move_files_exclude_subdirs(self):
+        # case where source directory contains .tf files and subdirectories
+        tf_file_name = "backend.tf"
+
+        source_file = self._default_source / tf_file_name
+        source_file.touch()
+        subdirectory = self._default_source / "subdir"
+        subdirectory.mkdir()
+        expected_target_file = self._default_target / tf_file_name
+        unexpected_target_directory = self._default_target / subdirectory.name
+        config_mover = self.config_mover()
+        config_mover.repo.index.add(source_file)
+        config_mover._move_files([source_file])
+        assert expected_target_file.exists()
+        assert not unexpected_target_directory.exists()
+
+    def test__move_files_different_depth(self):
+        # case where target is on different depth
+        tf_file_name = "backend.tf"
+
+        source_file = self._default_source / tf_file_name
+        source_file.touch()
+        expected_target = self._default_target / "app"
+        expected_target_file = expected_target / tf_file_name
+
+        config_mover = self.config_mover(target=expected_target)
+        config_mover.repo.index.add(source_file)
+        config_mover._move_files([source_file])
+
+        assert expected_target_file.exists()
+
+    def test__move_files_different_depth_2(self):
+        # case where target is on different depth
+        tf_file_name = "backend.tf"
+
+        source_file = self._default_source / tf_file_name
+        source_file.touch()
+        expected_target = self._default_target / ".."
+        expected_target_file = expected_target / tf_file_name
+
+        config_mover = self.config_mover(target=expected_target)
+        config_mover.repo.index.add(source_file)
+        config_mover._move_files([source_file])
+
+        assert expected_target_file.exists()
 
     def test__verify_source_directory(self):
         directory = self._default_source / uuid.uuid4().hex
@@ -229,8 +237,92 @@ class TestConfigMover(TestCase):
         with pytest.raises(RuntimeError):
             config_mover._verify_target_directory()
 
+    def test__adjust_modules_sources(self):
+        test_cases = [
+            {
+                "target_directory": self._default_source,
+                "expected_outcome": {
+                    "config1.tf": {},
+                    "config2.tf": {
+                        "module_instance_1": "../../../../../modules/aws/docker_application/v4",
+                        "module_instance_2": "modules/custom_pipeline_module",
+                    },
+                    "config3.tf": {
+                        "module_instance_1": "../../../modules/aws/s3_bucket/v3",
+                        "module_instance_2": "../modules/custom_website_module",
+                    },
+                },
+            },
+            {
+                "target_directory": self._default_target,
+                "expected_outcome": {
+                    "config1.tf": {},
+                    "config2.tf": {
+                        "module_instance_1": "../../../../../modules/aws/docker_application/v4",
+                        "module_instance_2": "../default_source/modules/custom_pipeline_module",
+                    },
+                    "config3.tf": {
+                        "module_instance_1": "../../../modules/aws/s3_bucket/v3",
+                        "module_instance_2": "../modules/custom_website_module",
+                    },
+                },
+            },
+            {
+                "target_directory": self._default_target / "directory1" / "directory2",
+                "expected_outcome": {
+                    "config1.tf": {},
+                    "config2.tf": {
+                        "module_instance_1": "../../../../../../../modules/aws/docker_application/v4",
+                        "module_instance_2": "../../../default_source/modules/custom_pipeline_module",
+                    },
+                    "config3.tf": {
+                        "module_instance_1": "../../../../../modules/aws/s3_bucket/v3",
+                        "module_instance_2": "../../../modules/custom_website_module",
+                    },
+                },
+            },
+            {
+                "target_directory": self._default_target.parent,
+                "expected_outcome": {
+                    "config1.tf": {},
+                    "config2.tf": {
+                        "module_instance_1": "../../../../modules/aws/docker_application/v4",
+                        "module_instance_2": "default_source/modules/custom_pipeline_module",
+                    },
+                    "config3.tf": {
+                        "module_instance_1": "../../modules/aws/s3_bucket/v3",
+                        "module_instance_2": "modules/custom_website_module",
+                    },
+                },
+            },
+        ]
+
+        mock_files = ["config1.tf", "config2.tf", "config3.tf"]
+
+        for test_case in test_cases:
+
+            for mock_file in mock_files:
+                test_file = self._default_source / mock_file
+                test_file.unlink(missing_ok=True)
+                shutil.copy(self._mocks_path / mock_file, test_file)
+
+            config_mover = self.config_mover(target=test_case["target_directory"])
+
+            for file in mock_files:
+                path = self._default_source / file
+
+                # process tf file
+                config_mover._adjust_modules_sources([path])
+
+                # read tf file content
+                actual_modules = self._read_hcl2_modules(path.read_text())
+
+                for module_name, module_block in actual_modules.items():
+                    expected_source = test_case["expected_outcome"][file][module_name]
+                    assert expected_source == module_block["source"]
+
     def test__diff_autovars(self):
-        base_auto_tfvars = self._base_mock_path / "base.auto.tfvars"
+        base_auto_tfvars = self._temp_config_path / "base.auto.tfvars"
         source_auto_tfvars = self._default_source / "source.auto.tfvars"
 
         directory = self._default_source / "directory"
