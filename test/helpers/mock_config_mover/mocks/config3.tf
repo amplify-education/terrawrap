@@ -3,7 +3,9 @@ module "module_instance_1" {
   foo = "bar"
 }
 
-bar = "foo"
+locals {
+  bar = "foo"
+}
 
 module "module_instance_2" {
   source = "../modules/custom_website_module"

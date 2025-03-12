@@ -23,9 +23,10 @@ class TestConfigMover(TestCase):
 
     _base_path = (Path(__file__) / "../../helpers").resolve() / "mock_config_mover"
     _mocks_path = _base_path / "mocks"
-    _temp_config_path = _base_path / "terraform-config"
-    _default_source = _temp_config_path / "aws" / "default_source"
-    _default_target = _temp_config_path / "aws" / "default_target"
+    _repo_root_path = _base_path / "terraform-config"
+    _config_path = _repo_root_path / "config"
+    _default_source = _config_path / "aws" / "default_source"
+    _default_target = _config_path / "aws" / "default_target"
 
     @staticmethod
     def _read_hcl2_modules(hcl2_content: str):
@@ -38,16 +39,22 @@ class TestConfigMover(TestCase):
 
     @classmethod
     def config_mover(
-        cls, source: Path = _default_source, target: Path = _default_target
+        cls,
+        source: Path = _default_source,
+        target: Path = _default_target,
+        _repo_root="terraform-config",
     ) -> ConfigMover:
-        return ConfigMover(source, target)
+        return ConfigMover(source, target, _repo_root)
 
     def setUp(self):
         self._default_source.mkdir(parents=True, exist_ok=True)
         self._default_target.mkdir(parents=True, exist_ok=True)
+        self.prev_dir = Path(os.getcwd()).absolute()
+        os.chdir(self._repo_root_path)
 
     def tearDown(self):
-        shutil.rmtree(self._temp_config_path, ignore_errors=True)
+        shutil.rmtree(self._config_path, ignore_errors=True)
+        os.chdir(self.prev_dir)
 
     @patch("terrawrap.models.config_mover.find_variable_files")
     def test__find_variable_files(self, find_variable_files_mock: MagicMock):
@@ -59,67 +66,44 @@ class TestConfigMover(TestCase):
         find_variable_files_mock.assert_called_once_with(str(self._default_source))
         assert actual == expected
 
-    def test__to_repo_root_path(self):
-        paths = {
-            Path("/root/terraform-config/config/dir1/"): Path("config/dir1"),
-            "/root/terraform-config/config/dir2": Path("config/dir2"),
-            "/terraform-config/config/dir3": Path("config/dir3"),
-            "terraform-config/config/dir4": Path("config/dir4"),
-        }
-
-        for path, expected in paths.items():
-            actual = self.config_mover()._to_repo_root_path(path)
-            assert actual == expected
-
     def test__build_state_file_s3_key(self):
         paths = {
-            "/root/terraform-config/config/dir1/": "terraform-config/config/dir1.tfstate",
-            "/terraform-config/config/dir2": "terraform-config/config/dir2.tfstate",
-            "terraform-config/config/dir3": "terraform-config/config/dir3.tfstate",
-            Path(
-                "terraform-config/config/dir4/"
-            ): "terraform-config/config/dir4.tfstate",
+            self._default_source / "app1": "terrawrap/config/aws/default_source/app1.tfstate",
+            self._default_source / "apps" / "app2": "terrawrap/config/aws/default_source/apps/app2.tfstate",
         }
 
         for path, expected in paths.items():
+            path.mkdir(parents=True)
             actual = self.config_mover()._build_state_file_s3_key(path)
             assert actual == expected
 
     def test_read_repo(self):
         cwd = os.getcwd()
 
-        os.chdir(self._temp_config_path)
-        expected_repo = git.Repo.init(self._temp_config_path)
+        os.chdir(self._config_path)
+        expected_repo = git.Repo.init(self._config_path)
         config_mover = self.config_mover()
         assert config_mover.repo == expected_repo
 
         # test that the repo can be found from subdirectories
         os.chdir(self._default_source)
-        expected_repo = git.Repo.init(self._temp_config_path)
+        expected_repo = git.Repo.init(self._config_path)
         config_mover = self.config_mover()
         assert config_mover.repo == expected_repo
 
         os.chdir(cwd)
 
-    def test__find_state_bucket(self):
-        expected_bucket = "amplify-devops-uw2-terraform"
-
-        auto_tfvars = self._temp_config_path / "mock.auto.tfvars"
-        auto_tfvars.touch()
-        auto_tfvars.write_text(f'terraform_state_bucket = "{expected_bucket}"')
-
-        config_mover = self.config_mover()
-        actual_bucket = config_mover._find_state_bucket()
-        assert expected_bucket == actual_bucket
-
     @patch("terrawrap.models.config_mover.ConfigMover.s3_client")
-    @patch("terrawrap.models.config_mover.ConfigMover._find_state_bucket")
+    @patch("terrawrap.models.config_mover.ConfigMover._find_auto_variable")
+    @patch("terrawrap.utils.path.re")
     def test__move_state_file_object(
-        self, _find_state_bucket_mock: MagicMock, s3_mock: MagicMock
+        self, re_mock: MagicMock, _find_auto_variable_mock: MagicMock, s3_mock: MagicMock
     ):
-        expected_source = "terraform-config/aws/default_source.tfstate"
-        expected_bucket = _find_state_bucket_mock.return_value = "state-bucket"
-        expected_target_key = "terraform-config/aws/default_target.tfstate"
+        re_search_mock = re_mock.search.return_value = MagicMock()
+        re_search_mock.group.return_value = "terraform-config"
+        expected_source = "terraform-config/config/aws/default_source.tfstate"
+        expected_bucket = _find_auto_variable_mock.return_value = "state-bucket"
+        expected_target_key = "terraform-config/config/aws/default_target.tfstate"
 
         config_mover = self.config_mover()
 
@@ -237,6 +221,54 @@ class TestConfigMover(TestCase):
         with pytest.raises(RuntimeError):
             config_mover._verify_target_directory()
 
+    def test__verify_environment(self):
+
+        def _set(file, _bucket, _env=None):
+            text = f'terraform_state_bucket = "{_bucket}"'
+            if _env is not None:
+                text += f'\nenvironment = "{_env}"'
+            file.write_text(text)
+
+
+        expected_error_message = "Source and target directories must be in the same AWS account / environment"
+
+        source_vars = self._default_source / "source.auto.tfvars"
+        source_vars.touch()
+        target_vars = self._default_target / "target.auto.tfvars"
+        target_vars.touch()
+
+        _set(source_vars, "state_bucket_1")
+        _set(target_vars, "state_bucket_1")
+        self.config_mover()._verify_environment()
+
+        _set(source_vars, "state_bucket_1", "env_1")
+        _set(target_vars, "state_bucket_1", "env_1")
+        self.config_mover()._verify_environment()
+
+        _set(source_vars, "state_bucket_1")
+        _set(target_vars, "state_bucket_2")
+        with pytest.raises(RuntimeError) as exc:
+            self.config_mover()._verify_environment()
+        assert expected_error_message in str(exc.value)
+
+        _set(source_vars, "state_bucket_1", "env_1")
+        _set(target_vars, "state_bucket_1")
+        with pytest.raises(RuntimeError) as exc:
+            self.config_mover()._verify_environment()
+        assert expected_error_message in str(exc.value)
+
+        _set(source_vars, "state_bucket_1", "env_1")
+        _set(target_vars, "state_bucket_2", "env_1")
+        with pytest.raises(RuntimeError) as exc:
+            self.config_mover()._verify_environment()
+        assert expected_error_message in str(exc.value)
+
+        _set(source_vars, "state_bucket_1", "env_1")
+        _set(target_vars, "state_bucket_1", "env_2")
+        with pytest.raises(RuntimeError) as exc:
+            self.config_mover()._verify_environment()
+        assert expected_error_message in str(exc.value)
+
     def test__adjust_modules_sources(self):
         test_cases = [
             {
@@ -322,7 +354,7 @@ class TestConfigMover(TestCase):
                     assert expected_source == module_block["source"]
 
     def test__diff_autovars(self):
-        base_auto_tfvars = self._temp_config_path / "base.auto.tfvars"
+        base_auto_tfvars = self._config_path / "base.auto.tfvars"
         source_auto_tfvars = self._default_source / "source.auto.tfvars"
 
         directory = self._default_source / "directory"

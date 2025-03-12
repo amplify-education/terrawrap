@@ -17,6 +17,7 @@ Options:
     -y                      Skip confirmation prompt.[default: False]
     -h,--help               Display this message.
     --version               Display the current version of Terraform Wrapper.
+    --working-dir=<dir>     Name of projects root directory.[default: terraform-config]
 """
 
 import sys
@@ -37,8 +38,9 @@ def handler():
     source = Path(arguments["<source_path>"])
     target = Path(arguments["<target_path>"])
     skip_confirmation = arguments["-y"]
+    working_dir = arguments["--working-dir"]
 
-    mover = ConfigMover(source, target)
+    mover = ConfigMover(source, target, working_dir)
     try:
         mover.run(skip_confirmation)
     except RuntimeError as e:
