@@ -42,9 +42,8 @@ class TestConfigMover(TestCase):
         cls,
         source: Path = _default_source,
         target: Path = _default_target,
-        _repo_root="terraform-config",
     ) -> ConfigMover:
-        return ConfigMover(source, target, _repo_root)
+        return ConfigMover(source, target)
 
     def setUp(self):
         self._default_source.mkdir(parents=True, exist_ok=True)
@@ -68,8 +67,11 @@ class TestConfigMover(TestCase):
 
     def test__build_state_file_s3_key(self):
         paths = {
-            self._default_source / "app1": "terrawrap/config/aws/default_source/app1.tfstate",
-            self._default_source / "apps" / "app2": "terrawrap/config/aws/default_source/apps/app2.tfstate",
+            self._default_source
+            / "app1": "terrawrap/config/aws/default_source/app1.tfstate",
+            self._default_source
+            / "apps"
+            / "app2": "terrawrap/config/aws/default_source/apps/app2.tfstate",
         }
 
         for path, expected in paths.items():
@@ -97,11 +99,14 @@ class TestConfigMover(TestCase):
     @patch("terrawrap.models.config_mover.ConfigMover._find_auto_variable")
     @patch("terrawrap.utils.path.re")
     def test__move_state_file_object(
-        self, re_mock: MagicMock, _find_auto_variable_mock: MagicMock, s3_mock: MagicMock
+        self,
+        re_mock: MagicMock,
+        _find_auto_variable_mock: MagicMock,
+        s3_mock: MagicMock,
     ):
         re_search_mock = re_mock.search.return_value = MagicMock()
         re_search_mock.group.return_value = "terraform-config"
-        expected_source = "terraform-config/config/aws/default_source.tfstate"
+        expected_source_key = "terraform-config/config/aws/default_source.tfstate"
         expected_bucket = _find_auto_variable_mock.return_value = "state-bucket"
         expected_target_key = "terraform-config/config/aws/default_target.tfstate"
 
@@ -123,10 +128,14 @@ class TestConfigMover(TestCase):
         s3_mock.copy.assert_called_once_with(
             CopySource={
                 "Bucket": expected_bucket,
-                "Key": expected_source,
+                "Key": expected_source_key,
             },
             Bucket=expected_bucket,
             Key=expected_target_key,
+        )
+        s3_mock.delete_object.assert_called_once_with(
+            Bucket=expected_bucket,
+            Key=expected_source_key,
         )
 
         # non-existent state file case
@@ -199,14 +208,38 @@ class TestConfigMover(TestCase):
 
     def test__verify_source_directory(self):
         directory = self._default_source / uuid.uuid4().hex
+        subdirectory = directory / "subdirectory"
 
         config_mover = self.config_mover(source=directory)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError) as exc:
             config_mover._verify_source_directory()
+        assert "does not exist" in str(exc.value)
 
-        directory.mkdir()
-        config_mover._verify_source_directory()
+        subdirectory.mkdir(parents=True)
+        with pytest.raises(RuntimeError) as exc:
+            config_mover._verify_source_directory()
+        assert "No terraform configuration files (*.tf) found in" in str(exc.value)
+
+        file_1 = directory / "buildspec.yml"
+        file_2 = directory / "app.auto.tfvars"
+        file_3 = directory / "variables.tf"
+        file_4 = directory / "backend.tf"
+        file_5 = subdirectory / "backend.tf"
+
+        file_1.touch()
+        file_2.touch()
+        file_5.touch()
+
+        with pytest.raises(RuntimeError) as exc:
+            config_mover._verify_source_directory()
+        assert "No terraform configuration files (*.tf) found in" in str(exc.value)
+
+        file_3.touch()
+        file_4.touch()
+
+        result = config_mover._verify_source_directory()
+        assert result == [file_2, file_4, file_1, file_3]
 
     def test__verify_target_directory(self):
         directory = self._default_target / uuid.uuid4().hex
@@ -222,13 +255,11 @@ class TestConfigMover(TestCase):
             config_mover._verify_target_directory()
 
     def test__verify_environment(self):
-
         def _set(file, _bucket, _env=None):
             text = f'terraform_state_bucket = "{_bucket}"'
             if _env is not None:
                 text += f'\nenvironment = "{_env}"'
             file.write_text(text)
-
 
         expected_error_message = "Source and target directories must be in the same AWS account / environment"
 

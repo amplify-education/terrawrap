@@ -27,7 +27,6 @@ class ConfigMover:
         self,
         source_directory: Path,
         target_directory: Path,
-        tf_config_repo_root: str = None,
     ):
         self.source_directory = source_directory
         self.target_directory = target_directory
@@ -58,12 +57,15 @@ class ConfigMover:
         return f"{calc_repo_path(str(terraform_path))}{self.tf_state_file_extension}"
 
     @lru_cache
-    def _find_auto_variable(self, path: Path, variable_name: str, strict: bool = True) -> Any:
+    def _find_auto_variable(
+        self, path: Path, variable_name: str, strict: bool = True
+    ) -> Any:
         variables = parse_variable_files(self._find_variable_files(path))
         if strict:
-            return variables[variable_name]  # just in case variable_name is actually present, but is None
+            return variables[
+                variable_name
+            ]  # just in case variable_name is actually present, but is None
         return variables.get(variable_name)
-
 
     @lru_cache
     def _find_variable_files(self, path: Path) -> List[str]:
@@ -101,7 +103,9 @@ class ConfigMover:
 
     def _move_state_file_object(self):
         """Moves state file object inside S3 bucket"""
-        state_bucket = self._find_auto_variable(self.source_directory_abs, "terraform_state_bucket")
+        state_bucket = self._find_auto_variable(
+            self.source_directory_abs, "terraform_state_bucket"
+        )
         source_key = self._build_state_file_s3_key(self.source_directory_abs)
         target_key = self._build_state_file_s3_key(self.target_directory_abs)
 
@@ -142,20 +146,43 @@ class ConfigMover:
                 ) from exc
             raise exc from exc
 
+        self.s3_client.delete_object(Bucket=state_bucket, Key=source_key)
+
     def _move_files(self, files: Iterable[Path]):
         """Moves terraform configuration files with git mv, skips subdirectories."""
         self.target_directory_abs.mkdir(parents=True, exist_ok=True)
         sources = [str(f) for f in files]
         self.repo.index.move([*sources, str(self.target_directory_abs)])
 
-    def _verify_source_directory(self):
-        """Verify that the source directory exists"""
+    def _verify_source_directory(self) -> List[Path]:
+        """Verify that the source directory is a valid terraform directory, returns paths of files to be moved"""
         if not self.source_directory_abs.exists():
             raise RuntimeError(
                 Colors.RED(
                     f"Source directory {self.source_directory_abs} does not exist."
                 )
             )
+
+        files_to_move = []
+        has_terraform_files = False
+
+        for path in self.source_directory_abs.iterdir():
+            if path.is_file():
+
+                if path.name.endswith(".tf"):
+                    has_terraform_files = True
+
+                files_to_move.append(path)
+
+        if not has_terraform_files:
+            raise RuntimeError(
+                Colors.RED(
+                    f"No terraform configuration files (*.tf) found in {calc_repo_path(self.source_directory_abs)}\n"
+                    "If you wish to move a subdirectory, run this tool for its path."
+                )
+            )
+
+        return sorted(files_to_move)
 
     def _verify_target_directory(self):
         """Verify that the target directory is empty"""
@@ -168,16 +195,26 @@ class ConfigMover:
             )
 
     def _verify_environment(self):
-        error_message = Colors.RED("Source and target directories must be in the same AWS account / environment")
+        error_message = Colors.RED(
+            "Source and target directories must be in the same AWS account / environment"
+        )
 
-        source_state_bucket = self._find_auto_variable(self.source_directory_abs, "terraform_state_bucket")
-        target_state_bucket = self._find_auto_variable(self.target_directory_abs, "terraform_state_bucket")
+        source_state_bucket = self._find_auto_variable(
+            self.source_directory_abs, "terraform_state_bucket"
+        )
+        target_state_bucket = self._find_auto_variable(
+            self.target_directory_abs, "terraform_state_bucket"
+        )
 
         if source_state_bucket != target_state_bucket:
             raise RuntimeError(error_message)
 
-        source_environment = self._find_auto_variable(self.source_directory_abs, "environment", strict=False)
-        target_environment = self._find_auto_variable(self.target_directory_abs, "environment", strict=False)
+        source_environment = self._find_auto_variable(
+            self.source_directory_abs, "environment", strict=False
+        )
+        target_environment = self._find_auto_variable(
+            self.target_directory_abs, "environment", strict=False
+        )
 
         if source_environment is None and target_environment is None:
             return
@@ -213,11 +250,13 @@ class ConfigMover:
         if self.source_directory_abs == self.target_directory_abs:
             raise RuntimeError(Colors.RED("Source and target paths are the same."))
 
-        self._verify_source_directory()
+        files_to_move = self._verify_source_directory()
         self._verify_target_directory()
         self._verify_environment()
 
-        state_bucket = self._find_auto_variable(self.source_directory_abs, "terraform_state_bucket")
+        state_bucket = self._find_auto_variable(
+            self.source_directory_abs, "terraform_state_bucket"
+        )
         source_state_file = self._build_state_file_s3_key(self.source_directory_abs)
         target_state_file = self._build_state_file_s3_key(self.target_directory_abs)
 
@@ -227,20 +266,6 @@ class ConfigMover:
             f"\tSource key: \t{Colors.BOLD(source_state_file)}\n"
             f"\tTarget key: \t{Colors.BOLD(target_state_file)}\n"
         )
-
-        source_dir_items = list(path for path in self.source_directory_abs.iterdir())
-
-        files_to_move = sorted(
-            list(item for item in source_dir_items if item.is_file() and item.name.endswith(".tf"))
-        )
-
-        if len(files_to_move) == 0:
-            raise RuntimeError(
-                Colors.RED(
-                    f"No terraform configuration files (*.tf) found in {calc_repo_path(self.source_directory_abs)}\n"
-                    "If you wish to move a subdirectory, run this tool for its path."
-                )
-            )
 
         print(
             "Following files will be moved:\n"
