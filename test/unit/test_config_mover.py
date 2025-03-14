@@ -65,19 +65,26 @@ class TestConfigMover(TestCase):
         find_variable_files_mock.assert_called_once_with(str(self._default_source))
         assert actual == expected
 
-    def test__build_state_file_s3_key(self):
-        paths = {
-            self._default_source
-            / "app1": "terrawrap/config/aws/default_source/app1.tfstate",
-            self._default_source
-            / "apps"
-            / "app2": "terrawrap/config/aws/default_source/apps/app2.tfstate",
-        }
+    @patch("terrawrap.utils.path.subprocess.check_output")
+    def test__build_state_file_s3_key(self, check_output_mock: MagicMock):
+        paths = [
+            Path("terraform-config") / "config" / "apps" / "app2",
+            Path("tfc") / "config" / "apps" / "app2",
+        ]
 
-        for path, expected in paths.items():
-            path.mkdir(parents=True)
+        expected_s3_key = "terraform-config/config/apps/app2.tfstate"
+        check_output_mock.return_value = (
+            b"https://github.com/amplify-education/terraform-config.git"
+        )
+        for path in paths:
             actual = self.config_mover()._build_state_file_s3_key(path)
-            assert actual == expected
+            assert actual == expected_s3_key
+
+        expected_s3_key = "tfc/config/apps/app2.tfstate"
+        check_output_mock.return_value = b"https://github.com/amplify-education/tfc.git"
+        for path in paths:
+            actual = self.config_mover()._build_state_file_s3_key(path)
+            assert actual == expected_s3_key
 
     def test_read_repo(self):
         cwd = os.getcwd()

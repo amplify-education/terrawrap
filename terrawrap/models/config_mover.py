@@ -54,7 +54,7 @@ class ConfigMover:
         Documents/terraform-config/config/aws/app/ ->
         terraform-config/config/aws/app.tfstate
         """
-        return f"{calc_repo_path(str(terraform_path))}{self.tf_state_file_extension}"
+        return f"{calc_repo_path(terraform_path)}{self.tf_state_file_extension}"
 
     @lru_cache
     def _find_auto_variable(
