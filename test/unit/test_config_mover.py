@@ -140,10 +140,6 @@ class TestConfigMover(TestCase):
             Bucket=expected_bucket,
             Key=expected_target_key,
         )
-        s3_mock.delete_object.assert_called_once_with(
-            Bucket=expected_bucket,
-            Key=expected_source_key,
-        )
 
         # non-existent state file case
         s3_mock.copy.side_effect = ClientError({"Error": {"Code": "404"}}, "")

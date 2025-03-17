@@ -146,8 +146,6 @@ class ConfigMover:
                 ) from exc
             raise exc from exc
 
-        self.s3_client.delete_object(Bucket=state_bucket, Key=source_key)
-
     def _move_files(self, files: Iterable[Path]):
         """Moves terraform configuration files with git mv, skips subdirectories."""
         self.target_directory_abs.mkdir(parents=True, exist_ok=True)
