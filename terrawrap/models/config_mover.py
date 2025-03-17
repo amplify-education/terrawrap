@@ -164,8 +164,13 @@ class ConfigMover:
         files_to_move = []
         has_terraform_files = False
 
+        git_files = set(self.repo.git.ls_files().splitlines())
+        rel_source_path = Path(
+            *Path(calc_repo_path(self.source_directory_abs)).parts[1:]
+        )
+
         for path in self.source_directory_abs.iterdir():
-            if path.is_file():
+            if path.is_file() and str(rel_source_path / path.name) in git_files:
 
                 if path.name.endswith(".tf"):
                     has_terraform_files = True
