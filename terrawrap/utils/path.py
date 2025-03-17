@@ -3,7 +3,8 @@ import os
 import re
 import subprocess
 from collections import defaultdict
-from typing import Dict, Set
+from pathlib import Path
+from typing import Dict, Set, Union
 
 from networkx import DiGraph
 
@@ -95,17 +96,20 @@ def get_file_graph(directory: str) -> DiGraph:
     return graph
 
 
-def calc_repo_path(path: str) -> str:
+def calc_repo_path(path: Union[str, Path]) -> str:
     """
     Convenience function for taking an absolute path to a TF directory and returning the path to that
     directory relative to the repo.
     :param path: The absolute path to a TF directory.
     :return: New path to the TF directory
     """
+    path = str(path)
+
     byte_output = subprocess.check_output(
         ["git", "remote", "show", "origin", "-n"], cwd=path
     )
     output = byte_output.decode("utf-8", errors="replace")
+
     match = re.search(GIT_REPO_REGEX, output)
     if match:
         repo_name = match.group(2)

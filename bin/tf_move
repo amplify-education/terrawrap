@@ -1,0 +1,50 @@
+#!/usr/bin/env python
+"""
+Terraform Wrapper Move
+
+This tool can be used to move terraform configuration from one directory to another (within the same environment)
+without having to recreate AWS resources.
+
+Usage:
+    tf_move [options] <source_path> <target_path>
+    tf_move --version
+
+Arguments:
+    source_path             Valid terraform directory you wish to relocate.
+    target_path             Non-existent or empty directory to which terraform files will be moved. Must be inside the same environment.
+
+Options:
+    -y                      Skip confirmation prompt.[default: False]
+    -h,--help               Display this message.
+    --version               Display the current version of Terraform Wrapper.
+"""
+
+import sys
+from pathlib import Path
+
+
+from docopt import docopt
+
+from terrawrap.models.config_mover import ConfigMover
+from terrawrap.utils.version import version_check
+from terrawrap.version import __version__
+
+
+def handler():
+    version_check(current_version=__version__)
+    arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
+
+    source = Path(arguments["<source_path>"])
+    target = Path(arguments["<target_path>"])
+    skip_confirmation = arguments["-y"]
+
+    mover = ConfigMover(source, target)
+    try:
+        mover.run(skip_confirmation)
+    except RuntimeError as e:
+        print(e)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    handler()
