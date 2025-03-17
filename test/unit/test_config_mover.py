@@ -52,7 +52,7 @@ class TestConfigMover(TestCase):
         os.chdir(self._repo_root_path)
 
     def tearDown(self):
-        shutil.rmtree(self._config_path, ignore_errors=True)
+        shutil.rmtree(self._repo_root_path, ignore_errors=True)
         os.chdir(self.prev_dir)
 
     @patch("terrawrap.models.config_mover.find_variable_files")
@@ -209,10 +209,16 @@ class TestConfigMover(TestCase):
 
         assert expected_target_file.exists()
 
-    def test__verify_source_directory(self):
+    @patch("terrawrap.utils.path.subprocess.check_output")
+    def test__verify_source_directory(self, check_output_mock: MagicMock):
         directory = self._default_source / uuid.uuid4().hex
         subdirectory = directory / "subdirectory"
 
+        check_output_mock.return_value = (
+            b"https://github.com/amplify-education/terraform-config.git"
+        )
+
+        git.Repo.init(self._repo_root_path)
         config_mover = self.config_mover(source=directory)
 
         with pytest.raises(RuntimeError) as exc:
@@ -228,19 +234,21 @@ class TestConfigMover(TestCase):
         file_2 = directory / "app.auto.tfvars"
         file_3 = directory / "variables.tf"
         file_4 = directory / "backend.tf"
-        file_5 = subdirectory / "backend.tf"
+        file_5 = directory / ".terraform.lock.hcl"
+        file_6 = subdirectory / "backend.tf"
 
         file_1.touch()
         file_2.touch()
         file_5.touch()
-
+        file_6.touch()
+        config_mover.repo.index.add([file_1, file_2, file_6])
         with pytest.raises(RuntimeError) as exc:
             config_mover._verify_source_directory()
         assert "No terraform configuration files (*.tf) found in" in str(exc.value)
 
         file_3.touch()
         file_4.touch()
-
+        config_mover.repo.index.add([file_3, file_4])
         result = config_mover._verify_source_directory()
         assert result == [file_2, file_4, file_1, file_3]
 
