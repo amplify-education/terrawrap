@@ -352,7 +352,7 @@ def calc_backend_config(
         )
 
     backend_config.extend(
-        [f"-backend-config={key}={value}" for key, value in options.items()]
+        [f"-backend-config={key}={str(value).lower()}" for key, value in options.items()]
     )
     return backend_config
 
