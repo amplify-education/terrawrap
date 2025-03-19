@@ -43,7 +43,7 @@ class S3BackendConfig:
         region: str = None,
         dynamodb_table: str = None,
         role_arn: str = None,
-        use_lockfile: Optional[bool] = None,
+        use_lockfile: bool = False,
     ):
         self.region = region
         self.bucket = bucket

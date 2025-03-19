@@ -329,7 +329,7 @@ def calc_backend_config(
             "bucket": variables.get("terraform_state_bucket", terraform_bucket),
             "skip_region_validation": "true",
             "skip_credentials_validation": "true",
-            "use_lockfile": existing_backend_config.s3.use_lockfile
+            "use_lockfile": str(existing_backend_config.s3.use_lockfile),
         }
 
     # copy any backend options from the backend config
@@ -352,7 +352,10 @@ def calc_backend_config(
         )
 
     backend_config.extend(
-        [f"-backend-config={key}={str(value).lower()}" for key, value in options.items()]
+        [
+            f"-backend-config={key}={str(value).lower()}"
+            for key, value in options.items()
+        ]
     )
     return backend_config
 
