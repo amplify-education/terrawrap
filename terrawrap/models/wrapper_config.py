@@ -43,11 +43,13 @@ class S3BackendConfig:
         region: str = None,
         dynamodb_table: str = None,
         role_arn: str = None,
+        use_lockfile: str = None,
     ):
         self.region = region
         self.bucket = bucket
         self.dynamodb_table = dynamodb_table
         self.role_arn = role_arn
+        self.use_lockfile = use_lockfile and use_lockfile.lower()
 
 
 class GCSBackendConfig:
