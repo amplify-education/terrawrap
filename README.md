@@ -226,14 +226,16 @@ backends:
         role_arn:
         bucket:
         dynamodb_table:
+        use_lockfile:
 ```
 
-| Option Name    | Required | Purpose                                                                              |
-| -------------- | -------- | ------------------------------------------------------------------------------------ |
-| bucket         | Yes      | Name of S3 Bucket                                                                    |
-| region         | Yes      | AWS Region that S3 state bucket and DynamoDB lock table are located in               |
-| dynamodb_table | No       | DynamoDB table to use for state locking. Locking is disable if lock_table is not set |
-| role_arn       | No       | AWS role to assume when reading/writing to S3 bucket and lock table                  |
+| Option Name    | Required | Purpose                                                                                      |
+| -------------- | -------- |----------------------------------------------------------------------------------------------|
+| bucket         | Yes      | Name of S3 Bucket                                                                            |
+| region         | Yes      | AWS Region that S3 state bucket and DynamoDB lock table are located in                       |
+| dynamodb_table | No       | DynamoDB table to use for state locking. Locking is disable if lock_table is not set         |
+| role_arn       | No       | AWS role to assume when reading/writing to S3 bucket and lock table                          |
+| use_lockfile   | No       | With S3 locking enabled, a lock file will be placed in the same location as the state file.  |
 
 The S3 state file key name is generated from the directory name being used to run the terraform command.
 For example, `tf config/foo/bar init` uses a state file with the key `config/foo/bar.tfstate` in S3

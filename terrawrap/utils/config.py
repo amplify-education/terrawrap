@@ -331,6 +331,18 @@ def calc_backend_config(
             "skip_credentials_validation": "true",
         }
 
+        # an S3 lock can be used alongside a DynamoDB lock, or independently.
+        # we don't want to use both S3 and dynamodb locking
+        # exclude dynamodb_table in case use_lockfile is enabled
+        # https://developer.hashicorp.com/terraform/language/upgrade-guides#s3-native-state-locking
+        if existing_backend_config.s3.use_lockfile:
+            options.pop("dynamodb_table")
+            # use_lockfile is needed here to support the native terraform backend option
+            # https://developer.hashicorp.com/terraform/language/upgrade-guides#s3-native-state-locking
+            options["use_lockfile"] = str(
+                existing_backend_config.s3.use_lockfile
+            ).lower()
+
     # copy any backend options from the backend config
     if wrapper_config.backends:
         wrapper_options: Dict[str, Optional[str]] = {}
@@ -346,12 +358,23 @@ def calc_backend_config(
             and wrapper_config.backends.s3 is not None
         ):
             wrapper_options = vars(wrapper_config.backends.s3)
+
+            # an S3 lock can be used alongside a DynamoDB lock, or independently.
+            # we don't want to use both S3 and dynamodb locking
+            # exclude dynamodb_table in case use_lockfile is enabled
+            # https://developer.hashicorp.com/terraform/language/upgrade-guides#s3-native-state-locking
+            if wrapper_config.backends.s3.use_lockfile:
+                wrapper_options.pop("dynamodb_table")
+
         options.update(
             {key: value for key, value in wrapper_options.items() if value is not None}
         )
 
     backend_config.extend(
-        [f"-backend-config={key}={value}" for key, value in options.items()]
+        [
+            f"-backend-config={key}={str(value).lower()}"
+            for key, value in options.items()
+        ]
     )
     return backend_config
 
