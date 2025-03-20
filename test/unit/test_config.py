@@ -165,7 +165,6 @@ class TestConfig(TestCase):
             (f"-backend-config=bucket={BUCKET}"),
             "-backend-config=skip_region_validation=true",
             "-backend-config=skip_credentials_validation=true",
-            "-backend-config=use_lockfile=false",
         ]
 
         self.assertEqual(expected_config, actual_config)
@@ -193,7 +192,6 @@ class TestConfig(TestCase):
             f"-backend-config=bucket={BUCKET}",
             "-backend-config=skip_region_validation=true",
             "-backend-config=skip_credentials_validation=true",
-            "-backend-config=use_lockfile=false",
         ]
 
         self.assertEqual(expected_config, actual_config)
@@ -223,7 +221,6 @@ class TestConfig(TestCase):
             f"-backend-config=bucket={BUCKET}",
             "-backend-config=skip_region_validation=true",
             "-backend-config=skip_credentials_validation=true",
-            "-backend-config=use_lockfile=false",
             f"-backend-config=role_arn={ROLE_ARN}",
         ]
 

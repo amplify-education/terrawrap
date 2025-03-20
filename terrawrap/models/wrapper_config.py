@@ -43,7 +43,9 @@ class S3BackendConfig:
         region: str = None,
         dynamodb_table: str = None,
         role_arn: str = None,
-        use_lockfile: bool = False,
+        # None by default to not override the native terraform backend option by the wrapper options
+        # https://developer.hashicorp.com/terraform/language/upgrade-guides#s3-native-state-locking
+        use_lockfile: Optional[bool] = None,
     ):
         self.region = region
         self.bucket = bucket
