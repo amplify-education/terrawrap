@@ -81,9 +81,6 @@ class TestCli(TestCase):
         mock_audit_info_api = "MOCK_AUDIT_INFO_API"
         mock_error = MOCK_ERROR
         mock_audit_info.side_effect = mock_error
-        expected_error = (
-            f"An error occurred while connecting to audit API: {mock_error}"
-        )
 
         with self.assertRaises(HTTPError):
             exit_code, stdout = execute_command(
@@ -92,7 +89,9 @@ class TestCli(TestCase):
             self.assertEqual(exit_code, 255)
             self.assertEqual(stdout, [])
 
-        mock_logger.assert_called_once_with(expected_error)
+        mock_logger.assert_called_once_with(
+            "An error occurred while connecting to audit API: %s", mock_error
+        )
 
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")
