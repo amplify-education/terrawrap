@@ -2,7 +2,7 @@
 import os
 from logging import Logger
 from unittest import TestCase
-from unittest.mock import patch, ANY
+from unittest.mock import patch, ANY, call
 from requests.exceptions import HTTPError
 
 from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info
@@ -82,16 +82,18 @@ class TestCli(TestCase):
         mock_error = MOCK_ERROR
         mock_audit_info.side_effect = mock_error
 
-        with self.assertRaises(HTTPError):
-            exit_code, stdout = execute_command(
-                ["apply", "1"], audit_api_url=mock_audit_info_api, cwd=os.getcwd()
-            )
-            self.assertEqual(exit_code, 255)
-            self.assertEqual(stdout, [])
+        expected_calls = [
+            call("An error occurred while connecting to audit API: %s", mock_error),
+            call("An error occurred while connecting to audit API: %s", mock_error),
+        ]
 
-        mock_logger.assert_called_once_with(
-            "An error occurred while connecting to audit API: %s", mock_error
+        exit_code, stdout = execute_command(
+            ["apply", "1"], audit_api_url=mock_audit_info_api, cwd=os.getcwd()
         )
+        self.assertEqual(exit_code, 255)
+        self.assertEqual(stdout, [])
+
+        mock_logger.assert_has_calls(expected_calls)
 
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")

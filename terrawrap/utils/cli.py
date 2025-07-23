@@ -13,7 +13,7 @@ import requests
 
 from amplify_aws_utils.resource_helper import Jitter
 from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
-from requests import HTTPError
+from requests.exceptions import HTTPError
 
 from terrawrap.utils.git_utils import get_git_root, get_git_hash
 
@@ -137,14 +137,19 @@ def execute_command(
 
     if audit_api_url and kwargs["cwd"] and ("apply" in args or "destroy" in args):
         # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
-        _post_audit_info(
-            audit_api_url=audit_api_url,
-            path=kwargs["cwd"],
-            exit_code=exit_code,
-            stdout=stdout,
-            start_time=start_time,
-            update=True,
-        )
+        try:
+            _post_audit_info(
+                audit_api_url=audit_api_url,
+                path=kwargs["cwd"],
+                exit_code=exit_code,
+                stdout=stdout,
+                start_time=start_time,
+                update=True,
+            )
+        except HTTPError as http_exception:
+            logger.error(
+                "An error occurred while connecting to audit API: %s", http_exception
+            )
     else:
         logger.info("No audit_api_url provided")
 
