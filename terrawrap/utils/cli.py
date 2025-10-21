@@ -190,19 +190,53 @@ def _execute_command(
         # pylint: disable=consider-using-with
         process = subprocess.Popen(args, *pargs, **kwargs)
 
+        # Read in larger chunks to avoid memory allocation issues
+        buffer_size = 8192  # 8KB buffer
         while True:
-            output = stdout_read.read(1).decode(errors="replace")
-
-            if output == "" and process.poll() is not None:
-                break
-
-            if print_output and output:
-                print(output, end="", flush=True)
+            try:
+                chunk = stdout_read.read(buffer_size)
+                if not chunk and process.poll() is not None:
+                    break
+                
+                if chunk and print_output:
+                    try:
+                        decoded_chunk = chunk.decode(errors="replace")
+                        print(decoded_chunk, end="", flush=True)
+                    except UnicodeDecodeError:
+                        # Handle any decoding issues gracefully
+                        print(chunk.decode(errors="ignore"), end="", flush=True)
+                        
+            except OSError as e:
+                if e.errno == 12:  # Cannot allocate memory
+                    logger.warning("Memory allocation issue while reading output, reducing buffer size")
+                    buffer_size = max(1024, buffer_size // 2)  # Reduce buffer size but keep minimum
+                    continue
+                else:
+                    raise
 
         exit_code = process.poll()
 
+        # Read the complete output in a more memory-efficient way
         stdout_read.seek(0)
-        stdout = [line.decode(errors="replace") for line in stdout_read.readlines()]
+        stdout = []
+        try:
+            while True:
+                chunk = stdout_read.read(buffer_size)
+                if not chunk:
+                    break
+                try:
+                    decoded_lines = chunk.decode(errors="replace").splitlines(keepends=True)
+                    stdout.extend(decoded_lines)
+                except UnicodeDecodeError:
+                    # Handle decoding issues
+                    decoded_lines = chunk.decode(errors="ignore").splitlines(keepends=True)
+                    stdout.extend(decoded_lines)
+        except OSError as e:
+            if e.errno == 12:  # Cannot allocate memory
+                logger.warning("Memory allocation issue while reading final output, truncating")
+                stdout.append("...[Output truncated due to memory constraints]...\n")
+            else:
+                raise
 
         # ignoring mypy error below because it thinks exit_code can sometimes be None
         # we know that will never be the case because the above While loop will keep looping forever
