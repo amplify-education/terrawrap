@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 
+import errno
 import logging
 import subprocess
 import tempfile
@@ -182,15 +183,14 @@ def _read_live_output(stdout_read, process, print_output: bool) -> int:
                 decoded_chunk = _decode_chunk_safely(chunk)
                 print(decoded_chunk, end="", flush=True)
 
-        except OSError as e:
-            if e.errno == 12:  # Cannot allocate memory
+        except OSError as os_error:
+            if os_error.errno == errno.ENOMEM:  # Cannot allocate memory
                 logger.warning(
                     "Memory allocation issue while reading output, reducing buffer size"
                 )
                 buffer_size = max(1024, buffer_size // 2)
                 continue
-            else:
-                raise
+            raise
 
     return buffer_size
 
@@ -210,8 +210,8 @@ def _collect_final_output(stdout_read, buffer_size: int) -> List[str]:
             decoded_lines = decoded_chunk.splitlines(keepends=True)
             stdout.extend(decoded_lines)
 
-    except OSError as e:
-        if e.errno == 12:  # Cannot allocate memory
+    except OSError as os_error:
+        if os_error.errno == errno.ENOMEM:  # Cannot allocate memory
             logger.warning(
                 "Memory allocation issue while reading final output, truncating"
             )
@@ -256,6 +256,10 @@ def _execute_command(
         # Read live output with memory-efficient buffering
         buffer_size = _read_live_output(stdout_read, process, print_output)
         exit_code = process.poll()
+
+        # Ensure exit_code is not None (it shouldn't be after _read_live_output completes)
+        if exit_code is None:
+            exit_code = process.wait()
 
         # Collect final output
         stdout = _collect_final_output(stdout_read, buffer_size)

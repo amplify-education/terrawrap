@@ -1,11 +1,12 @@
 """Test git utilities"""
+import errno
 import os
 from logging import Logger
 from unittest import TestCase
 from unittest.mock import patch, ANY, call, mock_open, MagicMock
 from requests.exceptions import HTTPError
 
-from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info, _execute_command, _decode_chunk_safely, _read_live_output, _collect_final_output
+from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info, _execute_command
 
 
 MOCK_ERROR = HTTPError()
@@ -127,17 +128,17 @@ class TestCli(TestCase):
 
     @patch("tempfile.mkstemp")
     @patch.object(Logger, "warning")
-    def test_execute_command_memory_allocation_error(self, mock_logger, mock_mkstemp):
+    def test_execute_command_memory_error(self, mock_logger, mock_mkstemp):
         """Test handling of OSError errno 12 (Cannot allocate memory) during command execution"""
         # Setup mock file objects
         mock_stdout_fd = 3
         mock_stdout_path = "/tmp/mock_stdout"
         mock_mkstemp.return_value = (mock_stdout_fd, mock_stdout_path)
         
-        # Create mock file object that raises OSError errno 12 on first read, then succeeds
+        # Create mock file object that raises OSError ENOMEM on first read, then succeeds
         mock_file = MagicMock()
         memory_error = OSError()
-        memory_error.errno = 12  # Cannot allocate memory
+        memory_error.errno = errno.ENOMEM  # Cannot allocate memory
         
         # Configure read to fail first, then succeed
         mock_file.read.side_effect = [
@@ -166,6 +167,7 @@ class TestCli(TestCase):
                 
                 # Verify the function completed successfully
                 self.assertEqual(exit_code, 0)
+                self.assertIsInstance(stdout, list)
                 
                 # Verify that warning was logged about memory allocation issue
                 mock_logger.assert_called_with(
@@ -177,7 +179,7 @@ class TestCli(TestCase):
 
     @patch("tempfile.mkstemp")
     @patch.object(Logger, "warning")
-    def test_execute_command_memory_allocation_error_final_read(self, mock_logger, mock_mkstemp):
+    def test_execute_command_memory_error_final_read(self, mock_logger, mock_mkstemp):
         """Test handling of OSError errno 12 during final output reading"""
         # Setup mock file objects
         mock_stdout_fd = 3
@@ -187,7 +189,7 @@ class TestCli(TestCase):
         # Create mock file object that works for live reading but fails on final read
         mock_file = MagicMock()
         memory_error = OSError()
-        memory_error.errno = 12  # Cannot allocate memory
+        memory_error.errno = errno.ENOMEM  # Cannot allocate memory
         
         # Setup side effects: normal read during live output, then memory error on seek+read
         mock_file.read.side_effect = [b"", memory_error]  # Empty for live, error for final
