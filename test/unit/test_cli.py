@@ -5,7 +5,7 @@ from unittest import TestCase
 from unittest.mock import patch, ANY, call, mock_open, MagicMock
 from requests.exceptions import HTTPError
 
-from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info, _execute_command
+from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info, _execute_command, _decode_chunk_safely, _read_live_output, _collect_final_output
 
 
 MOCK_ERROR = HTTPError()
