@@ -6,7 +6,13 @@ from unittest import TestCase
 from unittest.mock import patch, ANY, call, mock_open, MagicMock
 from requests.exceptions import HTTPError
 
-from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info, _execute_command
+from terrawrap.utils.cli import (
+    execute_command,
+    MAX_RETRIES,
+    Status,
+    _post_audit_info,
+    _execute_command,
+)
 
 
 MOCK_ERROR = HTTPError()
@@ -39,7 +45,7 @@ class TestCli(TestCase):
 
     @patch("terrawrap.utils.cli._get_retriable_errors")
     @patch("io.open")
-    def test_execute_command_retry(self, mock_open, mock_network_error):
+    def test_execute_command_retry(self, mock_io_open, mock_network_error):
         """Test retrying execution because of network errors"""
         self.mock_process.poll.side_effect = [1, 1, 1, 0]
         mock_network_error.side_effect = [["Throttling"], []]
@@ -54,7 +60,7 @@ class TestCli(TestCase):
 
     @patch("terrawrap.utils.cli._get_retriable_errors")
     @patch("io.open")
-    def test_execute_command_max_retry(self, mock_open, mock_network_error):
+    def test_execute_command_max_retry(self, mock_io_open_2, mock_network_error):
         """Test retrying execution because of network errors up to 5 times"""
         self.mock_process.poll.return_value = 255
         mock_network_error.side_effect = [
@@ -134,12 +140,12 @@ class TestCli(TestCase):
         mock_stdout_fd = 3
         mock_stdout_path = "/tmp/mock_stdout"
         mock_mkstemp.return_value = (mock_stdout_fd, mock_stdout_path)
-        
+
         # Create mock file object that raises OSError ENOMEM on first read, then succeeds
         mock_file = MagicMock()
         memory_error = OSError()
         memory_error.errno = errno.ENOMEM  # Cannot allocate memory
-        
+
         # Configure read to fail first, then succeed
         mock_file.read.side_effect = [
             memory_error,  # First read fails with memory error
@@ -147,74 +153,81 @@ class TestCli(TestCase):
             b"",  # Third read returns empty (process finished)
             b"",  # Additional reads for final output collection
             b"",  # More reads to handle any additional calls
-        ] + [b""] * 10  # Ensure we have enough empty responses
-        
+        ] + [
+            b""
+        ] * 10  # Ensure we have enough empty responses
+
         # Mock process
         mock_process = MagicMock()
         mock_process.poll.return_value = 0  # Process finished successfully
-        
+
         with patch("builtins.open", mock_open()) as mock_file_open:
             mock_file_open.return_value.__enter__.return_value = mock_file
-            
+
             with patch("subprocess.Popen", return_value=mock_process):
                 # Test that the function handles memory error gracefully
                 exit_code, stdout = _execute_command(
                     ["test", "command"],
                     print_output=False,
                     capture_stderr=True,
-                    print_command=False
+                    print_command=False,
                 )
-                
+
                 # Verify the function completed successfully
                 self.assertEqual(exit_code, 0)
                 self.assertIsInstance(stdout, list)
-                
+
                 # Verify that warning was logged about memory allocation issue
                 mock_logger.assert_called_with(
                     "Memory allocation issue while reading output, reducing buffer size"
                 )
-                
+
                 # Verify that read was called multiple times (initial failure, then retry)
                 self.assertTrue(mock_file.read.call_count >= 2)
 
     @patch("tempfile.mkstemp")
     @patch.object(Logger, "warning")
-    def test_execute_command_memory_error_final_read(self, mock_logger, mock_mkstemp):
+    def test_execute_command_memory_error_final(self, mock_logger, mock_mkstemp):
         """Test handling of OSError errno 12 during final output reading"""
         # Setup mock file objects
         mock_stdout_fd = 3
         mock_stdout_path = "/tmp/mock_stdout"
         mock_mkstemp.return_value = (mock_stdout_fd, mock_stdout_path)
-        
+
         # Create mock file object that works for live reading but fails on final read
         mock_file = MagicMock()
         memory_error = OSError()
         memory_error.errno = errno.ENOMEM  # Cannot allocate memory
-        
+
         # Setup side effects: normal read during live output, then memory error on seek+read
-        mock_file.read.side_effect = [b"", memory_error]  # Empty for live, error for final
+        mock_file.read.side_effect = [
+            b"",
+            memory_error,
+        ]  # Empty for live, error for final
         mock_process = MagicMock()
         mock_process.poll.return_value = 0
-        
+
         with patch("builtins.open", mock_open()) as mock_file_open:
             mock_file_open.return_value.__enter__.return_value = mock_file
-            
+
             with patch("subprocess.Popen", return_value=mock_process):
                 # Test that the function handles memory error gracefully during final read
                 exit_code, stdout = _execute_command(
                     ["test", "command"],
                     print_output=False,
                     capture_stderr=True,
-                    print_command=False
+                    print_command=False,
                 )
-                
+
                 # Verify the function completed successfully
                 self.assertEqual(exit_code, 0)
-                
+
                 # Verify that warning was logged about memory allocation issue during final read
                 mock_logger.assert_called_with(
                     "Memory allocation issue while reading final output, truncating"
                 )
-                
+
                 # Verify that stdout contains the truncation message
-                self.assertIn("...[Output truncated due to memory constraints]...\n", stdout)
+                self.assertIn(
+                    "...[Output truncated due to memory constraints]...\n", stdout
+                )
