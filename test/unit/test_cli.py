@@ -49,7 +49,7 @@ class TestCli(TestCase):
         """Test retrying execution because of network errors"""
         self.mock_process.poll.side_effect = [1, 1, 1, 0]
         mock_network_error.side_effect = [["Throttling"], []]
-        mock_stdout_read = mock_open.return_value
+        mock_stdout_read = mock_io_open.return_value
         mock_stdout_read.readline.return_value = b""
 
         exit_code, stdout = execute_command(["echo", "1"], retry=True)
@@ -71,7 +71,7 @@ class TestCli(TestCase):
             ["Throttling"],
             ["unexpected EOF"],
         ]
-        mock_stdout_read = mock_open.return_value
+        mock_stdout_read = mock_io_open_2.return_value
         mock_stdout_read.readline.return_value = b""
 
         exit_code, stdout = execute_command(["echo", "1"], retry=True)
