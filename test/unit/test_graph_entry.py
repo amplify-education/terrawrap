@@ -79,7 +79,7 @@ class TestGraphEntry(TestCase):
         entry.execute("apply")
 
         self.assertEqual(exec_command.call_count, 2)
-        
+
         for call_args in exec_command.call_args_list:
             self.assertIn("audit_api_url", call_args[1])
 
@@ -95,8 +95,8 @@ class TestGraphEntry(TestCase):
         entry.execute("plan")
 
         self.assertEqual(exec_command.call_count, 2)
-        init_call_kwargs = exec_command.call_args_list[0][1] 
+        init_call_kwargs = exec_command.call_args_list[0][1]
         operation_call_kwargs = exec_command.call_args_list[1][1]
-        
+
         self.assertIn("audit_api_url", init_call_kwargs)
         self.assertIn("audit_api_url", operation_call_kwargs)
