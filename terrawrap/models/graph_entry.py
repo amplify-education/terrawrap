@@ -89,6 +89,7 @@ class GraphEntry(Entry):
             capture_stderr=True,
             env=command_env,
             cwd=self.abs_path,
+            audit_api_url=self.wrapper_config.audit_api_url,
         )
         if init_exit_code != 0:
             self.state = "Failed"
@@ -106,6 +107,7 @@ class GraphEntry(Entry):
             env=command_env,
             shell=shell,
             cwd=self.path,
+            audit_api_url=self.wrapper_config.audit_api_url,
         )
 
         if operation_exit_code == 0:
