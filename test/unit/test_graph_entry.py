@@ -1,6 +1,6 @@
 """Tests for GraphEntries"""
 from unittest import TestCase
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch
 
 from terrawrap.models.graph_entry import GraphEntry
 
