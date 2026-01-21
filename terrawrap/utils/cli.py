@@ -1,6 +1,8 @@
 """Module for containing CLI convenience functions"""
+
 from __future__ import print_function
 
+import errno
 import logging
 import subprocess
 import tempfile
@@ -159,6 +161,67 @@ def execute_command(
     return exit_code, stdout
 
 
+def _decode_chunk_safely(chunk: bytes) -> str:
+    """Safely decode a byte chunk to string with fallback handling."""
+    try:
+        return chunk.decode(errors="replace")
+    except UnicodeDecodeError:
+        return chunk.decode(errors="ignore")
+
+
+def _read_live_output(stdout_read, process, print_output: bool) -> int:
+    """Read live output from process with memory-efficient buffering."""
+    buffer_size = 8192  # 8KB buffer
+
+    while True:
+        try:
+            chunk = stdout_read.read(buffer_size)
+            if not chunk and process.poll() is not None:
+                break
+
+            if chunk and print_output:
+                decoded_chunk = _decode_chunk_safely(chunk)
+                print(decoded_chunk, end="", flush=True)
+
+        except OSError as os_error:
+            if os_error.errno == errno.ENOMEM:  # Cannot allocate memory
+                logger.warning(
+                    "Memory allocation issue while reading output, reducing buffer size"
+                )
+                buffer_size = max(1024, buffer_size // 2)
+                continue
+            raise
+
+    return buffer_size
+
+
+def _collect_final_output(stdout_read, buffer_size: int) -> List[str]:
+    """Collect final output from file handle with memory error handling."""
+    stdout_read.seek(0)
+    stdout = []
+
+    try:
+        while True:
+            chunk = stdout_read.read(buffer_size)
+            if not chunk:
+                break
+
+            decoded_chunk = _decode_chunk_safely(chunk)
+            decoded_lines = decoded_chunk.splitlines(keepends=True)
+            stdout.extend(decoded_lines)
+
+    except OSError as os_error:
+        if os_error.errno == errno.ENOMEM:  # Cannot allocate memory
+            logger.warning(
+                "Memory allocation issue while reading final output, truncating"
+            )
+            stdout.append("...[Output truncated due to memory constraints]...\n")
+        else:
+            raise
+
+    return stdout
+
+
 def _execute_command(
     args: Union[List[str], str],
     print_output: bool,
@@ -190,24 +253,18 @@ def _execute_command(
         # pylint: disable=consider-using-with
         process = subprocess.Popen(args, *pargs, **kwargs)
 
-        while True:
-            output = stdout_read.read(1).decode(errors="replace")
-
-            if output == "" and process.poll() is not None:
-                break
-
-            if print_output and output:
-                print(output, end="", flush=True)
-
+        # Read live output with memory-efficient buffering
+        buffer_size = _read_live_output(stdout_read, process, print_output)
         exit_code = process.poll()
 
-        stdout_read.seek(0)
-        stdout = [line.decode(errors="replace") for line in stdout_read.readlines()]
+        # Ensure exit_code is not None (it shouldn't be after _read_live_output completes)
+        if exit_code is None:
+            exit_code = process.wait()
 
-        # ignoring mypy error below because it thinks exit_code can sometimes be None
-        # we know that will never be the case because the above While loop will keep looping forever
-        # until exit_code is not None
-        return exit_code, stdout  # type: ignore
+        # Collect final output
+        stdout = _collect_final_output(stdout_read, buffer_size)
+
+        return exit_code, stdout
 
 
 def _get_retriable_errors(out: List[str]) -> List[str]:
