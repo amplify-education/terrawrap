@@ -3,17 +3,17 @@ name: CodeQL
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [master]
+    branches: [main]
   schedule:
     - cron: 0 18 * * 3
 
 jobs:
   analyse:
     name: Analyse
-    runs-on: self-hosted
+    runs-on: github-hosted-static-ip
 
     steps:
       - name: Checkout repository
