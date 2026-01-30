@@ -8,7 +8,7 @@ on:
 
 jobs:
   pre-commit:
-    runs-on: ubuntu-latest
+    runs-on: github-hosted-static-ip
     steps:
       - name: Check out
         uses: actions/checkout@v3
