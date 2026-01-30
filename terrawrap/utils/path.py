@@ -4,14 +4,14 @@ import re
 import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Set, Union
+from typing import Dict, Optional, Set, Union
 
 from networkx import DiGraph
 
 GIT_REPO_REGEX = r"(URL)?.*/([\w-]*)(?:\.git)?"
 
 
-def get_absolute_path(path: str, root_dir: str = None) -> str:
+def get_absolute_path(path: str, root_dir: Optional[str] = None) -> str:
     """
     Convenience function for determining the full path to a file or directory.
     A RuntimeError will be raised if the given path does not appear to point to either a file or a directory.
