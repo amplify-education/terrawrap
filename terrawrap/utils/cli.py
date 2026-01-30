@@ -7,7 +7,7 @@ import tempfile
 import time
 from enum import Enum
 
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import requests
 
@@ -60,7 +60,7 @@ def execute_command(
     print_command: bool = False,
     retry: bool = False,
     timeout: int = 15 * 60,
-    audit_api_url: str = None,
+    audit_api_url: Optional[str] = None,
     **kwargs,
 ) -> Tuple[int, List[str]]:
     """
@@ -219,8 +219,8 @@ def _post_audit_info(
     audit_api_url: str,
     path: str,
     start_time: int,
-    exit_code: int = None,
-    stdout: List[str] = None,
+    exit_code: Optional[int] = None,
+    stdout: Optional[List[str]] = None,
     update: bool = False,
 ):
     root = get_git_root(path)

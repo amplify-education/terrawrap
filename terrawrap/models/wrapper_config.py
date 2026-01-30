@@ -39,10 +39,10 @@ class UnsetEnvVarConfig(AbstractEnvVarConfig):
 class S3BackendConfig:
     def __init__(
         self,
-        bucket: str = None,
-        region: str = None,
-        dynamodb_table: str = None,
-        role_arn: str = None,
+        bucket: Optional[str] = None,
+        region: Optional[str] = None,
+        dynamodb_table: Optional[str] = None,
+        role_arn: Optional[str] = None,
         # None by default to not override the native terraform backend option by the wrapper options
         # https://developer.hashicorp.com/terraform/language/upgrade-guides#s3-native-state-locking
         use_lockfile: Optional[bool] = None,
@@ -55,7 +55,7 @@ class S3BackendConfig:
 
 
 class GCSBackendConfig:
-    def __init__(self, bucket: str = None):
+    def __init__(self, bucket: Optional[str] = None):
         self.bucket = bucket
 
 
@@ -86,7 +86,7 @@ def env_var_deserializer(obj_dict, cls, **kwargs):
 jsons.set_deserializer(env_var_deserializer, AbstractEnvVarConfig)
 
 
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 class WrapperConfig:
     def __init__(
         self,
@@ -94,13 +94,13 @@ class WrapperConfig:
         pipeline_check: bool = True,
         backend_check: bool = True,
         plan_check: bool = True,
-        envvars: Dict[str, AbstractEnvVarConfig] = None,
-        backends: BackendsConfig = None,
-        depends_on: List[str] = None,
+        envvars: Optional[Dict[str, AbstractEnvVarConfig]] = None,
+        backends: Optional[BackendsConfig] = None,
+        depends_on: Optional[List[str]] = None,
         config: bool = True,
-        audit_api_url: str = None,
+        audit_api_url: Optional[str] = None,
         apply_automatically: bool = True,
-        plugins: Dict[str, str] = None,
+        plugins: Optional[Dict[str, str]] = None,
     ):
         self.configure_backend = configure_backend
         self.pipeline_check = pipeline_check
