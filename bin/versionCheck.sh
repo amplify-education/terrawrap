@@ -20,10 +20,8 @@ if [ "$IS_PULL_REQUEST" != "false" ]; then
         FAILURE_REASON="Failure reason: Version number should be bumped."
     fi
 
-    HIGHEST_VERSION=$(echo -e "$CURRENT_VERSION\n$NEW_VERSION" | sort --version-sort | tail -n 1)
-
-    if [ "$HIGHEST_VERSION" != "$NEW_VERSION" ]; then
-        FAILURE_REASON="Failure Reason: New version ($NEW_VERSION) is less than current version ($HIGHEST_VERSION)"
+    if ! python3 -c "from packaging.version import parse; exit(0 if parse('$NEW_VERSION') > parse('$CURRENT_VERSION') else 1)"; then
+        FAILURE_REASON="Failure Reason: New version ($NEW_VERSION) is not greater than current version ($CURRENT_VERSION)"
     fi
 
 
