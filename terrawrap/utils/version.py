@@ -9,13 +9,9 @@ import requests
 from packaging import version
 from diskcache import Cache
 
-from terrawrap.version import __version__
-
 
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
-cache = Cache(
-    os.path.join(tempfile.gettempdir(), f"terrawrap_version_cache_{__version__}")
-)
+cache = Cache(os.path.join(tempfile.gettempdir(), "terrawrap_version_cache"))
 
 
 def version_check(current_version: str) -> bool:
@@ -41,9 +37,10 @@ def version_check(current_version: str) -> bool:
 
         if latest_rc and version.parse(latest_rc) > current:
             print(
-                "NOTE: A release candidate latest_rc is available.",
-                f"\n f'pip install terrawrap=={latest_rc}' \n",
+                f"NOTE: A release candidate {latest_rc} is available.",
+                f"\n pip install terrawrap=={latest_rc} \n",
                 sep="",
+                file=sys.stderr,
             )
 
         if is_stale:

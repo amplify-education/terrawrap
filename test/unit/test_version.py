@@ -43,6 +43,27 @@ class TestVersion(TestCase):
         self.assertFalse(response)
 
     @patch("terrawrap.utils.version.get_latest_version")
+    def test_version_check_rc_available(self, mock_get_latest_version):
+        """VersionUtils version check prints RC notice when RC is newer"""
+        current_version = "1.0.0"
+        mock_get_latest_version.return_value = ("1.0.0", "1.0.1rc1")
+
+        response = version_check(current_version=current_version)
+
+        self.assertFalse(response)
+
+    @patch("terrawrap.utils.version.sleep", MagicMock())
+    @patch("terrawrap.utils.version.get_latest_version")
+    def test_version_check_stale_with_rc(self, mock_get_latest_version):
+        """VersionUtils version check returns stale and shows RC when both apply"""
+        current_version = "1.0.0"
+        mock_get_latest_version.return_value = ("1.0.1", "1.0.2rc1")
+
+        response = version_check(current_version=current_version)
+
+        self.assertTrue(response)
+
+    @patch("terrawrap.utils.version.get_latest_version")
     def test_version_check_handles_exception(self, mock_get_latest_version):
         """VersionUtils version check swallows exception"""
         current_version = "1.0.0"
