@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - rc/*
   pull_request:
     types:
       - opened
@@ -49,7 +50,7 @@ jobs:
     name: Build and publish Python distributions
     runs-on: github-hosted-static-ip
     needs: [test]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/rc/')
     steps:
       - uses: actions/checkout@master
       - name: Set up Python
