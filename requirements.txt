@@ -8,7 +8,7 @@ gitpython>=2.1.10
 PyYAML>=6.0.1,<7
 ssm-cache>=2.7,<3
 jsons>=1.6.3,<2.0.0
-python-hcl2>=3,<4
+python-hcl2==8.0.0rc1
 # Packaging does not obey semver
 packaging==26
 diskcache>=5.0.0,<6

@@ -3,10 +3,9 @@ import concurrent.futures
 import os
 from collections import defaultdict, namedtuple
 from typing import Dict, Set, Tuple, Union
-
-import hcl2
-from lark import Token
 from networkx import DiGraph
+
+from terrawrap.utils.hcl import hcl2_load
 
 Variable = namedtuple("Variable", ["name", "value"])
 
@@ -26,7 +25,7 @@ def get_auto_vars(root_directory: str) -> Dict[str, Set[Variable]]:
         vars_files = [file_name for file_name in files if file_name.endswith(".tfvars")]
         for file_name in vars_files:
             with open(current_dir + "/" + file_name, "r", encoding="utf-8") as file:
-                variables = hcl2.load(file)
+                variables = hcl2_load(file)
                 for key, value in variables.items():
                     auto_vars[os.path.join(current_dir, file_name)].add(
                         Variable(key, _make_hashable(value))
@@ -43,8 +42,6 @@ def _make_hashable(input_value):
             (_make_hashable(key), _make_hashable(value))
             for key, value in input_value.items()
         )
-    if isinstance(input_value, Token):
-        return str(input_value)
     return input_value
 
 
@@ -56,7 +53,7 @@ def get_nondefault_variables_for_file(file_path: str) -> Set[str]:
     """
     variables = set()
     with open(file_path, "r", encoding="utf-8") as file:
-        tf_info = hcl2.load(file)
+        tf_info = hcl2_load(file)
         for variable in tf_info.get("variable", []):
             for variable_name, var_config in variable.items():
                 if not var_config.get("default"):
