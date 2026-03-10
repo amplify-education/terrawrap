@@ -8,7 +8,7 @@ from typing import List, Union, Iterable, Any
 import boto3
 import git
 from botocore.exceptions import ClientError
-from terrawrap.utils.hcl import loads as hcl2_loads
+from terrawrap.utils.hcl import hcl2_loads
 
 from terrawrap.utils.config import find_variable_files, parse_variable_files
 from terrawrap.utils.path import calc_repo_path

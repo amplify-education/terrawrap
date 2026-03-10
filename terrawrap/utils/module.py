@@ -4,7 +4,7 @@ import os
 from typing import Set, Tuple
 from networkx import DiGraph
 
-from terrawrap.utils.hcl import load as hcl2_load
+from terrawrap.utils.hcl import hcl2_load
 
 
 def get_module_usage_graph(root_directory: str) -> DiGraph:

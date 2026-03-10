@@ -31,11 +31,11 @@ def _normalize(obj):
     return obj
 
 
-def load(file: TextIO) -> dict:
+def hcl2_load(file: TextIO) -> dict:
     """Load HCL2 from a file object and return a normalized Python dict."""
     return _normalize(hcl2.load(file))
 
 
-def loads(text: str) -> dict:
+def hcl2_loads(text: str) -> dict:
     """Load HCL2 from a string and return a normalized Python dict."""
     return _normalize(hcl2.loads(text))

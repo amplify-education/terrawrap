@@ -9,7 +9,7 @@ import jsons
 from jsons import DeserializationError
 from ssm_cache import SSMParameterGroup
 
-from terrawrap.utils.hcl import load as hcl2_load
+from terrawrap.utils.hcl import hcl2_load
 from terrawrap.exceptions import NotTerraformConfigDirectory, NoDependency
 from terrawrap.models.wrapper_config import (
     WrapperConfig,

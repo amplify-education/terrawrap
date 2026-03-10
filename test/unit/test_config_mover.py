@@ -14,7 +14,7 @@ import git
 import pytest
 from botocore.exceptions import ClientError
 
-from terrawrap.utils.hcl import loads as hcl2_loads
+from terrawrap.utils.hcl import hcl2_loads
 from terrawrap.models.config_mover import ConfigMover
 
 

@@ -5,7 +5,7 @@ from collections import defaultdict, namedtuple
 from typing import Dict, Set, Tuple, Union
 from networkx import DiGraph
 
-from terrawrap.utils.hcl import load as hcl2_load
+from terrawrap.utils.hcl import hcl2_load
 
 Variable = namedtuple("Variable", ["name", "value"])
 
