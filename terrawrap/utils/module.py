@@ -2,9 +2,9 @@
 import concurrent.futures
 import os
 from typing import Set, Tuple
-
-import hcl2
 from networkx import DiGraph
+
+from terrawrap.utils.hcl import load as hcl2_load
 
 
 def get_module_usage_graph(root_directory: str) -> DiGraph:
@@ -53,7 +53,7 @@ def _get_modules_for_file(directory: str, file_name: str) -> Tuple[str, Set[str]
     modules = set()
     with open(directory + "/" + file_name, "r", encoding="utf-8") as file:
         try:
-            tf_info = hcl2.load(file)
+            tf_info = hcl2_load(file)
             for module in tf_info.get("module", []):
                 for module_config in module.values():
                     modules.add(os.path.normpath(module_config["source"]))
