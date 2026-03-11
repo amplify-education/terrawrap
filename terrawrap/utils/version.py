@@ -37,8 +37,8 @@ def version_check(current_version: str) -> bool:
 
         if latest_rc and version.parse(latest_rc) > current:
             print(
-                f"NOTE: A release candidate {latest_rc} is available.",
-                f"\n pip install terrawrap=={latest_rc} \n",
+                f"NOTE: A release candidate {latest_rc} is available for testing. It may contain bugs.",
+                f"\nTo opt in, run: pip install terrawrap=={latest_rc}\n",
                 sep="",
                 file=sys.stderr,
             )
