@@ -7,13 +7,17 @@ without having to recreate AWS resources.
 
 Usage:
     tf_move [options] <source_path> <target_path>
+    tf_move [options] --batch <manifest>
     tf_move --version
 
 Arguments:
     source_path             Valid terraform directory you wish to relocate.
     target_path             Non-existent or empty directory to which terraform files will be moved. Must be inside the same environment.
+    manifest                Path to a JSON or YAML file listing [{source, target}, ...] entries, or '-' to read YAML from stdin.
 
 Options:
+    --batch <manifest>      Batch mode: run multiple moves from a manifest file.
+    --dry-run               With --batch, print the resolved plan and exit without making changes.
     -y                      Skip confirmation prompt.[default: False]
     -h,--help               Display this message.
     --version               Display the current version of Terraform Wrapper.
@@ -25,7 +29,7 @@ from pathlib import Path
 
 from docopt import docopt
 
-from terrawrap.models.config_mover import ConfigMover
+from terrawrap.models.config_mover import BatchConfigMover, ConfigMover
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
@@ -34,13 +38,22 @@ def handler():
     version_check(current_version=__version__)
     arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
 
-    source = Path(arguments["<source_path>"])
-    target = Path(arguments["<target_path>"])
     skip_confirmation = arguments["-y"]
+    manifest = arguments["--batch"]
 
-    mover = ConfigMover(source, target)
     try:
-        mover.run(skip_confirmation)
+        if manifest:
+            batch = BatchConfigMover(manifest)
+            exit_code = batch.run(
+                skip_confirmation=skip_confirmation,
+                dry_run=arguments["--dry-run"],
+            )
+            sys.exit(exit_code)
+        else:
+            source = Path(arguments["<source_path>"])
+            target = Path(arguments["<target_path>"])
+            mover = ConfigMover(source, target)
+            mover.run(skip_confirmation)
     except RuntimeError as e:
         print(e)
         sys.exit(1)
