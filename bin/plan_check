@@ -42,6 +42,7 @@ from terrawrap.utils.config import (
 from terrawrap.utils.git_utils import get_git_changed_files, get_git_root
 from terrawrap.utils.module import get_module_usage_graph
 from terrawrap.utils.path import get_file_graph
+from terrawrap.utils.plan import extract_show_json
 from terrawrap.utils.tf_variables import get_auto_var_usage_graph
 
 from networkx import compose_all, descendants
@@ -117,18 +118,20 @@ def convert_plan_to_json(
         env=command_env,
     )
 
-    show_stdout = "\n".join(
-        stdout[1:]
-    )  #  the first line of `tf` output is a command itself
-
     if exit_code == PlanExitCode.FAILURE.value:
         raise RuntimeError(
-            f"'terraform show' failed for {plan_binary_file}:\n{show_stdout}"
+            f"'terraform show' failed for {plan_binary_file}:\n{''.join(stdout)}"
         )
+
+    # `tf` echoes the command and execute_command merges stderr into stdout, so
+    # the captured stream may contain a command-echo line and any terraform
+    # warnings (lockfile, deprecations, etc.) before the JSON. Locate the JSON
+    # by content rather than trusting line counts.
+    show_json = extract_show_json(stdout)
 
     plan_json_file = plan_binary_file.parent / "tfplan.json"
     with plan_json_file.open("w") as plan_json_stream:
-        plan_json_stream.write(show_stdout)
+        plan_json_stream.write(show_json)
 
     return plan_json_file
 

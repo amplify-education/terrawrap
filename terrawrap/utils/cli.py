@@ -1,6 +1,8 @@
 """Module for containing CLI convenience functions"""
 from __future__ import print_function
 
+import base64
+import gzip
 import logging
 import subprocess
 import tempfile
@@ -41,6 +43,7 @@ RETRIABLE_ERRORS = [
 ]
 AUDIT_POST_PATH = "/audit_info"
 AUDIT_UPDATE_PATH = "/update_audit_info"
+OUTPUT_COMPRESSION_THRESHOLD = 5 * 1024 * 1024
 
 
 class Status(str, Enum):
@@ -250,19 +253,34 @@ def _post_audit_info(
 
     stdout_str = "".join(stdout) if stdout else ""
 
+    payload = {
+        "directory": path,
+        "start_time": start_time,
+        "status": status,
+        "git_hash": sha,
+    }
+
+    if len(stdout_str) > OUTPUT_COMPRESSION_THRESHOLD:
+        compressed = gzip.compress(stdout_str.encode("utf-8"))
+        payload["output"] = ""
+        payload["output_compressed"] = base64.b64encode(compressed).decode("ascii")
+        logger.info(
+            "Compressed output for %s: %s -> %s bytes",
+            path,
+            len(stdout_str),
+            len(compressed),
+        )
+    else:
+        payload["output"] = stdout_str
+
     try:
-        requests.post(
+        response = requests.post(
             url=url,
             auth=auth,
-            json={
-                "directory": path,
-                "start_time": start_time,
-                "status": status,
-                "output": stdout_str,
-                "git_hash": sha,
-            },
+            json=payload,
             timeout=30,
         )
+        response.raise_for_status()
         logger.info("Successfully posted data to provided url: %s", audit_api_url)
     except requests.exceptions.RequestException:
         logger.error("Unable to post data to provided url: %s", audit_api_url)
