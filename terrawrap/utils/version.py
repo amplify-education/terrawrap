@@ -35,7 +35,11 @@ def version_check(current_version: str) -> bool:
             )
             is_stale = True
 
-        if latest_rc and version.parse(latest_rc) > current:
+        if (
+            latest_rc
+            and version.parse(latest_rc) > current
+            and version.parse(latest_rc) > version.parse(latest_stable)
+        ):
             print(
                 f"NOTE: A release candidate {latest_rc} is available for testing. It may contain bugs.",
                 f"\nTo opt in, run: pip install terrawrap=={latest_rc}\n",
