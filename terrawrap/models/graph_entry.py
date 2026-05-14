@@ -107,7 +107,9 @@ class GraphEntry(Entry):
             env=command_env,
             shell=shell,
             cwd=self.path,
-            audit_api_url=self.wrapper_config.audit_api_url,
+            # audit_api_url intentionally omitted: the `tf` wrapper (bin/tf)
+            # already reports to the audit API when it runs terraform
+            # apply/destroy. Passing it here would double-report. See AT-14812.
         )
 
         if operation_exit_code == 0:
