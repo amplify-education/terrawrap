@@ -63,6 +63,39 @@ class TestVersion(TestCase):
 
         self.assertTrue(response)
 
+    @patch("terrawrap.utils.version.sleep", MagicMock())
+    @patch("terrawrap.utils.version.get_latest_version")
+    def test_version_check_rc_older_than_stable(self, mock_get_latest_version):
+        """RC alert is suppressed when an equal-or-newer stable already exists"""
+        current_version = "1.0.0"
+        # An RC for 1.1.0 exists, but 1.1.0 stable has already shipped — don't
+        # suggest opting into the older RC.
+        mock_get_latest_version.return_value = ("1.1.0", "1.1.0rc2")
+
+        with patch("sys.stderr") as mock_stderr:
+            response = version_check(current_version=current_version)
+
+        self.assertTrue(response)
+        printed = "".join(
+            call.args[0] for call in mock_stderr.write.call_args_list if call.args
+        )
+        self.assertNotIn("release candidate", printed)
+
+    @patch("terrawrap.utils.version.get_latest_version")
+    def test_version_check_rc_on_matching_stable(self, mock_get_latest_version):
+        """No RC alert when current version is the published release of that RC"""
+        current_version = "0.11.0"
+        mock_get_latest_version.return_value = ("0.11.0", "0.11.0rc2")
+
+        with patch("sys.stderr") as mock_stderr:
+            response = version_check(current_version=current_version)
+
+        self.assertFalse(response)
+        printed = "".join(
+            call.args[0] for call in mock_stderr.write.call_args_list if call.args
+        )
+        self.assertNotIn("release candidate", printed)
+
     @patch("terrawrap.utils.version.get_latest_version")
     def test_version_check_handles_exception(self, mock_get_latest_version):
         """VersionUtils version check swallows exception"""
