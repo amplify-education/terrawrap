@@ -2,7 +2,9 @@
 
 import contextlib
 import io
+import json
 import shutil
+import sys
 import uuid
 from pathlib import Path
 from unittest import TestCase
@@ -13,9 +15,10 @@ import os
 import git
 import hcl2
 import pytest
+import yaml
 from botocore.exceptions import ClientError
 
-from terrawrap.models.config_mover import ConfigMover
+from terrawrap.models.config_mover import BatchConfigMover, ConfigMover
 
 
 class TestConfigMover(TestCase):
@@ -411,3 +414,463 @@ class TestConfigMover(TestCase):
         with contextlib.redirect_stdout(out):
             config_mover._diff_autovars()
         assert source_auto_tfvars.name in out.getvalue()
+
+
+_MAIN_TF = 'module "m" {\n' '  source = "./sub"\n' '  foo = "bar"\n' "}\n"
+
+
+class TestBatchConfigMover(TestCase):
+    """Integration tests for BatchConfigMover. Exercises run() end-to-end against a real
+    temp git repo + real filesystem, with only the S3 client mocked."""
+
+    _base_path = (Path(__file__) / "../../helpers").resolve() / "mock_config_mover"
+    _repo_root_path = _base_path / "terraform-config"
+    _config_path = _repo_root_path / "config"
+    _aws_path = _config_path / "aws"
+
+    def setUp(self):
+        self._aws_path.mkdir(parents=True, exist_ok=True)
+
+        # shared bucket declaration at aws/ level; inherited by sources and targets
+        (self._aws_path / "base.auto.tfvars").write_text(
+            'terraform_state_bucket = "test-bucket"\n'
+        )
+
+        self.sources = {}
+        self.targets = {}
+        for name in ("a", "b", "c"):
+            src = self._aws_path / f"src_{name}"
+            tgt = self._aws_path / f"tgt_{name}"
+            src.mkdir(parents=True, exist_ok=True)
+            (src / "main.tf").write_text(_MAIN_TF)
+            self.sources[name] = src
+            self.targets[name] = tgt
+
+        self.repo = git.Repo.init(self._repo_root_path)
+        self.repo.create_remote(
+            "origin", "https://github.com/amplify-education/terraform-config.git"
+        )
+        self.repo.git.add("--all")
+        self.repo.index.commit("initial")
+
+        self.prev_dir = Path(os.getcwd()).absolute()
+        os.chdir(self._repo_root_path)
+
+    def tearDown(self):
+        os.chdir(self.prev_dir)
+        shutil.rmtree(self._repo_root_path, ignore_errors=True)
+
+    def _manifest_path(self, entries, fmt="yaml", filename="manifest"):
+        path = self._base_path / f"{filename}.{fmt}"
+        if fmt == "json":
+            path.write_text(json.dumps(entries))
+        else:
+            path.write_text(yaml.safe_dump(entries))
+        self.addCleanup(lambda: path.unlink(missing_ok=True))
+        return str(path)
+
+    def _s3_mock(self, copy_side_effect=None):
+        """Build an S3 mock that 404s on head_object and records copy/delete calls."""
+        mock = MagicMock()
+        mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "404"}}, "HeadObject"
+        )
+        if copy_side_effect is not None:
+            mock.copy.side_effect = copy_side_effect
+        return mock
+
+    # ---- happy path & dry run --------------------------------------------------------
+
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_happy_path_all_items_succeed(self, s3_mock: MagicMock):
+        s3_mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "404"}}, "HeadObject"
+        )
+
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(self.sources["b"]), "target": str(self.targets["b"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        exit_code = batch.run(skip_confirmation=True)
+
+        assert exit_code == 0
+        assert not self.sources["a"].exists() or not any(self.sources["a"].iterdir())
+        assert (self.targets["a"] / "main.tf").exists()
+        assert (self.targets["b"] / "main.tf").exists()
+        assert s3_mock.copy.call_count == 2
+        assert len(batch.succeeded) == 2
+        assert batch.failed == []
+
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_dry_run_makes_no_changes(self, s3_mock: MagicMock):
+        s3_mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "404"}}, "HeadObject"
+        )
+
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(self.sources["b"]), "target": str(self.targets["b"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        exit_code = batch.run(skip_confirmation=True, dry_run=True)
+
+        assert exit_code == 0
+        assert (self.sources["a"] / "main.tf").exists()
+        assert (self.sources["b"] / "main.tf").exists()
+        assert not self.targets["a"].exists() or not any(self.targets["a"].iterdir())
+        s3_mock.copy.assert_not_called()
+
+    # ---- up-front validation rejections ----------------------------------------------
+
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_duplicate_targets_aborts_before_mutation(self, s3_mock: MagicMock):
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(self.sources["b"]), "target": str(self.targets["a"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        with pytest.raises(RuntimeError, match="Duplicate target"):
+            batch.run(skip_confirmation=True)
+        assert (self.sources["a"] / "main.tf").exists()
+        assert (self.sources["b"] / "main.tf").exists()
+        s3_mock.copy.assert_not_called()
+
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_duplicate_sources_aborts_before_mutation(self, s3_mock: MagicMock):
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(self.sources["a"]), "target": str(self.targets["b"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        with pytest.raises(RuntimeError, match="Duplicate source"):
+            batch.run(skip_confirmation=True)
+        s3_mock.copy.assert_not_called()
+
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_target_is_another_items_source_aborts(self, s3_mock: MagicMock):
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.sources["b"])},
+                {"source": str(self.sources["b"]), "target": str(self.targets["c"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        with pytest.raises(RuntimeError, match="Chained moves"):
+            batch.run(skip_confirmation=True)
+        s3_mock.copy.assert_not_called()
+
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_mixed_state_buckets_aborts(self, s3_mock: MagicMock):
+        # Build an alt subtree with its own bucket override so per-item env check passes
+        # but cross-item bucket check fails.
+        alt_root = self._aws_path / "alt"
+        alt_root.mkdir(parents=True, exist_ok=True)
+        (alt_root / "alt.auto.tfvars").write_text(
+            'terraform_state_bucket = "other-bucket"\n'
+        )
+        alt_src = alt_root / "src_alt"
+        alt_src.mkdir()
+        (alt_src / "main.tf").write_text(_MAIN_TF)
+        alt_tgt = alt_root / "tgt_alt"
+        self.repo.git.add("--all")
+        self.repo.index.commit("alt bucket subtree")
+
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(alt_src), "target": str(alt_tgt)},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        s3_mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "404"}}, "HeadObject"
+        )
+        with pytest.raises(RuntimeError, match="same terraform_state_bucket"):
+            batch.run(skip_confirmation=True)
+        s3_mock.copy.assert_not_called()
+
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_s3_target_collision_aborts_before_mutation(self, s3_mock: MagicMock):
+        # head_object returns success for item 1's target key only, 404 for others
+        def head_side_effect(
+            Bucket, Key
+        ):  # pylint: disable=invalid-name,unused-argument
+            if "tgt_b" in Key:
+                return {"LastModified": MagicMock()}
+            raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
+
+        s3_mock.head_object.side_effect = head_side_effect
+
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(self.sources["b"]), "target": str(self.targets["b"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        with pytest.raises(RuntimeError, match="already exist"):
+            batch.run(skip_confirmation=True)
+        assert (self.sources["a"] / "main.tf").exists()
+        assert (self.sources["b"] / "main.tf").exists()
+        s3_mock.copy.assert_not_called()
+
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_dirty_source_file_aborts_entire_batch(self, s3_mock: MagicMock):
+        s3_mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "404"}}, "HeadObject"
+        )
+
+        # make src_a's main.tf dirty
+        (self.sources["a"] / "main.tf").write_text(_MAIN_TF + "\n# dirty\n")
+
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(self.sources["b"]), "target": str(self.targets["b"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        with pytest.raises(RuntimeError, match="uncommitted changes"):
+            batch.run(skip_confirmation=True)
+        s3_mock.copy.assert_not_called()
+        assert (self.sources["a"] / "main.tf").exists()
+        assert (self.sources["b"] / "main.tf").exists()
+
+    # ---- execution-stage failures ----------------------------------------------------
+
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_execution_failure_resets_failed_item_only(self, s3_mock: MagicMock):
+        s3_mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "404"}}, "HeadObject"
+        )
+
+        # S3 copy succeeds for item 0 (a), fails for item 1 (b)
+        def copy_side_effect(
+            CopySource, Bucket, Key
+        ):  # pylint: disable=invalid-name,unused-argument
+            if "tgt_b" in Key:
+                raise ClientError({"Error": {"Code": "500"}}, "CopyObject")
+            return None
+
+        s3_mock.copy.side_effect = copy_side_effect
+
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(self.sources["b"]), "target": str(self.targets["b"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        exit_code = batch.run(skip_confirmation=True)
+
+        assert exit_code == 1
+        assert batch.succeeded == [0]
+        assert [i for i, _ in batch.failed] == [1]
+
+        # item a: moved successfully
+        assert (self.targets["a"] / "main.tf").exists()
+        # item b: reset — source files back, target empty
+        assert (self.sources["b"] / "main.tf").exists()
+        assert not self.targets["b"].exists() or not any(self.targets["b"].iterdir())
+        # working tree clean for item b (original state restored)
+        status_b = self.repo.git.status(
+            "--porcelain", "--", str(self.sources["b"])
+        ).strip()
+        assert status_b == ""
+
+    @patch("builtins.input")
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_failure_then_rollback_accepted(
+        self, s3_mock: MagicMock, input_mock: MagicMock
+    ):
+        s3_mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "404"}}, "HeadObject"
+        )
+
+        def copy_side_effect(
+            CopySource, Bucket, Key
+        ):  # pylint: disable=invalid-name,unused-argument
+            if "tgt_b" in Key:
+                raise ClientError({"Error": {"Code": "500"}}, "CopyObject")
+            return None
+
+        s3_mock.copy.side_effect = copy_side_effect
+        input_mock.side_effect = ["y", "r"]
+
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(self.sources["b"]), "target": str(self.targets["b"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        exit_code = batch.run(skip_confirmation=False)
+
+        assert exit_code == 1
+        s3_mock.delete_object.assert_called_once()
+        delete_kwargs = s3_mock.delete_object.call_args.kwargs
+        assert "tgt_a" in delete_kwargs["Key"]
+        # item a's local state rolled back
+        assert (self.sources["a"] / "main.tf").exists()
+        assert not self.targets["a"].exists() or not any(self.targets["a"].iterdir())
+        assert self.repo.git.status("--porcelain").strip() == ""
+
+    @patch("builtins.input")
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_failure_then_keep_accepted(
+        self, s3_mock: MagicMock, input_mock: MagicMock
+    ):
+        s3_mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "404"}}, "HeadObject"
+        )
+
+        def copy_side_effect(
+            CopySource, Bucket, Key
+        ):  # pylint: disable=invalid-name,unused-argument
+            if "tgt_b" in Key:
+                raise ClientError({"Error": {"Code": "500"}}, "CopyObject")
+            return None
+
+        s3_mock.copy.side_effect = copy_side_effect
+        input_mock.side_effect = ["y", "k"]
+
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(self.sources["b"]), "target": str(self.targets["b"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+        exit_code = batch.run(skip_confirmation=False)
+
+        assert exit_code == 1
+        s3_mock.delete_object.assert_not_called()
+        assert (self.targets["a"] / "main.tf").exists()
+
+    @patch("builtins.input")
+    @patch(
+        "terrawrap.models.config_mover.ConfigMover.s3_client", new_callable=MagicMock
+    )
+    def test_rollback_failure_prints_manual_recovery(
+        self, s3_mock: MagicMock, input_mock: MagicMock
+    ):
+        s3_mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "404"}}, "HeadObject"
+        )
+
+        def copy_side_effect(
+            CopySource, Bucket, Key
+        ):  # pylint: disable=invalid-name,unused-argument
+            if "tgt_b" in Key:
+                raise ClientError({"Error": {"Code": "500"}}, "CopyObject")
+            return None
+
+        s3_mock.copy.side_effect = copy_side_effect
+        s3_mock.delete_object.side_effect = ClientError(
+            {"Error": {"Code": "500"}}, "DeleteObject"
+        )
+        input_mock.side_effect = ["y", "r"]
+
+        manifest = self._manifest_path(
+            [
+                {"source": str(self.sources["a"]), "target": str(self.targets["a"])},
+                {"source": str(self.sources["b"]), "target": str(self.targets["b"])},
+            ]
+        )
+        batch = BatchConfigMover(manifest)
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            exit_code = batch.run(skip_confirmation=False)
+
+        assert exit_code == 1
+        assert "Manual recovery" in out.getvalue()
+        # only one rollback attempted, not retried
+        assert s3_mock.delete_object.call_count == 1
+
+    # ---- manifest parsing ------------------------------------------------------------
+
+    def test_manifest_parses_yaml(self):
+        manifest = self._manifest_path(
+            [
+                {"source": "/a", "target": "/b"},
+                {"source": "/c", "target": "/d"},
+            ],
+            fmt="yaml",
+        )
+        entries = BatchConfigMover._load_manifest(manifest)
+        assert entries == [
+            {"source": "/a", "target": "/b"},
+            {"source": "/c", "target": "/d"},
+        ]
+
+    def test_manifest_parses_json(self):
+        manifest = self._manifest_path(
+            [{"source": "/a", "target": "/b"}],
+            fmt="json",
+        )
+        entries = BatchConfigMover._load_manifest(manifest)
+        assert entries == [{"source": "/a", "target": "/b"}]
+
+    def test_manifest_parses_stdin(self):
+        payload = yaml.safe_dump([{"source": "/a", "target": "/b"}])
+        with patch.object(sys, "stdin", io.StringIO(payload)):
+            entries = BatchConfigMover._load_manifest("-")
+        assert entries == [{"source": "/a", "target": "/b"}]
+
+    def test_manifest_rejects_non_list(self):
+        path = self._base_path / "bad.yaml"
+        path.write_text("source: /a\ntarget: /b\n")
+        self.addCleanup(lambda: path.unlink(missing_ok=True))
+        with pytest.raises(RuntimeError, match="must be a list"):
+            BatchConfigMover._load_manifest(str(path))
+
+    def test_manifest_rejects_missing_keys(self):
+        manifest = self._manifest_path([{"source": "/a"}], fmt="yaml", filename="bad2")
+        with pytest.raises(RuntimeError, match="source.*target"):
+            BatchConfigMover._load_manifest(manifest)
+
+    def test_manifest_rejects_empty(self):
+        path = self._base_path / "empty.yaml"
+        path.write_text("[]\n")
+        self.addCleanup(lambda: path.unlink(missing_ok=True))
+        with pytest.raises(RuntimeError, match="empty"):
+            BatchConfigMover._load_manifest(str(path))
+
+    def test_manifest_rejects_unsupported_extension(self):
+        path = self._base_path / "bad.txt"
+        path.write_text("foo")
+        self.addCleanup(lambda: path.unlink(missing_ok=True))
+        with pytest.raises(RuntimeError, match="Unsupported manifest extension"):
+            BatchConfigMover._load_manifest(str(path))
