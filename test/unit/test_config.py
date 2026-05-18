@@ -113,10 +113,11 @@ class TestConfig(TestCase):
 
         app1 = os.path.join(os.getcwd(), "mock_directory/config/app1")
         app2 = os.path.join(os.getcwd(), "mock_directory/config/app2")
+        area_svc = os.path.join(os.getcwd(), "mock_directory/config/area/svc")
 
         app_team_4 = os.path.join(os.getcwd(), "mock_directory/config/team/app4")
 
-        expected_post_graph = [app1, app2, app_team_4]
+        expected_post_graph = [app1, app2, area_svc, app_team_4]
 
         expected_post_graph.sort()
         actual_post_graph.sort()

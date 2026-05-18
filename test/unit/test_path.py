@@ -40,6 +40,10 @@ class TestPath(TestCase):
                 "config/app4/.tf_wrapper",
                 "config/app5",
                 "config/app5/app.auto.tfvars",
+                "config/area",
+                "config/area/area.auto.tfvars",
+                "config/area/svc",
+                "config/area/svc/variables.tf",
                 "config/global.auto.tfvars",
                 "config/team",
                 "config/team/app4",
@@ -61,6 +65,8 @@ class TestPath(TestCase):
                 ("config/app1/test.tf", "config/app1"),
                 ("config/app1/app.auto.tfvars", "config/app1"),
                 ("config/app1/variables.tf", "config/app1"),
+                ("config/area/area.auto.tfvars", "config/area"),
+                ("config/area/svc/variables.tf", "config/area/svc"),
             ]
         )
         self.assertEqual(set(actual.nodes), set(expected.nodes))
