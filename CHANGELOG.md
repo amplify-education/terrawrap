@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.10.21\] - 2026-05-21
+
+### Added
+
+- `.tf_wrapper` SSM envvars now accept `path` as either a string (existing) or a
+  list of strings. When a list is provided, each path is tried in order. A path
+  that raises `AccessDeniedException` or `ParameterNotFound` is silently
+  skipped; other errors propagate. If every path is skipped, terrawrap exits
+  with an error message listing the attempted paths and the caller's IAM
+  identity (from `sts:GetCallerIdentity`).
+- `tf_validate` CLI: schema-checks every `.tf_wrapper` under a given path. The
+  `--fix` flag also prunes dead `depends_on` entries and back-fills
+  `depends_on: []` on referenced targets — replacing the legacy
+  `scripts/check_tf_wrapper.sh` in `terraform-config`.
+
+### Changed
+
+- SSM envvar resolution no longer uses `ssm-cache`; replaced with a small
+  in-tree resolver that uses `boto3` directly. This lets terrawrap distinguish
+  `AccessDeniedException` from `ParameterNotFound`, which `ssm-cache`
+  collapses into a single `InvalidParameterError`.
+- The new in-tree SSM resolver caches values for the lifetime of the process
+  (no TTL eviction), where the previous `ssm-cache` library used a 10-minute
+  `max_age`. Long-running terrawrap consumers should restart the process to
+  pick up rotated SSM values; one-shot CLI invocations are unaffected.
+- Wrapper-config merging now treats the SSM `path` field with child-wins
+  replacement semantics, not list-extension. The previous behavior would
+  crash if parent and child declared `path` with mismatched types, and would
+  silently union path lists across the inheritance chain.
+
+### Removed
+
+- `ssm-cache` is no longer a dependency.
+- `SSM_ENVVAR_CACHE` module global in `terrawrap.utils.config` is removed.
+
 ## \[0.9.20\] - 2022-09-23
 
 ### Changed

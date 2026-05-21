@@ -20,9 +20,19 @@ class AbstractEnvVarConfig:
 
 
 class SSMEnvVarConfig(AbstractEnvVarConfig):
-    def __init__(self, path: str):
+    def __init__(self, paths: List[str]):
+        if not paths:
+            raise ValueError("SSMEnvVarConfig requires at least one path")
         super().__init__(EnvVarSource.SSM)
-        self.path = path
+        self.paths = paths
+
+    @property
+    def path(self) -> str:
+        """Deprecated — returns paths[0] for backward compatibility.
+
+        Use ``.paths`` to access the full list of SSM paths.
+        """
+        return self.paths[0]
 
 
 class TextEnvVarConfig(AbstractEnvVarConfig):
@@ -70,11 +80,48 @@ class BackendsConfig:
         self.gcs = gcs
 
 
+def _parse_ssm_paths(raw_path) -> List[str]:
+    """Normalize the SSM ``path`` field to a non-empty list of strings."""
+    if isinstance(raw_path, str):
+        return [raw_path]
+    if isinstance(raw_path, list):
+        if not raw_path:
+            raise ValueError("SSM envvar 'path' list must not be empty")
+        if all(isinstance(p, str) for p in raw_path):
+            return list(raw_path)
+    raise TypeError(
+        f"SSM envvar 'path' must be a string or list of strings, got {raw_path!r}"
+    )
+
+
 # pylint: disable=unused-argument
 def env_var_deserializer(obj_dict, cls, **kwargs):
     """convert a dict to a subclass of AbstractEnvVarConfig"""
     if obj_dict["source"] == EnvVarSource.SSM.value:
-        return SSMEnvVarConfig(obj_dict["path"])
+        has_path = "path" in obj_dict
+        has_paths = "paths" in obj_dict
+        if not has_path and not has_paths:
+            raise KeyError("SSM envvar requires 'path' or 'paths'")
+        if has_paths:
+            raw = obj_dict["paths"]
+            if not isinstance(raw, list):
+                raise TypeError(
+                    f"SSM envvar 'paths' must be a list of strings, got {raw!r}"
+                )
+            if not raw:
+                raise ValueError("SSM envvar 'paths' list must not be empty")
+            if not all(isinstance(p, str) for p in raw):
+                raise TypeError(
+                    f"SSM envvar 'paths' must be a list of strings, got {raw!r}"
+                )
+            paths = list(raw)
+            if has_path:
+                # Prepend every entry from `path` (which itself may be a list) so
+                # nothing is silently truncated when both keys coexist.
+                paths = _parse_ssm_paths(obj_dict["path"]) + paths
+        else:
+            paths = _parse_ssm_paths(obj_dict["path"])
+        return SSMEnvVarConfig(paths)
     if obj_dict["source"] == EnvVarSource.TEXT.value:
         return TextEnvVarConfig(obj_dict["value"])
     if obj_dict["source"] == EnvVarSource.UNSET.value:

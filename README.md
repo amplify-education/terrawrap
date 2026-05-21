@@ -139,12 +139,28 @@ backend_check: True # If true, require this directory to have a terraform backen
 envvars:
   <NAME_OF_ENVVAR>:
     source: # The source of the envvar. One of `['ssm', 'text', 'unset']`.
-    path: # If the source of the envvar is `ssm`, the SSM Parameter Store path to lookup the value of the environment variable from.
+    path: # If source is `ssm`, the SSM Parameter Store path to read the value from. May be a single string or a list of strings (ordered fallbacks).
     value: # if the source of the envvar is `text`, the string value to set as the environment variable.
     # If the source is unset, any previous value for the environment variable is removed and the environment variable will not be set.
 
 plugins:
     <NAME_OF_PLUGIN>: <plugin url>
+```
+
+When `path` is a list, terrawrap tries each entry in order and uses the first
+one it can read. A path that returns `AccessDeniedException` or
+`ParameterNotFound` is silently skipped; any other error (throttling, network,
+validation) bubbles up unchanged. If every path is skipped, terrawrap exits
+with a message listing the attempted paths and the caller's IAM identity (as
+returned by `sts:GetCallerIdentity`).
+
+```yaml
+envvars:
+  GITHUB_TOKEN:
+    source: ssm
+    path:
+      - /account/app_auth/github/terraform_token
+      - /shared/github/terraform_token
 ```
 
 ### Plugins
