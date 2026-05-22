@@ -360,7 +360,7 @@ class TestTfValidateMain(TestCase):
             try:
                 self._mod.main()
                 return 0
-            except SystemExit as exc:
+            except SystemExit as exc:  # NOSONAR — testing the CLI's exit-code contract
                 return exc.code
 
     def test_exit_0_when_no_errors_and_no_changes(self):

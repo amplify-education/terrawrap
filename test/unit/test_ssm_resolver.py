@@ -10,7 +10,7 @@ from terrawrap.utils.ssm_resolver import SsmResolver, SsmPathsExhausted
 
 
 CALLER_ARN = "arn:aws:sts::123456789012:assumed-role/Engineer/test-session"
-STUB_REGION = "us-west-2"  # botocore Stubber requires a region; value is inert
+STUB_REGION = "us-west-2"  # NOSONAR — botocore Stubber needs a region; value is inert
 
 
 def _client_error(code: str) -> ClientError:
