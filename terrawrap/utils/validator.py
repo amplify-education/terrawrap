@@ -8,7 +8,7 @@ targets that lack one (graph_apply requires the array to exist).
 """
 import logging
 import os
-from typing import List, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 import yaml
 from jsons import DeserializationError
@@ -72,12 +72,56 @@ def _resolve_dep(dep: str, tf_wrapper_path: str, repo_root: str) -> str:
     return abs_dep
 
 
+def _prune_dead_deps(
+    tf_path: str, data, repo_root: str, referenced_targets: Set[str]
+) -> bool:
+    """Drop ``depends_on`` entries that don't resolve to a directory.
+
+    Mutates ``data`` in place and records every kept target in ``referenced_targets``.
+    Returns True when the file was modified.
+    """
+    deps = data.get("depends_on")
+    if not deps:
+        return False
+    if not isinstance(deps, list):
+        logger.warning(
+            "skipping %s: depends_on must be a list, got %s",
+            tf_path,
+            type(deps).__name__,
+        )
+        return False
+    kept = []
+    for dep in deps:
+        dep_path = _resolve_dep(dep, tf_path, repo_root)
+        if os.path.isdir(dep_path):
+            kept.append(dep)
+            referenced_targets.add(os.path.realpath(dep_path))
+    if kept == deps:
+        return False
+    data["depends_on"] = kept
+    return True
+
+
+def _backfill_missing_depends_on(target_dir: str) -> Optional[str]:
+    """Add ``depends_on: []`` to a referenced target that lacks the key.
+
+    Returns the rewritten file path if a change was made, else None.
+    """
+    target_wrapper = os.path.join(target_dir, TF_WRAP_FILE)
+    data = _load_yaml(target_wrapper)
+    if data is None or data.get("depends_on") is not None:
+        return None
+    data["depends_on"] = []
+    _dump_yaml(target_wrapper, data)
+    return target_wrapper
+
+
 def fix_depends_on(tf_wrapper_paths: List[str], repo_root: str) -> List[str]:
     """Prune dead ``depends_on`` entries and back-fill empty arrays on targets.
 
     :param tf_wrapper_paths: every .tf_wrapper file to consider.
     :param repo_root: directory used to resolve ``config/...``-style deps.
-    :return: list of files that were rewritten.
+    :return: sorted list of files that were rewritten.
     """
     changed: Set[str] = set()
     referenced_targets: Set[str] = set()
@@ -86,36 +130,14 @@ def fix_depends_on(tf_wrapper_paths: List[str], repo_root: str) -> List[str]:
         data = _load_yaml(tf_path)
         if data is None:
             continue
-        deps = data.get("depends_on")
-        if not deps:
-            continue
-        if not isinstance(deps, list):
-            logger.warning(
-                "skipping %s: depends_on must be a list, got %s",
-                tf_path,
-                type(deps).__name__,
-            )
-            continue
-        kept = []
-        for dep in deps:
-            dep_path = _resolve_dep(dep, tf_path, repo_root)
-            if os.path.isdir(dep_path):
-                kept.append(dep)
-                referenced_targets.add(os.path.realpath(dep_path))
-        if kept != deps:
-            data["depends_on"] = kept
+        if _prune_dead_deps(tf_path, data, repo_root, referenced_targets):
             _dump_yaml(tf_path, data)
             changed.add(tf_path)
 
     for target_dir in referenced_targets:
-        target_wrapper = os.path.join(target_dir, TF_WRAP_FILE)
-        data = _load_yaml(target_wrapper)
-        if data is None:
-            continue
-        if data.get("depends_on") is None:
-            data["depends_on"] = []
-            _dump_yaml(target_wrapper, data)
-            changed.add(target_wrapper)
+        backfilled = _backfill_missing_depends_on(target_dir)
+        if backfilled is not None:
+            changed.add(backfilled)
 
     return sorted(changed)
 

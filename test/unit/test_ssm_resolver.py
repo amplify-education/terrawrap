@@ -10,6 +10,7 @@ from terrawrap.utils.ssm_resolver import SsmResolver, SsmPathsExhausted
 
 
 CALLER_ARN = "arn:aws:sts::123456789012:assumed-role/Engineer/test-session"
+STUB_REGION = "us-west-2"  # botocore Stubber requires a region; value is inert
 
 
 def _client_error(code: str) -> ClientError:
@@ -23,7 +24,7 @@ class TestSsmResolverHappyPath(TestCase):
     """Resolves the first readable path and short-circuits remaining paths."""
 
     def setUp(self):
-        self.ssm = boto3.client("ssm", region_name="us-west-2")
+        self.ssm = boto3.client("ssm", region_name=STUB_REGION)
         self.stub = Stubber(self.ssm)
         self.sts = MagicMock()
         self.sts.get_caller_identity.return_value = {"Arn": CALLER_ARN}

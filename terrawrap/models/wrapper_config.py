@@ -94,39 +94,45 @@ def _parse_ssm_paths(raw_path) -> List[str]:
     )
 
 
+def _parse_paths_list(raw) -> List[str]:
+    """Validate a YAML ``paths`` value as a non-empty list of strings."""
+    if not isinstance(raw, list):
+        raise TypeError(f"SSM envvar 'paths' must be a list of strings, got {raw!r}")
+    if not raw:
+        raise ValueError("SSM envvar 'paths' list must not be empty")
+    if not all(isinstance(p, str) for p in raw):
+        raise TypeError(f"SSM envvar 'paths' must be a list of strings, got {raw!r}")
+    return list(raw)
+
+
+def _ssm_paths_from_dict(obj_dict: Dict) -> List[str]:
+    """Resolve the SSM path list from the ``path``/``paths`` YAML keys.
+
+    When both keys are present, all entries from ``path`` are prepended to
+    ``paths`` so nothing is silently truncated.
+    """
+    has_path = "path" in obj_dict
+    has_paths = "paths" in obj_dict
+    if not has_path and not has_paths:
+        raise KeyError("SSM envvar requires 'path' or 'paths'")
+    if not has_paths:
+        return _parse_ssm_paths(obj_dict["path"])
+    paths = _parse_paths_list(obj_dict["paths"])
+    if has_path:
+        paths = _parse_ssm_paths(obj_dict["path"]) + paths
+    return paths
+
+
 # pylint: disable=unused-argument
 def env_var_deserializer(obj_dict, cls, **kwargs):
     """convert a dict to a subclass of AbstractEnvVarConfig"""
-    if obj_dict["source"] == EnvVarSource.SSM.value:
-        has_path = "path" in obj_dict
-        has_paths = "paths" in obj_dict
-        if not has_path and not has_paths:
-            raise KeyError("SSM envvar requires 'path' or 'paths'")
-        if has_paths:
-            raw = obj_dict["paths"]
-            if not isinstance(raw, list):
-                raise TypeError(
-                    f"SSM envvar 'paths' must be a list of strings, got {raw!r}"
-                )
-            if not raw:
-                raise ValueError("SSM envvar 'paths' list must not be empty")
-            if not all(isinstance(p, str) for p in raw):
-                raise TypeError(
-                    f"SSM envvar 'paths' must be a list of strings, got {raw!r}"
-                )
-            paths = list(raw)
-            if has_path:
-                # Prepend every entry from `path` (which itself may be a list) so
-                # nothing is silently truncated when both keys coexist.
-                paths = _parse_ssm_paths(obj_dict["path"]) + paths
-        else:
-            paths = _parse_ssm_paths(obj_dict["path"])
-        return SSMEnvVarConfig(paths)
-    if obj_dict["source"] == EnvVarSource.TEXT.value:
+    source = obj_dict["source"]
+    if source == EnvVarSource.SSM.value:
+        return SSMEnvVarConfig(_ssm_paths_from_dict(obj_dict))
+    if source == EnvVarSource.TEXT.value:
         return TextEnvVarConfig(obj_dict["value"])
-    if obj_dict["source"] == EnvVarSource.UNSET.value:
+    if source == EnvVarSource.UNSET.value:
         return UnsetEnvVarConfig()
-
     raise RuntimeError("Invalid Source")
 
 

@@ -1,4 +1,5 @@
 """Tests for the .tf_wrapper validator and depends_on fixer."""
+import contextlib
 import importlib.machinery
 import importlib.util
 import os
@@ -343,23 +344,24 @@ class TestTfValidateMain(TestCase):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def _run(self, argv, stub_return=None):
-        """Invoke main() with argv; optionally stub the module-local validate_and_fix."""
-        with patch.object(sys, "argv", ["tf_validate"] + argv):
+        """Invoke main() with argv; optionally stub the module-local validate_and_fix.
+
+        Catching SystemExit is intentional — main() signals its exit code via sys.exit
+        and this helper extracts that code for test assertions.
+        """
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(sys, "argv", ["tf_validate"] + argv))
             if stub_return is not None:
-                with patch.object(
-                    self._mod, "validate_and_fix", return_value=stub_return
-                ):
-                    try:
-                        self._mod.main()
-                        return 0
-                    except SystemExit as exc:
-                        return exc.code
-            else:
-                try:
-                    self._mod.main()
-                    return 0
-                except SystemExit as exc:
-                    return exc.code
+                stack.enter_context(
+                    patch.object(
+                        self._mod, "validate_and_fix", return_value=stub_return
+                    )
+                )
+            try:
+                self._mod.main()
+                return 0
+            except SystemExit as exc:
+                return exc.code
 
     def test_exit_0_when_no_errors_and_no_changes(self):
         """Clean tree with --fix exits 0."""
