@@ -93,7 +93,7 @@ def get_subdirectories(root_dir: str) -> Tuple[List[str], List[str]]:
 def convert_plan_to_json(
     plan_binary_file: Path,
     source_directory: Path,
-    additional_envvars: Dict[str, str],
+    additional_envvars: Dict[str, Optional[str]],
 ) -> Path:
     """
     Converts binary terraform plan to json. Saves it in the same directory.
@@ -103,7 +103,7 @@ def convert_plan_to_json(
     :return: Path object pointing to a json plan file
     """
     wrapper_py = os.path.join(SCRIPT_DIR, "tf")
-    command_env = os.environ.copy()
+    command_env: Dict[str, Optional[str]] = dict(os.environ)
     command_env.update(additional_envvars)
 
     exit_code, stdout = execute_command(
@@ -141,7 +141,7 @@ def init_and_plan_directory(
     skip_iam: bool,
     print_diff: bool,
     with_colors: bool,
-    additional_envvars: Dict[str, str],
+    additional_envvars: Dict[str, Optional[str]],
     output_directory: Optional[str] = None,
 ) -> WrapperExitCode:
     """
@@ -162,7 +162,7 @@ def init_and_plan_directory(
     pr_checker_arguments = ["-var-file=pr_checker.tfvars"]
     wrapper_py = os.path.join(SCRIPT_DIR, "tf")
 
-    command_env = os.environ.copy()
+    command_env: Dict[str, Optional[str]] = dict(os.environ)
     command_env.update(additional_envvars)
 
     # We're using --no-resolve-envvars here because we've already resolved the environment variables in
