@@ -124,3 +124,22 @@ class TestCli(TestCase):
                 },
                 timeout=30,
             )
+
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_post_audit_info_signs_for_url_host(self, _, mock_auth):
+        """SigV4 host must come from the audit_api_url, not a hardcoded value."""
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        _post_audit_info(
+            audit_api_url="https://terraform-audit-api.devops-testing.amplify.com",
+            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+            start_time=12345,
+            exit_code=0,
+        )
+
+        mock_auth.assert_called_with(
+            aws_host="terraform-audit-api.devops-testing.amplify.com",
+            aws_region="us-west-2",
+            aws_service="execute-api",
+        )

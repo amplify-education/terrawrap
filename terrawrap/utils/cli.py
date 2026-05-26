@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import time
 from enum import Enum
+from urllib.parse import urlparse
 
 from typing import List, Optional, Tuple, Union
 
@@ -246,7 +247,7 @@ def _post_audit_info(
     )
 
     auth = BotoAWSRequestsAuth(
-        aws_host="terraform-audit-api.devops.amplify.com",
+        aws_host=urlparse(audit_api_url).hostname,
         aws_region="us-west-2",
         aws_service="execute-api",
     )
