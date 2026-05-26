@@ -2,7 +2,7 @@
 import logging
 import os
 import tempfile
-from typing import List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
@@ -39,7 +39,7 @@ class PipelineEntry:
         :param debug: True if Terraform debug info should be printed.
         :return: A tuple of the exit code, output of the command, and whether changes were detected.
         """
-        command_env = os.environ.copy()
+        command_env: Dict[str, Optional[str]] = dict(os.environ)
         command_env.update(self.envvars)
 
         if debug:

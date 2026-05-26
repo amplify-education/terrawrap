@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 
 import os
-from typing import List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
@@ -70,7 +70,7 @@ class GraphEntry(Entry):
         """
         print(f"Executing {self.abs_path} {operation} ...")
         self.state = "Executing"
-        command_env = os.environ.copy()
+        command_env: Dict[str, Optional[str]] = dict(os.environ)
         command_env.update(self.envvars)
 
         if debug:

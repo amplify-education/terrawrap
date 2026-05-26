@@ -86,5 +86,6 @@ setup(
         "bin/visualize",
         "bin/graph_apply",
         "bin/tf_move",
+        "bin/tf_validate",
     ],
 )

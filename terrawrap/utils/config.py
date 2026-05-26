@@ -8,7 +8,6 @@ import hcl2
 import jsons
 import yaml
 from jsons import DeserializationError
-from ssm_cache import SSMParameterGroup
 
 from terrawrap.exceptions import NotTerraformConfigDirectory, NoDependency
 from terrawrap.models.wrapper_config import (
@@ -21,9 +20,8 @@ from terrawrap.models.wrapper_config import (
 )
 from terrawrap.utils.collection_utils import update
 from terrawrap.utils.path import get_absolute_path, calc_repo_path
+from terrawrap.utils.ssm_resolver import resolve_ssm_paths
 
-DEFAULT_REGION = "us-west-2"
-SSM_ENVVAR_CACHE = SSMParameterGroup(max_age=600)
 TF_WRAP_FILE = ".tf_wrapper"
 
 
@@ -273,7 +271,9 @@ def graph_wrapper_dependencies(
         graph_wrapper_dependencies(predecessor, config_dict, graph, visited)
 
 
-def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, str]:
+def resolve_envvars(
+    envvar_configs: Dict[str, AbstractEnvVarConfig]
+) -> Dict[str, Optional[str]]:
     """
     Resolves the 'envvars' section from the wrapper config to actual environment variables that can be easily
     supplied to a command.
@@ -281,12 +281,10 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
     :return: A dictionary representing the environment variables that were resolved, with the key being the
     name of the environment variable and the value being the value of the environment variable.
     """
-    resolved_envvars = {}
+    resolved_envvars: Dict[str, Optional[str]] = {}
     for envvar_name, envvar_config in envvar_configs.items():
         if isinstance(envvar_config, SSMEnvVarConfig):
-            resolved_envvars[envvar_name] = SSM_ENVVAR_CACHE.parameter(
-                envvar_config.path
-            ).value
+            resolved_envvars[envvar_name] = resolve_ssm_paths(envvar_config.paths)
         if isinstance(envvar_config, TextEnvVarConfig):
             resolved_envvars[envvar_name] = str(envvar_config.value)
         if isinstance(envvar_config, UnsetEnvVarConfig):
