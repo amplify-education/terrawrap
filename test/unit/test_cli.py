@@ -101,7 +101,7 @@ class TestCli(TestCase):
         """Test Audit API helper function for each possible status"""
         statuses = {Status.IN_PROGRESS: None, Status.FAILED: 2, Status.SUCCESS: 0}
 
-        fake_url = "foo.bar"
+        fake_url = "https://foo.bar"
         os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
 
         for status, exit_code in statuses.items():
@@ -113,7 +113,7 @@ class TestCli(TestCase):
             )
 
             mock_post.assert_called_with(
-                url="foo.bar/audit_info",
+                url="https://foo.bar/audit_info",
                 auth=ANY,
                 json={
                     "directory": "/test/helpers/mock_directory/config/.tf_wrapper",
