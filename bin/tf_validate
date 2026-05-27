@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+"""tf_validate — validate (and optionally repair) .tf_wrapper files.
+
+Walks the given directory recursively, schema-checks every .tf_wrapper, and
+prints any errors. With --fix, also prunes dead `depends_on` entries and
+back-fills `depends_on: []` on referenced targets (matches the behavior of
+the legacy scripts/check_tf_wrapper.sh in terraform-config).
+
+Exit codes:
+    0   No schema errors and (with --fix) no files were modified.
+    1   Schema errors found, or (with --fix) one or more files were rewritten.
+    2   --path is not a directory.
+
+Usage:
+    tf_validate [--path=PATH] [--fix]
+    tf_validate --version
+
+Options:
+    -h, --help          Show this message and exit.
+    -p, --path=PATH     Repo root to walk for .tf_wrapper files. Must be the
+                        repository root (not a subdirectory) when using --fix,
+                        because depends_on entries like 'config/...' are
+                        resolved relative to this path [default: .].
+    --fix               Repair fixable issues (depends_on cleanup) before
+                        validating. Exits 1 when files are rewritten so CI
+                        dirty-tree checks fire.
+    --version           Display the current version of Terrawrap.
+"""
+import os
+import sys
+
+from docopt import docopt
+
+from terrawrap.utils.validator import validate_and_fix
+from terrawrap.utils.version import version_check
+from terrawrap.version import __version__
+
+
+def main():
+    version_check(current_version=__version__)
+    arguments = docopt(__doc__, version="Terrawrap %s" % __version__)
+    root = os.path.abspath(arguments["--path"])
+    if not os.path.isdir(root):
+        print(f"tf_validate: not a directory: {root}", file=sys.stderr)
+        sys.exit(2)
+
+    errors, changed = validate_and_fix(root, fix=arguments["--fix"])
+
+    for path in changed:
+        print(f"fixed: {path}")
+    for err in errors:
+        print(err, file=sys.stderr)
+
+    if errors or (arguments["--fix"] and changed):
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

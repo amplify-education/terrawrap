@@ -56,8 +56,25 @@ def get_nondefault_variables_for_file(file_path: str) -> Set[str]:
         tf_info = hcl2_load(file)
         for variable in tf_info.get("variable", []):
             for variable_name, var_config in variable.items():
-                if not var_config.get("default"):
+                # Use existence check, not truthiness — `default = false`/`0`/`""`/`[]`
+                # is still a declared default.
+                if "default" not in var_config:
                     variables.add(variable_name)
+
+    return variables
+
+
+def get_declared_variables_for_file(file_path: str) -> Set[str]:
+    """
+    Find all variables declared in a terraform file, regardless of default value.
+    :param file_path: a terraform file
+    :return: Set of variable names declared in the file
+    """
+    variables = set()
+    with open(file_path, "r", encoding="utf-8") as file:
+        tf_info = hcl2_load(file)
+        for variable in tf_info.get("variable", []):
+            variables.update(variable.keys())
 
     return variables
 
@@ -134,8 +151,10 @@ def get_auto_var_usage_graph(root_directory: str) -> DiGraph:
 def _collect_variable_usages(
     current_dir: str, file: str, auto_vars: Dict[str, Set[Variable]]
 ) -> Tuple[str, Set[str]]:
+    # Every declared variable, not just non-default ones: an upstream auto.tfvars
+    # value overrides a downstream default, so the dependency must be tracked.
     var_sources = set()
-    for variable in get_nondefault_variables_for_file(os.path.join(current_dir, file)):
+    for variable in get_declared_variables_for_file(os.path.join(current_dir, file)):
         var_source = get_source_for_variable(current_dir, variable, auto_vars)
         if var_source:
             var_sources.add(var_source)
