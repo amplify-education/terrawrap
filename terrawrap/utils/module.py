@@ -53,6 +53,17 @@ def _get_modules_for_file(directory: str, file_name: str) -> Tuple[str, Set[str]
     modules = set()
     with open(directory + "/" + file_name, "r", encoding="utf-8") as file:
         try:
+            # TODO(plan_check parser): hcl2.load (python-hcl2 / lark) crashes
+            # with `KeyError: '__ANON_8'` on `alltrue([for x in y : ...])`
+            # expressions inside a resource `lifecycle.precondition` block.
+            # Reproduced on terraform-config PR #37051 when the dynamodb_table
+            # module added such a precondition: every plan_check job failed
+            # at graph-build time before any plan ran, because the walk hits
+            # the offending .tf file even when planning unrelated dirs.
+            # Fix paths: bump python-hcl2 once upstream lark grammar handles
+            # this, or wrap this load in a non-fatal log+skip so one parse
+            # bug doesn't disable the whole graph walk. See also the
+            # python-hcl2-v8 branch which may already address it.
             tf_info = hcl2.load(file)
             for module in tf_info.get("module", []):
                 for module_config in module.values():
