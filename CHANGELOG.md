@@ -5,6 +5,282 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.10.21\] - 2026-05-21
+
+### Added
+
+- `.tf_wrapper` SSM envvars now accept `path` as either a string (existing) or a
+  list of strings, plus a new `paths` alias that takes a list. When a list is
+  provided, each path is tried in order. A path that raises
+  `AccessDeniedException` or `ParameterNotFound` is silently skipped; other
+  errors propagate. If every path is skipped, terrawrap exits with an error
+  message listing the attempted paths and the caller's IAM identity (from
+  `sts:GetCallerIdentity`).
+- `tf_validate` CLI: schema-checks every `.tf_wrapper` under a given path. The
+  `--fix` flag also prunes dead `depends_on` entries and back-fills
+  `depends_on: []` on referenced targets — replacing the legacy
+  `scripts/check_tf_wrapper.sh` in `terraform-config`. Uses `ruamel.yaml` so
+  YAML comments survive a round-trip. Exits 1 when `--fix` rewrites files so
+  CI dirty-tree checks fire.
+
+### Changed
+
+- SSM envvar resolution no longer uses `ssm-cache`; replaced with a small
+  in-tree resolver that uses `boto3` directly. This lets terrawrap distinguish
+  `AccessDeniedException` from `ParameterNotFound`, which `ssm-cache`
+  collapses into a single `InvalidParameterError`.
+- The new in-tree SSM resolver caches values for the lifetime of the process
+  (no TTL eviction), where the previous `ssm-cache` library used a 10-minute
+  `max_age`. Long-running terrawrap consumers should restart the process to
+  pick up rotated SSM values; one-shot CLI invocations are unaffected.
+- `SSMEnvVarConfig.path` is now a read-only property aliasing `paths[0]` for
+  backward compatibility; new code should read `.paths` for the full list.
+- Wrapper-config merging now treats the SSM `path`/`paths` fields with
+  child-wins replacement semantics, not list-extension. The previous behavior
+  would crash if parent and child declared `path` with mismatched types, and
+  would silently union path lists across the inheritance chain.
+
+### Removed
+
+- `ssm-cache` is no longer a dependency.
+- `SSM_ENVVAR_CACHE` module global in `terrawrap.utils.config` is removed.
+
+## \[0.10.20\] - 2026-05-18
+
+### Fixed
+
+- `plan_check` now detects directories whose `auto.tfvars` default value is
+  overridden upstream (PR #219). Missing dependency edge previously caused
+  `plan` to be skipped on affected dirs.
+
+## \[0.10.19\] - 2026-05-14
+
+### Fixed
+
+- Stop double-recording `tf audit` records from the `GraphEntry` apply path.
+  `GraphEntry.execute()` no longer forwards `audit_api_url` to the inner
+  `execute_command()` call — `bin/tf` already reports apply/destroy to the
+  audit API, so reporting at the outer level produced two rows per apply
+  (~50% of all `tfaudit` rows). (AT-14812, PR #216)
+
+## \[0.10.18\] - 2026-05-14
+
+### Changed
+
+- Suppress the RC upgrade prompt when the latest stable already matches or
+  exceeds the latest RC on PyPI — users on 0.10.x and 0.11.x were being
+  nudged into 0.11.0rc2 after 0.11.0 had shipped. RC notice now only fires
+  when `latest_rc > latest_stable`. (PR #217)
+- Rename the CI `rc/` branch pattern in `test-build-publish.yml` to the more
+  general `release/`, supporting long-lived release branches. (PR #214)
+
+## \[0.10.17\] - 2026-05-04
+
+### Fixed
+
+- `convert_plan_to_json` now tolerates stderr lines interleaved with the
+  `tf show -json` stdout. Previously it stripped exactly one prefix line
+  (`stdout[1:]`) on the assumption that only the wrapper's command echo
+  preceded the JSON; because `_execute_command` runs with
+  `capture_stderr=True`, terraform stderr (lockfile warnings, deprecation
+  notices, etc.) was being merged into stdout and corrupting `tfplan.json`.
+  (PR #213)
+
+## \[0.10.16\] - 2026-05-01
+
+### Fixed
+
+- Compress terraform output larger than 5 MB (gzip + base64) into an
+  `output_compressed` field before posting to the audit API. Snowflake apply
+  output (~12.7 MB) was silently failing API Gateway with HTTP 413 because
+  the response was never checked. Also adds `raise_for_status()` so future
+  oversized payloads surface as errors instead of false successes. (PR #212)
+
+## \[0.10.15\] - 2026-03-11
+
+### Changed
+
+- Update RC install prompt wording and fix `test-build-publish.yml`. (PR #208)
+
+## \[0.10.14\] - 2026-03-10
+
+### Changed
+
+- Make `version_check` and the publish job RC-aware. (PR #205)
+
+## \[0.10.13\] - 2026-02-24
+
+### Changed
+
+- Upgrade `packaging` to v26. (PR #204)
+
+## \[0.10.12\] - 2026-02-20
+
+### Changed
+
+- Upgrade `packaging` to v24. (PR #203)
+
+## \[0.10.11\] - 2026-01-30
+
+### Changed
+
+- Upgrade `mypy` version. (PR #201)
+
+## \[0.10.9\] - 2026-01-05
+
+### Added
+
+- Pass `audit_api_url` through to `graph_entry`. (PR #200)
+
+## \[0.10.8\] - 2025-07-23
+
+### Fixed
+
+- Surface and handle errors raised by `_post_audit_info` instead of letting
+  them break the apply path. (AT-13689, PR #198)
+
+## \[0.10.7\] - 2025-03-20
+
+### Added
+
+- `use_lockfile` support in `.tf_wrapper`. (AT-13020, PR #197)
+
+## \[0.10.6\] - 2025-03-17
+
+### Changed
+
+- `tf_move` no longer attempts to move files that are untracked by git. (PR #196)
+
+## \[0.10.5\] - 2025-03-17
+
+### Changed
+
+- `tf_move` no longer deletes the original state file in S3. (PR #195)
+
+## \[0.10.4\] - 2025-03-17
+
+### Added
+
+- `tf_move` CLI for relocating terraform state between directories.
+  (AT-12986, PR #194)
+
+## \[0.10.3\] - 2024-11-04
+
+### Added
+
+- Support newer Python versions. (PR #192)
+
+## \[0.10.2\] - 2024-08-30
+
+### Changed
+
+- Always pass `-upgrade` on `init`. (PR #191)
+
+## \[0.10.1\] - 2024-08-30
+
+### Changed
+
+- Ignore extra-args handling when running `--help`. (PR #190)
+
+## \[0.10.0\] - 2024-05-31
+
+### Changed
+
+- Update Python version and packages. (PR #188)
+
+## \[0.9.35\] - 2024-03-06
+
+### Changed
+
+- Update `MANIFEST.in`. (PR #186)
+
+## \[0.9.34\] - 2024-03-04
+
+### Changed
+
+- Rename the Python dependency file to the standard `requirements.txt`.
+  (AT-10041, PR #180)
+
+## \[0.9.33\] - 2024-01-16
+
+### Fixed
+
+- Match additional state-push error strings during retry. (PR #176)
+
+## \[0.9.32\] - 2024-01-14
+
+### Fixed
+
+- Add support for re-pushing state when the original push fails. (PR #175)
+
+## \[0.9.31\] - 2023-10-23
+
+### Fixed
+
+- Fix `GIT_REPO_REGEX` and `calc_repo_path` in `utils/path.py`. (PR #172)
+
+## \[0.9.30\] - 2023-10-04
+
+### Changed
+
+- Default to ignoring Terraform lock files. (AT-10360, PR #169)
+
+## \[0.9.29\] - 2023-09-29
+
+### Changed
+
+- Bump a number of dependencies. (PR #168)
+
+## \[0.9.28\] - 2023-09-29
+
+### Changed
+
+- Stop deleting Terraform provider lock files automatically. (AT-10360, PR #167)
+
+## \[0.9.27\] - 2023-09-01
+
+### Fixed
+
+- Catch an additional retriable error in the retry loop. (PR #166)
+
+## \[0.9.26\] - 2023-08-31
+
+### Changed
+
+- Upgrade `PyYAML`. (PR #165)
+
+## \[0.9.25\] - 2023-04-28
+
+### Added
+
+- TF Audit support for `tf destroy` applies. (AT-9247, PR #163)
+
+## \[0.9.24\] - 2023-04-27
+
+### Changed
+
+- Apply `python-black` formatting and add the pre-commit check. (AT-9375, PR #164)
+
+## \[0.9.23\] - 2023-03-24
+
+### Fixed
+
+- Extend the lock-create-time regex to handle microsecond precision. (PR #162)
+
+## \[0.9.22\] - 2023-03-16
+
+### Fixed
+
+- Make the lock-create-time regex resilient to additional format variations.
+  (PR #161)
+
+## \[0.9.21\] - 2023-01-17
+
+### Removed
+
+- Remove duplicate TF Audit calls from `graph_entry`; the inner `bin/tf`
+  invocation already records the apply. (AT-7866, PR #160)
+
 ## \[0.9.20\] - 2022-09-23
 
 ### Changed

@@ -3,8 +3,10 @@
 import contextlib
 import io
 import shutil
+import tempfile
 import uuid
 from pathlib import Path
+from typing import Optional
 from unittest import TestCase
 from unittest.mock import patch, MagicMock
 
@@ -23,10 +25,6 @@ class TestConfigMover(TestCase):
 
     _base_path = (Path(__file__) / "../../helpers").resolve() / "mock_config_mover"
     _mocks_path = _base_path / "mocks"
-    _repo_root_path = _base_path / "terraform-config"
-    _config_path = _repo_root_path / "config"
-    _default_source = _config_path / "aws" / "default_source"
-    _default_target = _config_path / "aws" / "default_target"
 
     @staticmethod
     def _read_hcl2_modules(hcl2_content: str):
@@ -37,23 +35,43 @@ class TestConfigMover(TestCase):
             result[list(module.keys())[0]] = list(module.values())[0]
         return result
 
-    @classmethod
     def config_mover(
-        cls,
-        source: Path = _default_source,
-        target: Path = _default_target,
+        self,
+        source: Optional[Path] = None,
+        target: Optional[Path] = None,
     ) -> ConfigMover:
-        return ConfigMover(source, target)
+        return ConfigMover(
+            self._default_source if source is None else source,
+            self._default_target if target is None else target,
+        )
 
     def setUp(self):
+        # Per-test unique working tree + isolated inner git repo. Without isolation,
+        # parallel tox envs (-p auto) race on `mock_config_mover/terraform-config/`
+        # AND on the outer terrawrap repo's `.git/index.lock` (because ConfigMover
+        # walks up to find a .git dir).
+        # `.resolve()` to dodge the macOS /var → /private/var symlink, which
+        # otherwise trips git's "path not in repo" check on the index.
+        self._tmpdir = Path(tempfile.mkdtemp(prefix="env_")).resolve()
+        self._repo_root_path = self._tmpdir / "terraform-config"
+        self._config_path = self._repo_root_path / "config"
+        self._default_source = self._config_path / "aws" / "default_source"
+        self._default_target = self._config_path / "aws" / "default_target"
         self._default_source.mkdir(parents=True, exist_ok=True)
         self._default_target.mkdir(parents=True, exist_ok=True)
+        # Init isolated repo so ConfigMover finds it instead of climbing to terrawrap.
+        # Add a fake origin so `calc_repo_path` (which shells out to
+        # `git remote show origin`) can parse a repo name.
+        inner_repo = git.Repo.init(self._repo_root_path)
+        inner_repo.create_remote(
+            "origin", "https://github.com/amplify-education/terraform-config.git"
+        )
         self.prev_dir = Path(os.getcwd()).absolute()
         os.chdir(self._repo_root_path)
 
     def tearDown(self):
-        shutil.rmtree(self._repo_root_path, ignore_errors=True)
         os.chdir(self.prev_dir)
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
 
     @patch("terrawrap.models.config_mover.find_variable_files")
     def test__find_variable_files(self, find_variable_files_mock: MagicMock):

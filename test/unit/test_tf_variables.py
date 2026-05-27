@@ -50,6 +50,9 @@ class TestTerraformVariables(TestCase):
                 "config/app5/app.auto.tfvars": {
                     Variable("foo", ((("key", "value"),),)),
                 },
+                "config/area/area.auto.tfvars": {
+                    Variable("region_setting", "us-west-2"),
+                },
             },
         )
 
@@ -58,6 +61,12 @@ class TestTerraformVariables(TestCase):
         actual = get_nondefault_variables_for_file("config/app1/variables.tf")
 
         self.assertEqual(actual, {"foo", "bar"})
+
+    def test_nondefault_excludes_falsy_default(self):
+        """A declared `default = false` (or 0, "", []) is still a default and must be excluded."""
+        actual = get_nondefault_variables_for_file("config/area/svc/variables.tf")
+
+        self.assertEqual(actual, set())
 
     def test_get_source_for_variable(self):
         """test getting the source of a auto var"""
@@ -81,14 +90,25 @@ class TestTerraformVariables(TestCase):
         expected.add_node("config/app3/app.auto.tfvars")
         expected.add_node("config/team/team.auto.tfvars")
         expected.add_node("config/app1/app.auto.tfvars")
+        expected.add_node("config/area/area.auto.tfvars")
         expected.add_node("config/app1")
         expected.add_node("config/app3")
         expected.add_node("config/team/app4")
+        expected.add_node("config/area/svc")
 
         expected.add_edge("config/global.auto.tfvars", "config/app1")
         expected.add_edge("config/global.auto.tfvars", "config/app3")
         expected.add_edge("config/app3/app.auto.tfvars", "config/app3")
         expected.add_edge("config/team/team.auto.tfvars", "config/team/app4")
         expected.add_edge("config/app1/app.auto.tfvars", "config/app1")
+        expected.add_edge("config/area/area.auto.tfvars", "config/area/svc")
 
         self.assertTrue(is_isomorphic(actual, expected))
+
+    def test_auto_var_usages_tracks_override(self):
+        """Upstream auto.tfvars overrides a downstream variable's default, so the edge must be present."""
+        actual = get_auto_var_usage_graph("config")
+
+        self.assertTrue(
+            actual.has_edge("config/area/area.auto.tfvars", "config/area/svc")
+        )

@@ -68,8 +68,11 @@ class TestGraphEntry(TestCase):
         self.assertEqual(changes_detected, False)
 
     @patch("terrawrap.models.graph_entry.execute_command")
-    def test_execute_passes_audit_api_url(self, exec_command):
-        """Test that audit_api_url is passed to execute_command calls"""
+    def test_audit_api_url_only_to_init(self, exec_command):
+        """audit_api_url goes to init but NOT to the operation call.
+        The tf wrapper (bin/tf) handles audit reporting for apply/destroy;
+        reporting at this level too would create duplicate tfaudit records
+        (AT-14812)."""
         exec_command.side_effect = [
             (0, ["Success"]),
             (0, ["Success"]),
@@ -80,12 +83,15 @@ class TestGraphEntry(TestCase):
 
         self.assertEqual(exec_command.call_count, 2)
 
-        for call_args in exec_command.call_args_list:
-            self.assertIn("audit_api_url", call_args[1])
+        init_call_kwargs = exec_command.call_args_list[0][1]
+        operation_call_kwargs = exec_command.call_args_list[1][1]
+
+        self.assertIn("audit_api_url", init_call_kwargs)
+        self.assertNotIn("audit_api_url", operation_call_kwargs)
 
     @patch("terrawrap.models.graph_entry.execute_command")
     def test_execute_audit_api_url_value(self, exec_command):
-        """Test that the correct audit_api_url value is passed"""
+        """audit_api_url is only passed to init, not to the operation call."""
         exec_command.side_effect = [
             (0, ["Success"]),
             (0, ["Success"]),
@@ -99,4 +105,4 @@ class TestGraphEntry(TestCase):
         operation_call_kwargs = exec_command.call_args_list[1][1]
 
         self.assertIn("audit_api_url", init_call_kwargs)
-        self.assertIn("audit_api_url", operation_call_kwargs)
+        self.assertNotIn("audit_api_url", operation_call_kwargs)
