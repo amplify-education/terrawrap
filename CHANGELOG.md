@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.10.23\] - 2026-05-29
+
+### Fixed
+
+- Surface the underlying exception, HTTP status, `x-amzn-errortype`, response
+  body, and boto3 default-chain caller ARN when `_post_audit_info` fails to
+  POST to the terraform audit API. Previously these failures logged only the
+  target URL, leaving engineers without enough signal to distinguish a 403
+  from a missing-credential or network error.
+
+## \[0.10.22\] - 2026-05-28
+
+### Fixed
+
+- Derive the SigV4 `aws_host` from `audit_api_url` (via `urlparse`) instead of
+  using a hardcoded host. This makes the audit POST sign correctly for the
+  per-environment audit-API endpoint in `devops-testing`, where the host
+  differs from `devops`.
+
 ## \[0.10.21\] - 2026-05-21
 
 ### Added

@@ -12,7 +12,9 @@ from typing import Dict, List, Optional
 
 import boto3
 from amplify_aws_utils.resource_helper import throttled_call
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import ClientError
+
+from terrawrap.utils.aws import get_caller_arn
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +54,7 @@ class SsmResolver:
 
     def _caller(self) -> str:
         if self._caller_arn is None:
-            client = self._sts_client or boto3.client("sts")
-            try:
-                self._caller_arn = client.get_caller_identity()["Arn"]
-            except (ClientError, BotoCoreError) as exc:
-                logger.warning("Failed to resolve caller identity: %s", exc)
-                self._caller_arn = "<unknown — sts:GetCallerIdentity failed>"
+            self._caller_arn = get_caller_arn(sts_client=self._sts_client)
         return self._caller_arn
 
     def resolve(self, paths: List[str]) -> str:

@@ -2,7 +2,10 @@
 import os
 from logging import Logger
 from unittest import TestCase
-from unittest.mock import patch, ANY, call
+from unittest.mock import patch, ANY, call, Mock
+
+import requests
+from botocore.exceptions import NoCredentialsError
 from requests.exceptions import HTTPError
 
 from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info
@@ -143,3 +146,72 @@ class TestCli(TestCase):
             aws_region="us-west-2",
             aws_service="execute-api",
         )
+
+    @patch("terrawrap.utils.aws.boto3.client")
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_audit_info_logs_http_error_details(self, mock_post, _, mock_boto_client):
+        """On HTTPError with a response, log status, x-amzn-errortype, and caller ARN."""
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        response = Mock(spec=requests.Response)
+        response.status_code = 403
+        response.text = '{"message":"User is not authorized"}'
+        response.headers = {"x-amzn-errortype": "AccessDeniedException"}
+        http_error = requests.exceptions.HTTPError(response=response)
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = http_error
+        mock_post.return_value = mock_response
+
+        mock_sts = Mock()
+        mock_sts.get_caller_identity.return_value = {
+            "Arn": "arn:aws:sts::123456789012:assumed-role/test-role/brandon"
+        }
+        mock_boto_client.return_value = mock_sts
+
+        with self.assertLogs("terrawrap.utils.cli", level="ERROR") as ctx:
+            _post_audit_info(
+                audit_api_url="https://terraform-audit-api.devops.amplify.com",
+                path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+                start_time=12345,
+                exit_code=1,
+            )
+
+        messages = "\n".join(ctx.output)
+        self.assertIn("Unable to post data to provided url", messages)
+        self.assertIn("403", messages)
+        self.assertIn("AccessDeniedException", messages)
+        self.assertIn("User is not authorized", messages)
+        self.assertIn(
+            "arn:aws:sts::123456789012:assumed-role/test-role/brandon", messages
+        )
+
+    @patch("terrawrap.utils.aws.boto3.client")
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_audit_info_sts_failure_unmasked(self, mock_post, _, mock_boto_client):
+        """An STS failure must not mask the original RequestException."""
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        mock_post.side_effect = requests.exceptions.ConnectionError(
+            "connection refused"
+        )
+
+        mock_sts = Mock()
+        mock_sts.get_caller_identity.side_effect = NoCredentialsError()
+        mock_boto_client.return_value = mock_sts
+
+        with self.assertLogs("terrawrap.utils.cli", level="ERROR") as ctx:
+            _post_audit_info(
+                audit_api_url="https://terraform-audit-api.devops.amplify.com",
+                path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+                start_time=12345,
+                exit_code=1,
+            )
+
+        messages = "\n".join(ctx.output)
+        self.assertIn("Unable to post data to provided url", messages)
+        self.assertIn("ConnectionError", messages)
+        self.assertIn("connection refused", messages)
+        self.assertIn("<unknown", messages)
+        self.assertIn("sts:GetCallerIdentity failed", messages)

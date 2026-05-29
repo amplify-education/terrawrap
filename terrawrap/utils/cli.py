@@ -13,11 +13,11 @@ from urllib.parse import urlparse
 from typing import List, Optional, Tuple, Union
 
 import requests
-
 from amplify_aws_utils.resource_helper import Jitter
 from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
 from requests.exceptions import HTTPError
 
+from terrawrap.utils.aws import get_caller_arn
 from terrawrap.utils.git_utils import get_git_root, get_git_hash
 
 logger = logging.getLogger(__name__)
@@ -283,5 +283,29 @@ def _post_audit_info(
         )
         response.raise_for_status()
         logger.info("Successfully posted data to provided url: %s", audit_api_url)
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as exc:
         logger.error("Unable to post data to provided url: %s", audit_api_url)
+        logger.error(
+            "Audit API request failed: %s: %s",
+            type(exc).__name__,
+            exc,
+        )
+        response_obj = getattr(exc, "response", None)
+        if response_obj is not None:
+            try:
+                body_text = (response_obj.text or "")[:500]
+                logger.error(
+                    "Audit API response status=%s x-amzn-errortype=%s body=%s",
+                    response_obj.status_code,
+                    response_obj.headers.get("x-amzn-errortype", "<absent>"),
+                    body_text,
+                )
+            except Exception as decode_exc:  # pylint: disable=broad-except
+                logger.error(
+                    "Audit API response status=%s x-amzn-errortype=%s body=<decode failed: %s>",
+                    response_obj.status_code,
+                    response_obj.headers.get("x-amzn-errortype", "<absent>"),
+                    decode_exc,
+                )
+        caller_arn = get_caller_arn()
+        logger.error("Audit API signing identity (boto3 default chain): %s", caller_arn)
