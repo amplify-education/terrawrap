@@ -5,7 +5,13 @@ from unittest import TestCase
 from unittest.mock import patch, ANY, call
 from requests.exceptions import HTTPError
 
-from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info
+from terrawrap.utils.cli import (
+    execute_command,
+    MAX_RETRIES,
+    Status,
+    _post_audit_info,
+    _get_retriable_errors,
+)
 
 
 MOCK_ERROR = HTTPError()
@@ -72,6 +78,19 @@ class TestCli(TestCase):
         self.assertEqual(self.mock_popen.call_count, MAX_RETRIES)
         self.assertEqual(exit_code, 255)
         self.assertEqual(stdout, [])
+
+    def test_get_retriable_errors_504(self):
+        """Lines carrying a known transient signature (e.g. a 504 Gateway
+        Timeout from the backend API) are retriable; unrelated lines are not."""
+        lines = [
+            "Error: error updating monitor: 504 Gateway Timeout\n",
+            "Error: invalid resource address\n",
+        ]
+
+        self.assertEqual(
+            _get_retriable_errors(lines),
+            ["Error: error updating monitor: 504 Gateway Timeout\n"],
+        )
 
     @patch.object(Logger, "error")
     @patch("terrawrap.utils.cli._post_audit_info")
