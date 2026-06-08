@@ -41,6 +41,7 @@ RETRIABLE_ERRORS = [
     "Api Rate Limit Exceeded",
     "TooManyUpdates",
     "409 Conflict",
+    "504 Gateway Timeout",
 ]
 AUDIT_POST_PATH = "/audit_info"
 AUDIT_UPDATE_PATH = "/update_audit_info"
