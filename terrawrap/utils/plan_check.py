@@ -30,10 +30,14 @@ def get_modified_subdirectories(plan_path: str) -> Tuple[List[str], List[str]]:
 
     directories_to_check = set()
     for path in changed_files:
-        if path not in graph.nodes:
-            continue
-
-        affected_directories = descendants(graph, path)
+        if path in graph.nodes:
+            affected_directories = descendants(graph, path)
+        else:
+            # A deleted file is gone from disk, so the filesystem-derived graph never
+            # holds a node for it. Fall back to its parent directory so that removing a
+            # resource still plans the directory it was removed from. should_run_plan_for
+            # below drops the directory if the deletion also removed the directory itself.
+            affected_directories = {os.path.dirname(path)}
 
         # filter out directories that we shouldn't run plan for
         affected_directories = [
