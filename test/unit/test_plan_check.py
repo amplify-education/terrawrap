@@ -53,3 +53,16 @@ class TestGetModifiedSubdirectories(TestCase):
         regular, symlinked = get_modified_subdirectories(self.root)
         self.assertEqual(regular, [])
         self.assertEqual(symlinked, [])
+
+    def test_deleted_last_tf_dir_not_planned(self, mock_changed, mock_root, _mod, _var):
+        """Deleting the only .tf file leaves a surviving dir with no .tf -> not planned"""
+        mock_root.return_value = self.root
+        with open(
+            os.path.join(self.leaf_dir, "README.md"), "w", encoding="utf-8"
+        ) as handle:
+            handle.write("not terraform\n")
+        os.remove(os.path.join(self.leaf_dir, "main.tf"))
+        mock_changed.return_value = {os.path.join(self.leaf_dir, "ecr.tf")}
+        regular, symlinked = get_modified_subdirectories(self.root)
+        self.assertEqual(regular, [])
+        self.assertEqual(symlinked, [])
