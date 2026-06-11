@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## \[0.10.21\] - 2026-05-21
+## \[0.10.24\] - 2026-06-09
+
+### Fixed
+
+- `plan_check --modified-only` now runs a plan for a directory whose only change
+  is a file deletion. A deleted file is absent from the filesystem-derived
+  dependency graph, so the changed path was silently skipped and the directory
+  was never planned. It now falls back to the deleted file's parent directory,
+  still gated by `should_run_plan_for` (a directory removed entirely stays
+  excluded). (PR #229)
+
+## \[0.10.23\] - 2026-06-08
+
+### Fixed
+
+- `tf` now retries commands that fail with `504 Gateway Timeout`, alongside the
+  existing retryable conditions. (PR #228)
+
+## \[0.10.22\] - 2026-05-26
 
 ### Added
 
@@ -44,6 +62,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `ssm-cache` is no longer a dependency.
 - `SSM_ENVVAR_CACHE` module global in `terrawrap.utils.config` is removed.
+
+## \[0.10.21\] - 2026-05-26
+
+### Fixed
+
+- `tf audit` now derives the SigV4 signing host (`aws_host`) from `audit_api_url`
+  instead of a hard-coded value, so audit requests sign correctly when the audit
+  endpoint differs per environment. (PR #224)
 
 ## \[0.10.20\] - 2026-05-18
 
