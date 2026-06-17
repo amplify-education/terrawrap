@@ -54,6 +54,7 @@ def version_check(current_version: str) -> bool:
     except Exception as exp:
         print(
             f"WARNING: Encountered some error while checking for latest version of Terrawrap: {repr(exp)}",
+            file=sys.stderr,
         )
     return False
 

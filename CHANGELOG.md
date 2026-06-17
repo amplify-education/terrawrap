@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.10.25\] - 2026-06-17
+
+### Fixed
+
+- `version_check` exception handler now emits its warning to `stderr` instead of
+  `stdout`. When the PyPI version lookup fails (network timeout, unreachable host),
+  the bare `print()` was writing to stdout and could corrupt the output of
+  subsequent `terraform show -json` calls, producing `no JSON object found` parse
+  failures in the plan-check pipeline. (PR #230)
+
 ## \[0.10.24\] - 2026-06-09
 
 ### Fixed
