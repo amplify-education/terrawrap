@@ -10,7 +10,7 @@ import time
 from enum import Enum
 from urllib.parse import urlparse
 
-from typing import List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import requests
 
@@ -45,7 +45,10 @@ RETRIABLE_ERRORS = [
 ]
 AUDIT_POST_PATH = "/audit_info"
 AUDIT_UPDATE_PATH = "/update_audit_info"
+LOG_CHUNK_POST_PATH = "/log_chunk"
 OUTPUT_COMPRESSION_THRESHOLD = 5 * 1024 * 1024
+CHUNK_LINE_COUNT = 10
+CHUNK_FLUSH_INTERVAL = 5.0
 
 
 class Status(str, Enum):
@@ -108,6 +111,25 @@ def execute_command(
     else:
         logger.info("No audit_api_url provided")
 
+    should_stream = bool(
+        audit_api_url and kwargs.get("cwd") and ("apply" in args or "destroy" in args)
+    )
+    chunk_seq = 0
+
+    def _chunk_callback(content: str) -> None:
+        nonlocal chunk_seq
+        try:
+            _post_log_chunk(
+                audit_api_url=audit_api_url,  # type: ignore[arg-type]
+                path=kwargs["cwd"],
+                start_time=start_time,
+                sequence=chunk_seq,
+                content=content,
+            )
+            chunk_seq += 1
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Failed to post log chunk %d: %s", chunk_seq, exc)
+
     jitter = Jitter()
     time_passed = 0
     exit_code = 0
@@ -119,6 +141,7 @@ def execute_command(
             capture_stderr,
             print_command,
             *pargs,
+            on_chunk=_chunk_callback if should_stream else None,
             **kwargs,
         )
 
@@ -170,6 +193,7 @@ def _execute_command(
     capture_stderr: bool,
     print_command: bool,
     *pargs,
+    on_chunk: Optional[Callable[[str], None]] = None,
     **kwargs,
 ) -> Tuple[int, List[str]]:
     """
@@ -179,6 +203,7 @@ def _execute_command(
     :param capture_stderr: True if stderr should be captured. Defaults to True.
     :param print_command: True if the command should be printed before executing. Defaults to False.
     :param pargs: Any additional positional arguments to Popen.
+    :param on_chunk: Optional callback invoked with buffered output chunks for live streaming.
     :param kwargs: Any additional keyword arguments to Popen.
     :return: A tuple of the exit code and output of the command.
     """
@@ -195,6 +220,10 @@ def _execute_command(
         # pylint: disable=consider-using-with
         process = subprocess.Popen(args, *pargs, **kwargs)
 
+        buf: List[str] = []
+        line_count = 0
+        last_flush = time.time()
+
         while True:
             output = stdout_read.read(1).decode(errors="replace")
 
@@ -203,6 +232,23 @@ def _execute_command(
 
             if print_output and output:
                 print(output, end="", flush=True)
+
+            if on_chunk and output:
+                buf.append(output)
+                if output == "\n":
+                    line_count += 1
+                now = time.time()
+                if (
+                    line_count >= CHUNK_LINE_COUNT
+                    or now - last_flush >= CHUNK_FLUSH_INTERVAL
+                ):
+                    on_chunk("".join(buf))
+                    buf = []
+                    line_count = 0
+                    last_flush = now
+
+        if on_chunk and buf:
+            on_chunk("".join(buf))
 
         exit_code = process.poll()
 
@@ -286,3 +332,34 @@ def _post_audit_info(
         logger.info("Successfully posted data to provided url: %s", audit_api_url)
     except requests.exceptions.RequestException:
         logger.error("Unable to post data to provided url: %s", audit_api_url)
+
+
+def _post_log_chunk(
+    audit_api_url: str,
+    path: str,
+    start_time: int,
+    sequence: int,
+    content: str,
+) -> None:
+    """POST a single log chunk to the audit API during an apply."""
+    root = get_git_root(path)
+    directory = path.replace(root, "")
+
+    auth = BotoAWSRequestsAuth(
+        aws_host=urlparse(audit_api_url).hostname,
+        aws_region="us-west-2",
+        aws_service="execute-api",
+    )
+
+    response = requests.post(
+        url=audit_api_url + LOG_CHUNK_POST_PATH,
+        auth=auth,
+        json={
+            "directory": directory,
+            "start_time": start_time,
+            "sequence": sequence,
+            "content": content,
+        },
+        timeout=10,
+    )
+    response.raise_for_status()

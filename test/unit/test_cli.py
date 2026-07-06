@@ -10,6 +10,7 @@ from terrawrap.utils.cli import (
     MAX_RETRIES,
     Status,
     _post_audit_info,
+    _post_log_chunk,
     _get_retriable_errors,
 )
 
@@ -162,3 +163,146 @@ class TestCli(TestCase):
             aws_region="us-west-2",
             aws_service="execute-api",
         )
+
+
+class TestPostLogChunk(TestCase):
+    """Test the log-chunk POST helper"""
+
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_post_log_chunk_payload(self, mock_post, _):
+        """Posts directory/start_time/sequence/content to the log_chunk endpoint"""
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        _post_log_chunk(
+            audit_api_url="https://foo.bar",
+            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+            start_time=12345,
+            sequence=2,
+            content="hello\n",
+        )
+
+        mock_post.assert_called_once_with(
+            url="https://foo.bar/log_chunk",
+            auth=ANY,
+            json={
+                "directory": "/test/helpers/mock_directory/config/.tf_wrapper",
+                "start_time": 12345,
+                "sequence": 2,
+                "content": "hello\n",
+            },
+            timeout=10,
+        )
+
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_post_log_chunk_signs_for_url_host(self, _, mock_auth):
+        """SigV4 host must come from the audit_api_url, not a hardcoded value."""
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        _post_log_chunk(
+            audit_api_url="https://terraform-audit-api.devops-testing.amplify.com",
+            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+            start_time=12345,
+            sequence=0,
+            content="x",
+        )
+
+        mock_auth.assert_called_with(
+            aws_host="terraform-audit-api.devops-testing.amplify.com",
+            aws_region="us-west-2",
+            aws_service="execute-api",
+        )
+
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_post_log_chunk_raises_on_http_error(self, mock_post, _):
+        """A non-2xx response raises, so the caller decides how to handle it."""
+        mock_post.return_value.raise_for_status.side_effect = MOCK_ERROR
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        with self.assertRaises(HTTPError):
+            _post_log_chunk(
+                audit_api_url="https://foo.bar",
+                path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+                start_time=12345,
+                sequence=0,
+                content="x",
+            )
+
+
+class TestChunkStreaming(TestCase):
+    """Test that execute_command streams log chunks via on_chunk during apply/destroy.
+
+    Runs a real short-lived subprocess (no Popen mock) so the byte-by-byte
+    read/flush logic in _execute_command is exercised end to end.
+    """
+
+    def setUp(self):
+        self.audit_info_patcher = patch("terrawrap.utils.cli._post_audit_info")
+        self.audit_info_patcher.start()
+
+    def tearDown(self):
+        self.audit_info_patcher.stop()
+
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_streams_chunks_when_applying(self, mock_post_chunk):
+        """Output is flushed once at the CHUNK_LINE_COUNT threshold and once more at EOF"""
+        code = "\n".join(f"print({i})" for i in range(15))
+        exit_code, _ = execute_command(
+            ["python3", "-c", code, "apply"],
+            audit_api_url="https://foo.bar",
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(mock_post_chunk.call_count, 2)
+        sequences = [c.kwargs["sequence"] for c in mock_post_chunk.call_args_list]
+        self.assertEqual(sequences, [0, 1])
+
+        first_chunk, second_chunk = (
+            c.kwargs["content"] for c in mock_post_chunk.call_args_list
+        )
+        self.assertEqual(first_chunk.count("\n"), 10)
+        self.assertEqual(second_chunk, "10\n11\n12\n13\n14\n")
+
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_no_streaming_without_audit_api_url(self, mock_post_chunk):
+        """No audit_api_url means no chunk streaming, even for an apply command"""
+        execute_command(
+            ["python3", "-c", "print('x')", "apply"],
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        mock_post_chunk.assert_not_called()
+
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_no_streaming_for_non_apply_commands(self, mock_post_chunk):
+        """Streaming only triggers for apply/destroy commands"""
+        execute_command(
+            ["python3", "-c", "print('x')"],
+            audit_api_url="https://foo.bar",
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        mock_post_chunk.assert_not_called()
+
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_chunk_post_failure_swallowed(self, mock_post_chunk):
+        """A log-chunk POST failure is swallowed by design — this is opt-in telemetry
+        riding alongside the real apply, so any failure here (network, git, auth) must
+        never take down the apply itself. Raising a generic Exception (not just a
+        requests error) proves the broad except in _chunk_callback is intentional."""
+        mock_post_chunk.side_effect = Exception("boom")
+
+        exit_code, _ = execute_command(
+            ["python3", "-c", "print('x')", "apply"],
+            audit_api_url="https://foo.bar",
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        self.assertEqual(exit_code, 0)
