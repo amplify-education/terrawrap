@@ -28,3 +28,15 @@ the heading version to the value you just wrote into `version.py`.
   declaring done.
 - pre-commit runs black (pinned `22.8.0`), mypy, and pylint (scoped to
   `terrawrap/` and `test/` — `bin/` scripts are not linted).
+
+## Local Dev Env
+
+A local pyenv env for this repo can drift behind `origin/main`'s
+`requirements.txt` (a new pinned dependency isn't installed until you
+re-`pip install`) — a pytest collection `ImportError` on an unrelated-looking
+module is often this, not a real regression.
+
+In a worktree checked out off a newer `origin/main` than the editable
+install's target, run pytest with `PYTHONPATH=$(pwd)` so the worktree's copy
+of `terrawrap` shadows the stale editable install pointing at the main
+checkout.
