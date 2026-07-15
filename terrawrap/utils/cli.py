@@ -4,6 +4,7 @@ from __future__ import print_function
 import base64
 import gzip
 import logging
+import os
 import subprocess
 import tempfile
 import time
@@ -260,6 +261,10 @@ def _post_audit_info(
         "start_time": start_time,
         "status": status,
         "git_hash": sha,
+        # Echo the CodeBuild build id so terraform-audit-api can correlate a
+        # UI-triggered apply back to its PENDING placeholder row. Absent (None)
+        # for pipeline applies, which run in ECS rather than CodeBuild.
+        "build_id": os.environ.get("CODEBUILD_BUILD_ID"),
     }
 
     if len(stdout_str) > OUTPUT_COMPRESSION_THRESHOLD:
