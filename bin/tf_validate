@@ -26,6 +26,7 @@ Options:
                         dirty-tree checks fire.
     --version           Display the current version of Terrawrap.
 """
+
 import os
 import sys
 

@@ -1,4 +1,5 @@
 """Tests for the .tf_wrapper validator and depends_on fixer."""
+
 import contextlib
 import importlib.machinery
 import importlib.util
@@ -19,9 +20,7 @@ from terrawrap.utils.validator import (
     validate_schema,
 )
 
-_BIN_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "bin", "tf_validate")
-)
+_BIN_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "bin", "tf_validate"))
 
 
 def _load_tf_validate_module():
@@ -237,9 +236,7 @@ class TestFixDependsOn(TestCase):
 
         fix_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
 
-        consumer_yaml = self._read_yaml(
-            os.path.join(self.config_dir, "foo/consumer/.tf_wrapper")
-        )
+        consumer_yaml = self._read_yaml(os.path.join(self.config_dir, "foo/consumer/.tf_wrapper"))
         self.assertEqual(["../sibling"], consumer_yaml["depends_on"])
 
     def test_comments_are_preserved_after_rewrite(self):
@@ -248,11 +245,7 @@ class TestFixDependsOn(TestCase):
         consumer_dir = self._make_dir("consumer")
         consumer = os.path.join(consumer_dir, ".tf_wrapper")
         with open(consumer, "w", encoding="utf-8") as handle:
-            handle.write(
-                "# important: managed by team-X\n"
-                "depends_on:\n"
-                "  - config/missing\n"
-            )
+            handle.write("# important: managed by team-X\ndepends_on:\n  - config/missing\n")
 
         fix_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
 
@@ -352,11 +345,7 @@ class TestTfValidateMain(TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(sys, "argv", ["tf_validate"] + argv))
             if stub_return is not None:
-                stack.enter_context(
-                    patch.object(
-                        self._mod, "validate_and_fix", return_value=stub_return
-                    )
-                )
+                stack.enter_context(patch.object(self._mod, "validate_and_fix", return_value=stub_return))
             try:
                 self._mod.main()
                 return 0

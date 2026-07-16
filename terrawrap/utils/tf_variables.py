@@ -1,4 +1,5 @@
 """Utilities for working with Terraform variables"""
+
 import concurrent.futures
 import os
 from collections import defaultdict, namedtuple
@@ -28,9 +29,7 @@ def get_auto_vars(root_directory: str) -> Dict[str, Set[Variable]]:
             with open(current_dir + "/" + file_name, "r", encoding="utf-8") as file:
                 variables = hcl2.load(file)
                 for key, value in variables.items():
-                    auto_vars[os.path.join(current_dir, file_name)].add(
-                        Variable(key, _make_hashable(value))
-                    )
+                    auto_vars[os.path.join(current_dir, file_name)].add(Variable(key, _make_hashable(value)))
 
     return dict(auto_vars)
 
@@ -39,10 +38,7 @@ def _make_hashable(input_value):
     if isinstance(input_value, list):
         return tuple(_make_hashable(item) for item in input_value)
     if isinstance(input_value, dict):
-        return tuple(
-            (_make_hashable(key), _make_hashable(value))
-            for key, value in input_value.items()
-        )
+        return tuple((_make_hashable(key), _make_hashable(value)) for key, value in input_value.items())
     if isinstance(input_value, Token):
         return str(input_value)
     return input_value
@@ -96,8 +92,7 @@ def get_source_for_variable(
     possible_sources = [
         file
         for file, var_info in vars_map.items()
-        if any(var[0] == var_name for var in var_info)
-        and usage_directory.startswith(os.path.dirname(file))
+        if any(var[0] == var_name for var in var_info) and usage_directory.startswith(os.path.dirname(file))
     ]
 
     if not possible_sources:
@@ -132,9 +127,7 @@ def get_auto_var_usage_graph(root_directory: str) -> DiGraph:
                 if not file.endswith(".tf"):
                     continue
 
-                future = executor.submit(
-                    _collect_variable_usages, current_dir, file, auto_vars
-                )
+                future = executor.submit(_collect_variable_usages, current_dir, file, auto_vars)
                 future_list.append(future)
 
         for future in concurrent.futures.as_completed(future_list):

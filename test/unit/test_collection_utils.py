@@ -1,4 +1,5 @@
 """Test collection utilities"""
+
 from unittest import TestCase
 
 from terrawrap.utils.collection_utils import update

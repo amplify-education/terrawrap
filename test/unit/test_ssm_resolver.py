@@ -1,4 +1,5 @@
 """Tests for SSM multi-path resolution."""
+
 from unittest import TestCase
 from unittest.mock import MagicMock
 
@@ -6,8 +7,7 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from botocore.stub import Stubber
 
-from terrawrap.utils.ssm_resolver import SsmResolver, SsmPathsExhausted
-
+from terrawrap.utils.ssm_resolver import SsmPathsExhausted, SsmResolver
 
 CALLER_ARN = "arn:aws:sts::123456789012:assumed-role/Engineer/test-session"
 STUB_REGION = "us-west-2"  # NOSONAR — botocore Stubber needs a region; value is inert
@@ -152,9 +152,7 @@ class TestSsmPathsExhausted(TestCase):
         """STS ClientError on get_caller_identity still yields a usable SsmPathsExhausted."""
         self.ssm.get_parameter.side_effect = [_client_error("ParameterNotFound")]
         self.sts.get_caller_identity.side_effect = ClientError(
-            error_response={
-                "Error": {"Code": "InvalidClientTokenId", "Message": "stubbed"}
-            },
+            error_response={"Error": {"Code": "InvalidClientTokenId", "Message": "stubbed"}},
             operation_name="GetCallerIdentity",
         )
         self.resolver = SsmResolver(ssm_client=self.ssm, sts_client=self.sts)
