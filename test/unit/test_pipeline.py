@@ -1,8 +1,8 @@
 """Tests for pipelines"""
-from unittest import TestCase
-from unittest.mock import patch, call
 
 import os
+from unittest import TestCase
+from unittest.mock import call, patch
 
 from terrawrap.models.pipeline import Pipeline
 
@@ -12,9 +12,7 @@ class TestPipeline(TestCase):
 
     def setUp(self):
         self.prev_dir = os.getcwd()
-        os.chdir(
-            os.path.normpath(os.path.dirname(__file__) + "/../helpers/mock_directory")
-        )
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers/mock_directory"))
 
     def tearDown(self):
         os.chdir(self.prev_dir)

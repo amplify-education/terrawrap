@@ -1,4 +1,5 @@
 """Module for interacting with DynamoDB"""
+
 from typing import Any, Dict
 
 import boto3

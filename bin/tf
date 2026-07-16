@@ -16,6 +16,7 @@ Examples:
     tf some/path/to/tf_files plan
     tf some/path/to/tf_files apply -var foo=bar -lock=True
 """
+
 from __future__ import print_function
 
 import json
@@ -24,25 +25,25 @@ import re
 import shutil
 import sys
 from datetime import datetime, timedelta
-from dateutil.parser import parse
-from pytz import timezone
-from typing import List, Dict, Tuple
+from typing import Dict, List, Tuple
 
 import boto3
+from dateutil.parser import parse
+from pytz import timezone
 
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
-    find_variable_files,
-    parse_wrapper_configs,
     calc_backend_config,
-    parse_variable_files,
+    find_variable_files,
     find_wrapper_config_files,
-    resolve_envvars,
     parse_backend_config_for_dir,
+    parse_variable_files,
+    parse_wrapper_configs,
+    resolve_envvars,
 )
 from terrawrap.utils.dynamodb import DynamoDB
+from terrawrap.utils.path import calc_repo_path, get_absolute_path
 from terrawrap.utils.plugin_download import PluginDownload
-from terrawrap.utils.path import get_absolute_path, calc_repo_path
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
@@ -111,9 +112,7 @@ def exec_tf_command(
             "automated apply jobs first.\nAre you sure you want to run 'import' now? (y/N): "
         )
         if response.lower().strip() != "y":
-            print(
-                "Please do better by taking one of the appropriate precautions suggested above."
-            )
+            print("Please do better by taking one of the appropriate precautions suggested above.")
             sys.exit(1)
 
     try_count = 0
@@ -188,11 +187,9 @@ def update_digest(error: str, path: str, variables: Dict[str, str]) -> bool:
     except AttributeError:
         digest = ""
 
-    default_terraform_bucket = (
-        "{region}--mclass--terraform--{account_short_name}".format(
-            region=variables.get("region"),
-            account_short_name=variables.get("account_short_name"),
-        )
+    default_terraform_bucket = "{region}--mclass--terraform--{account_short_name}".format(
+        region=variables.get("region"),
+        account_short_name=variables.get("account_short_name"),
     )
 
     terraform_bucket = variables.get("terraform_state_bucket", default_terraform_bucket)
@@ -267,26 +264,21 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
 
 def handler():
     version_check(current_version=__version__)
-    path, command, additional_arguments, should_resolve_envvars = process_arguments(
-        sys.argv
-    )
+    path, command, additional_arguments, should_resolve_envvars = process_arguments(sys.argv)
 
     tf_config_path = get_absolute_path(path=path)
 
     if not os.path.isdir(tf_config_path):
         print(__doc__)
         print(
-            "Error: Path '%s' evaluated as '%s' and is not a directory."
-            % (path, tf_config_path),
+            "Error: Path '%s' evaluated as '%s' and is not a directory." % (path, tf_config_path),
             file=sys.stderr,
         )
         sys.exit(1)
 
     wrapper_config_files = find_wrapper_config_files(path=tf_config_path)
     wrapper_config = parse_wrapper_configs(wrapper_config_files=wrapper_config_files)
-    additional_envvars = (
-        resolve_envvars(wrapper_config.envvars) if should_resolve_envvars else {}
-    )
+    additional_envvars = resolve_envvars(wrapper_config.envvars) if should_resolve_envvars else {}
 
     add_variables = does_command_get_variables(
         command=command, path=tf_config_path, arguments=additional_arguments

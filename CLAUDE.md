@@ -26,5 +26,4 @@ the heading version to the value you just wrote into `version.py`.
   `self.addCleanup(shutil.rmtree, ...)`.
 - A single-interpreter `pytest` pass is not enough — run `tox` (all envs) before
   declaring done.
-- pre-commit runs black (pinned `22.8.0`), mypy, and pylint (scoped to
-  `terrawrap/` and `test/` — `bin/` scripts are not linted).
+- pre-commit runs ruff (lint + format) and mypy.

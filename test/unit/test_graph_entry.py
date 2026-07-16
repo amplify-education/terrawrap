@@ -1,4 +1,5 @@
 """Tests for GraphEntries"""
+
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -62,9 +63,7 @@ class TestGraphEntry(TestCase):
         exit_code, stdout, changes_detected = entry.execute("apply")
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(
-            stdout, ["Success", "\n", "Resources: 0 added, 0 changed, 0 destroyed"]
-        )
+        self.assertEqual(stdout, ["Success", "\n", "Resources: 0 added, 0 changed, 0 destroyed"])
         self.assertEqual(changes_detected, False)
 
     @patch("terrawrap.models.graph_entry.execute_command")

@@ -1,20 +1,20 @@
 """Test terraform config utilities"""
-from unittest import TestCase
 
 import os
 from pathlib import Path
+from unittest import TestCase
+
 import networkx
 
 from terrawrap.utils.graph import (
+    connect_symlinks,
     find_source_nodes,
+    find_symlink_directories,
+    generate_dependencies,
     has_cycle,
     successors,
-    generate_dependencies,
     visualize,
-    find_symlink_directories,
-    connect_symlinks,
 )
-
 from terrawrap.utils.path import get_symlinks
 
 ROLE_ARN = "arn:aws:iam::1234567890:role/test_role"
@@ -30,9 +30,7 @@ class TestConfig(TestCase):
         """Sets up a directed graph to test utility functions"""
         self.graph = networkx.DiGraph()
         self.graph.add_nodes_from(["1", "2", "3", "4", "5", "6"])
-        self.graph.add_edges_from(
-            [("1", "2"), ("1", "4"), ("1", "6"), ("3", "5"), ("3", "6")]
-        )
+        self.graph.add_edges_from([("1", "2"), ("1", "4"), ("1", "6"), ("3", "5"), ("3", "6")])
 
     def test_find_source_nodes(self):
         """Tests we can find source nodes for a given graph"""

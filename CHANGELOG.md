@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.10.26\] - 2026-07-16
+
+### Changed
+
+- Replaced pylint, isort, and black with `ruff` (lint + format) in pre-commit. Reformatting to
+  ruff's 110-column line length reflowed docstrings, print strings, and CLI usage text across
+  `terrawrap/`, `test/`, and `bin/`; behavior is unchanged. (AT-14951)
+
 ## \[0.10.25\] - 2026-06-17
 
 ### Fixed

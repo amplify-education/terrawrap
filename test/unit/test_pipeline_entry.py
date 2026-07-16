@@ -1,4 +1,5 @@
 """Tests for PipelineEntrys"""
+
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -48,9 +49,7 @@ class TestPipelineEntry(TestCase):
         exit_code, stdout, changes_detected = entry.execute("apply")
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(
-            stdout, ["Success", "\n", "Something changed", "\n", "Success"]
-        )
+        self.assertEqual(stdout, ["Success", "\n", "Something changed", "\n", "Success"])
         self.assertEqual(changes_detected, True)
 
     @patch("terrawrap.models.pipeline_entry.execute_command")
