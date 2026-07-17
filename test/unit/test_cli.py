@@ -163,9 +163,7 @@ class TestCli(TestCase):
             exit_code=0,
         )
 
-        self.assertEqual(
-            mock_post.call_args.kwargs["json"]["build_id"], "terraform-apply:abc-123"
-        )
+        self.assertEqual(mock_post.call_args.kwargs["json"]["build_id"], "terraform-apply:abc-123")
 
     @patch.dict(os.environ)
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
