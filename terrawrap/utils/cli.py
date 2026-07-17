@@ -262,9 +262,11 @@ def _post_audit_info(
         "status": status,
         "git_hash": sha,
         # Echo the CodeBuild build id so terraform-audit-api can correlate a
-        # UI-triggered apply back to its PENDING placeholder row. Absent (None)
-        # for pipeline applies, which run in ECS rather than CodeBuild.
-        "build_id": os.environ.get("CODEBUILD_BUILD_ID"),
+        # UI-triggered apply back to its PENDING placeholder row. Empty string
+        # (not None) for pipeline/local applies with no CodeBuild build: the API
+        # deserializes build_id as a required str and rejects null, and treats ""
+        # as "no correlation" (reconcile is skipped).
+        "build_id": os.environ.get("CODEBUILD_BUILD_ID") or "",
     }
 
     if len(stdout_str) > OUTPUT_COMPRESSION_THRESHOLD:

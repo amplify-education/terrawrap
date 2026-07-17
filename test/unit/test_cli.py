@@ -169,8 +169,10 @@ class TestCli(TestCase):
     @patch.dict(os.environ)
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")
-    def test_post_audit_info_build_id_none(self, mock_post, _):
-        """Outside CodeBuild (e.g. a pipeline ECS apply) build_id is None."""
+    def test_post_audit_info_build_id_empty(self, mock_post, _):
+        """Outside CodeBuild (e.g. a pipeline ECS apply) build_id is "" — never
+        None, since the API deserializes build_id as a required str and rejects
+        null."""
         os.environ.pop("CODEBUILD_BUILD_ID", None)
         os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
 
@@ -181,7 +183,7 @@ class TestCli(TestCase):
             exit_code=0,
         )
 
-        self.assertIsNone(mock_post.call_args.kwargs["json"]["build_id"])
+        self.assertEqual(mock_post.call_args.kwargs["json"]["build_id"], "")
 
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")
