@@ -141,9 +141,48 @@ class TestCli(TestCase):
                     "status": status,
                     "output": "",
                     "git_hash": ANY,
+                    # ANY: build_id is read from CODEBUILD_BUILD_ID, which is None
+                    # locally but set when this suite runs inside CodeBuild.
+                    "build_id": ANY,
                 },
                 timeout=30,
             )
+
+    @patch.dict(os.environ, {"CODEBUILD_BUILD_ID": "terraform-apply:abc-123"})
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_post_audit_info_echoes_build_id(self, mock_post, _):
+        """The audit payload echoes CODEBUILD_BUILD_ID so the API can correlate
+        the apply back to its UI-triggered PENDING placeholder."""
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        _post_audit_info(
+            audit_api_url="https://foo.bar",
+            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+            start_time=12345,
+            exit_code=0,
+        )
+
+        self.assertEqual(mock_post.call_args.kwargs["json"]["build_id"], "terraform-apply:abc-123")
+
+    @patch.dict(os.environ)
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_post_audit_info_build_id_empty(self, mock_post, _):
+        """Outside CodeBuild (e.g. a pipeline ECS apply) build_id is "" — never
+        None, since the API deserializes build_id as a required str and rejects
+        null."""
+        os.environ.pop("CODEBUILD_BUILD_ID", None)
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        _post_audit_info(
+            audit_api_url="https://foo.bar",
+            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+            start_time=12345,
+            exit_code=0,
+        )
+
+        self.assertEqual(mock_post.call_args.kwargs["json"]["build_id"], "")
 
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")
