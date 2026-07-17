@@ -1,4 +1,5 @@
 """Test plan_check directory selection utilities"""
+
 import os
 import shutil
 import tempfile
@@ -25,9 +26,7 @@ class TestGetModifiedSubdirectories(TestCase):
         self.addCleanup(shutil.rmtree, self.root)
         self.leaf_dir = os.path.join(self.root, "config", "team", "app")
         os.makedirs(self.leaf_dir)
-        with open(
-            os.path.join(self.leaf_dir, "main.tf"), "w", encoding="utf-8"
-        ) as handle:
+        with open(os.path.join(self.leaf_dir, "main.tf"), "w", encoding="utf-8") as handle:
             handle.write('resource "null_resource" "noop" {}\n')
 
     def test_modified_file_plans_dir(self, mock_changed, mock_root, _mod, _var):
@@ -47,9 +46,7 @@ class TestGetModifiedSubdirectories(TestCase):
     def test_deleted_dir_not_planned(self, mock_changed, mock_root, _mod, _var):
         """A change under a directory that no longer exists is not planned"""
         mock_root.return_value = self.root
-        mock_changed.return_value = {
-            os.path.join(self.root, "config", "team", "gone", "ecr.tf")
-        }
+        mock_changed.return_value = {os.path.join(self.root, "config", "team", "gone", "ecr.tf")}
         regular, symlinked = get_modified_subdirectories(self.root)
         self.assertEqual(regular, [])
         self.assertEqual(symlinked, [])
@@ -57,9 +54,7 @@ class TestGetModifiedSubdirectories(TestCase):
     def test_deleted_last_tf_dir_not_planned(self, mock_changed, mock_root, _mod, _var):
         """Deleting the only .tf file leaves a surviving dir with no .tf -> not planned"""
         mock_root.return_value = self.root
-        with open(
-            os.path.join(self.leaf_dir, "README.md"), "w", encoding="utf-8"
-        ) as handle:
+        with open(os.path.join(self.leaf_dir, "README.md"), "w", encoding="utf-8") as handle:
             handle.write("not terraform\n")
         os.remove(os.path.join(self.leaf_dir, "main.tf"))
         mock_changed.return_value = {os.path.join(self.leaf_dir, "ecr.tf")}

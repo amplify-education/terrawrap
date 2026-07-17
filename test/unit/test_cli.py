@@ -1,18 +1,19 @@
 """Test git utilities"""
+
 import os
 from logging import Logger
 from unittest import TestCase
-from unittest.mock import patch, ANY, call
+from unittest.mock import ANY, call, patch
+
 from requests.exceptions import HTTPError
 
 from terrawrap.utils.cli import (
-    execute_command,
     MAX_RETRIES,
     Status,
-    _post_audit_info,
     _get_retriable_errors,
+    _post_audit_info,
+    execute_command,
 )
-
 
 MOCK_ERROR = HTTPError()
 

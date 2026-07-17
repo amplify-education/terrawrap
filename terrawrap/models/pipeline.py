@@ -1,9 +1,10 @@
 """Module containing the Pipeline class"""
+
 import concurrent.futures
 import csv
 from collections import defaultdict
 from pathlib import Path
-from typing import Iterable, Optional, List, DefaultDict
+from typing import DefaultDict, Iterable, List, Optional
 
 from terrawrap.models.pipeline_entry import PipelineEntry
 
@@ -22,17 +23,15 @@ class Pipeline:
         self.reverse_pipeline = command == "destroy"
 
         if not pipeline_path.endswith(".csv"):
-            raise RuntimeError(
-                "Config file '%s' doesn't appear to be a CSV file: Should end in .csv"
-            )
+            raise RuntimeError("Config file '%s' doesn't appear to be a CSV file: Should end in .csv")
 
         with open(pipeline_path, encoding="utf-8") as pipeline_file:
             reader = csv.DictReader(pipeline_file)
             # Lambda function is needed here because the argument to defaultdict needs to be a function that
             # returns an object.
-            entries: DefaultDict[
-                int, DefaultDict[str, List[PipelineEntry]]
-            ] = defaultdict(lambda: defaultdict(list))
+            entries: DefaultDict[int, DefaultDict[str, List[PipelineEntry]]] = defaultdict(
+                lambda: defaultdict(list)
+            )
 
             for row in reader:
                 entry = PipelineEntry(
@@ -63,9 +62,7 @@ class Pipeline:
         """
         for sequence in sorted(self.entries.keys(), reverse=self.reverse_pipeline):
             print(f"Executing sequence {sequence}")
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=num_parallel
-            ) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
                 self._execute_entries(
                     command=self.command,
                     entries=self.entries[sequence]["parallel"],

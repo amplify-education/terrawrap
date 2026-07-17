@@ -1,7 +1,7 @@
 """Test Terraform module utilities"""
-from unittest import TestCase
 
 import os
+from unittest import TestCase
 
 from networkx import DiGraph, is_isomorphic
 
@@ -13,9 +13,7 @@ class TestModule(TestCase):
 
     def setUp(self):
         self.prev_dir = os.getcwd()
-        os.chdir(
-            os.path.normpath(os.path.dirname(__file__) + "/../helpers/mock_directory")
-        )
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers/mock_directory"))
 
     def tearDown(self):
         os.chdir(self.prev_dir)

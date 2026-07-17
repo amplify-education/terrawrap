@@ -1,9 +1,9 @@
 """Tests for Graph applyinhs"""
-from typing import List
-from unittest import TestCase
-from unittest.mock import patch, MagicMock, call
 
 import os
+from typing import List
+from unittest import TestCase
+from unittest.mock import MagicMock, call, patch
 
 import networkx
 
@@ -38,13 +38,9 @@ class TestApplyGraph(TestCase):
         graph.execute_graph()
         graph.execute_post_graph()
 
-        self.assertEqual(
-            graph.graph_dict["bar/app1"].execute.mock_calls, [call("plan", debug=False)]
-        )
+        self.assertEqual(graph.graph_dict["bar/app1"].execute.mock_calls, [call("plan", debug=False)])
 
-        self.assertEqual(
-            graph.graph_dict["bar/app2"].execute.mock_calls, [call("plan", debug=False)]
-        )
+        self.assertEqual(graph.graph_dict["bar/app2"].execute.mock_calls, [call("plan", debug=False)])
 
         self.assertEqual(graph.not_applied, {"foo/app1"})
         self.assertEqual(graph.applied, {"bar/app1", "bar/app2"})

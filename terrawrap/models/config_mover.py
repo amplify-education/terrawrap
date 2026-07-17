@@ -3,12 +3,12 @@ import os
 from functools import lru_cache
 from os.path import relpath
 from pathlib import Path
-from typing import List, Union, Iterable, Any
+from typing import Any, Iterable, List, Union
 
 import boto3
 import git
-from botocore.exceptions import ClientError
 import hcl2
+from botocore.exceptions import ClientError
 
 from terrawrap.utils.config import find_variable_files, parse_variable_files
 from terrawrap.utils.path import calc_repo_path
@@ -57,14 +57,10 @@ class ConfigMover:
         return f"{calc_repo_path(terraform_path)}{self.tf_state_file_extension}"
 
     @lru_cache
-    def _find_auto_variable(
-        self, path: Path, variable_name: str, strict: bool = True
-    ) -> Any:
+    def _find_auto_variable(self, path: Path, variable_name: str, strict: bool = True) -> Any:
         variables = parse_variable_files(self._find_variable_files(path))
         if strict:
-            return variables[
-                variable_name
-            ]  # just in case variable_name is actually present, but is None
+            return variables[variable_name]  # just in case variable_name is actually present, but is None
         return variables.get(variable_name)
 
     @lru_cache
@@ -74,11 +70,13 @@ class ConfigMover:
 
     def _adjust_modules_sources(self, tf_files: Iterable[Path]):
         """
-        For each module block in tf_files, adjusts path to its source depending on the location of target directory,
-        for example, given that the target directory is one level deeper than the source directory:
+        For each module block in tf_files, adjusts path to its source depending on the location of
+        target directory, for example, given that the target directory is one level deeper than the
+        source directory:
         source = "../../../../../../modules/aws/s3_bucket/v3" ->
         source = "../../../../../../../modules/aws/s3_bucket/v3"
-        This method works with modules paths virtually - it doesn't check their existence nor looks up them whatsoever.
+        This method works with modules paths virtually - it doesn't check their existence nor looks up
+        them whatsoever.
         """
 
         for path in tf_files:
@@ -92,20 +90,14 @@ class ConfigMover:
                 # convert above to absolute path
                 module_source_absolute = (path.parent / module_source).resolve()
                 # find modules source path relative to the new directory
-                new_module_source = relpath(
-                    module_source_absolute, self.target_directory_abs
-                )
-                content = content.replace(
-                    f'"{module_source}"', f'"{new_module_source}"'
-                )
+                new_module_source = relpath(module_source_absolute, self.target_directory_abs)
+                content = content.replace(f'"{module_source}"', f'"{new_module_source}"')
 
             path.write_text(content)
 
     def _move_state_file_object(self):
         """Moves state file object inside S3 bucket"""
-        state_bucket = self._find_auto_variable(
-            self.source_directory_abs, "terraform_state_bucket"
-        )
+        state_bucket = self._find_auto_variable(self.source_directory_abs, "terraform_state_bucket")
         source_key = self._build_state_file_s3_key(self.source_directory_abs)
         target_key = self._build_state_file_s3_key(self.target_directory_abs)
 
@@ -153,25 +145,19 @@ class ConfigMover:
         self.repo.index.move([*sources, str(self.target_directory_abs)])
 
     def _verify_source_directory(self) -> List[Path]:
-        """Verify that the source directory is a valid terraform directory, returns paths of files to be moved"""
+        """Verify that the source directory is a valid terraform directory, returns paths of files to be
+        moved"""
         if not self.source_directory_abs.exists():
-            raise RuntimeError(
-                Colors.RED(
-                    f"Source directory {self.source_directory_abs} does not exist."
-                )
-            )
+            raise RuntimeError(Colors.RED(f"Source directory {self.source_directory_abs} does not exist."))
 
         files_to_move = []
         has_terraform_files = False
 
         git_files = set(self.repo.git.ls_files().splitlines())
-        rel_source_path = Path(
-            *Path(calc_repo_path(self.source_directory_abs)).parts[1:]
-        )
+        rel_source_path = Path(*Path(calc_repo_path(self.source_directory_abs)).parts[1:])
 
         for path in self.source_directory_abs.iterdir():
             if path.is_file() and str(rel_source_path / path.name) in git_files:
-
                 if path.name.endswith(".tf"):
                     has_terraform_files = True
 
@@ -180,7 +166,8 @@ class ConfigMover:
         if not has_terraform_files:
             raise RuntimeError(
                 Colors.RED(
-                    f"No terraform configuration files (*.tf) found in {calc_repo_path(self.source_directory_abs)}\n"
+                    f"No terraform configuration files (*.tf) found in "
+                    f"{calc_repo_path(self.source_directory_abs)}\n"
                     "If you wish to move a subdirectory, run this tool for its path."
                 )
             )
@@ -191,33 +178,21 @@ class ConfigMover:
         """Verify that the target directory is empty"""
         self.target_directory_abs.mkdir(parents=True, exist_ok=True)
         if any(self.target_directory_abs.iterdir()):
-            raise RuntimeError(
-                Colors.RED(
-                    f"Target directory {self.target_directory_abs} is not empty."
-                )
-            )
+            raise RuntimeError(Colors.RED(f"Target directory {self.target_directory_abs} is not empty."))
 
     def _verify_environment(self):
         error_message = Colors.RED(
             "Source and target directories must be in the same AWS account / environment"
         )
 
-        source_state_bucket = self._find_auto_variable(
-            self.source_directory_abs, "terraform_state_bucket"
-        )
-        target_state_bucket = self._find_auto_variable(
-            self.target_directory_abs, "terraform_state_bucket"
-        )
+        source_state_bucket = self._find_auto_variable(self.source_directory_abs, "terraform_state_bucket")
+        target_state_bucket = self._find_auto_variable(self.target_directory_abs, "terraform_state_bucket")
 
         if source_state_bucket != target_state_bucket:
             raise RuntimeError(error_message)
 
-        source_environment = self._find_auto_variable(
-            self.source_directory_abs, "environment", strict=False
-        )
-        target_environment = self._find_auto_variable(
-            self.target_directory_abs, "environment", strict=False
-        )
+        source_environment = self._find_auto_variable(self.source_directory_abs, "environment", strict=False)
+        target_environment = self._find_auto_variable(self.target_directory_abs, "environment", strict=False)
 
         if source_environment is None and target_environment is None:
             return
@@ -226,7 +201,8 @@ class ConfigMover:
             raise RuntimeError(error_message)
 
     def _diff_autovars(self):
-        """Find .auto.fvars files that are available in scope of the source directory, but not in scope of the target"""
+        """Find .auto.fvars files that are available in scope of the source directory, but not in scope
+        of the target"""
         source_var_files = self._find_variable_files(self.source_directory_abs.parent)
         target_var_files = self._find_variable_files(self.target_directory_abs.parent)
 
@@ -257,9 +233,7 @@ class ConfigMover:
         self._verify_target_directory()
         self._verify_environment()
 
-        state_bucket = self._find_auto_variable(
-            self.source_directory_abs, "terraform_state_bucket"
-        )
+        state_bucket = self._find_auto_variable(self.source_directory_abs, "terraform_state_bucket")
         source_state_file = self._build_state_file_s3_key(self.source_directory_abs)
         target_state_file = self._build_state_file_s3_key(self.target_directory_abs)
 
@@ -270,16 +244,11 @@ class ConfigMover:
             f"\tTarget key: \t{Colors.BOLD(target_state_file)}\n"
         )
 
-        print(
-            "Following files will be moved:\n"
-            f"\t{Colors.BOLD(calc_repo_path(self.source_directory_abs))}"
-        )
+        print(f"Following files will be moved:\n\t{Colors.BOLD(calc_repo_path(self.source_directory_abs))}")
         for tf_file in files_to_move[:-1]:
             print(f"\t├────{Colors.BOLD(tf_file.name)}")
         print(f"\t└────{Colors.BOLD(files_to_move[-1].name)}")
-        print(
-            f"to the new directory: \n\t{Colors.BOLD(calc_repo_path(self.target_directory_abs))}\n"
-        )
+        print(f"to the new directory: \n\t{Colors.BOLD(calc_repo_path(self.target_directory_abs))}\n")
 
         self._diff_autovars()
         # fmt: off
@@ -292,9 +261,7 @@ class ConfigMover:
             raise RuntimeError("Aborted.\n")
         # fmt: on
 
-        self._adjust_modules_sources(
-            file for file in files_to_move if file.name.endswith(".tf")
-        )
+        self._adjust_modules_sources(file for file in files_to_move if file.name.endswith(".tf"))
         self._move_files(files_to_move)
         self._move_state_file_object()
 

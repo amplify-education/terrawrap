@@ -3,7 +3,7 @@
 # pylint: disable=missing-docstring
 
 from enum import Enum
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
 import jsons
 
@@ -89,9 +89,7 @@ def _parse_ssm_paths(raw_path) -> List[str]:
             raise ValueError("SSM envvar 'path' list must not be empty")
         if all(isinstance(p, str) for p in raw_path):
             return list(raw_path)
-    raise TypeError(
-        f"SSM envvar 'path' must be a string or list of strings, got {raw_path!r}"
-    )
+    raise TypeError(f"SSM envvar 'path' must be a string or list of strings, got {raw_path!r}")
 
 
 def _parse_paths_list(raw) -> List[str]:

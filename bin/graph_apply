@@ -3,7 +3,8 @@
 This script obtains the dependencies for the terraform config wrapper files and applies them.
 
 Usage:
-    graph_apply --path=PATH [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug] [--print-only-changes]
+    graph_apply --path=PATH [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug]
+                [--print-only-changes]
     graph_apply --version
 
 Arguments:
@@ -23,27 +24,25 @@ Options:
 """
 
 import os
-import networkx
 
+import networkx
 from docopt import docopt
 
 from terrawrap.exceptions import NoDependency
-from terrawrap.utils.version import version_check
-from terrawrap.version import __version__
-
+from terrawrap.models.graph import ApplyGraph
 from terrawrap.utils.config import (
     walk_and_graph_directory,
     walk_without_graph_directory,
 )
 from terrawrap.utils.graph import (
+    connect_symlinks,
     find_source_nodes,
     generate_dependencies,
     visualize,
-    connect_symlinks,
 )
-from terrawrap.models.graph import ApplyGraph
 from terrawrap.utils.path import get_symlinks
-
+from terrawrap.utils.version import version_check
+from terrawrap.version import __version__
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 CURRENT_DIRECTORY = os.getcwd()
@@ -60,8 +59,7 @@ def main():
         num_parallel = int(arguments["--parallel-jobs"])
     except ValueError:
         raise RuntimeError(
-            "Unable to parse number of parallel jobs, '%s' is not an integer."
-            % arguments["--parallel-jobs"]
+            "Unable to parse number of parallel jobs, '%s' is not an integer." % arguments["--parallel-jobs"]
         )
 
     config_dir = arguments["--path"]
@@ -77,7 +75,8 @@ def main():
         graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
     except ValueError:
         print(
-            "Terrawrap has detected no dependency information in this graph, attempting to apply all directories"
+            "Terrawrap has detected no dependency information in this graph, attempting to apply all "
+            "directories"
         )
         graph = networkx.DiGraph()
         try:
@@ -87,9 +86,7 @@ def main():
             print(
                 "Discovered dependency information, please either remove all dependency info or fix existing."
             )
-            print(
-                "This error generally occurs due to malformed dependency information."
-            )
+            print("This error generally occurs due to malformed dependency information.")
             exit(1)
 
     symlinks_dict = get_symlinks(config_dir)
@@ -101,7 +98,8 @@ def main():
     visualize(dependencies)
     if post_graph:
         print(
-            "The following files have not been configured and will be run in parallel after the graph has run."
+            "The following files have not been configured and will be run in parallel after the graph "
+            "has run."
         )
         relative_post_graph = []
         for directory in post_graph:
@@ -110,12 +108,8 @@ def main():
         print(relative_post_graph)
 
     apply = ApplyGraph(operation, graph, post_graph, config_dir)
-    apply.execute_graph(
-        num_parallel=num_parallel, debug=debug, print_only_changes=print_only_changes
-    )
-    apply.execute_post_graph(
-        num_parallel=num_parallel, debug=debug, print_only_changes=print_only_changes
-    )
+    apply.execute_graph(num_parallel=num_parallel, debug=debug, print_only_changes=print_only_changes)
+    apply.execute_post_graph(num_parallel=num_parallel, debug=debug, print_only_changes=print_only_changes)
     if apply.not_applied:
         print("SKIPPED DIRECTORIES")
         print("The following directories have not been run since they are out of scope")
@@ -123,8 +117,7 @@ def main():
     if apply.failures:
         print("FAILED DIRECTORIES")
         print(
-            "The following directories failed with command '%s':\n%s"
-            % (operation, "\n".join(apply.failures))
+            "The following directories failed with command '%s':\n%s" % (operation, "\n".join(apply.failures))
         )
         print(
             "Terrawrap has detected failures while running terraform %s, "

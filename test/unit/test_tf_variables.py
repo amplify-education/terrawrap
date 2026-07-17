@@ -1,16 +1,16 @@
 """Unit tests for terraform variable utilities"""
-from unittest import TestCase
 
 import os
+from unittest import TestCase
 
 from networkx import DiGraph, is_isomorphic
 
 from terrawrap.utils.tf_variables import (
+    Variable,
+    get_auto_var_usage_graph,
     get_auto_vars,
     get_nondefault_variables_for_file,
     get_source_for_variable,
-    get_auto_var_usage_graph,
-    Variable,
 )
 
 
@@ -19,9 +19,7 @@ class TestTerraformVariables(TestCase):
 
     def setUp(self):
         self.prev_dir = os.getcwd()
-        os.chdir(
-            os.path.normpath(os.path.dirname(__file__) + "/../helpers/mock_directory")
-        )
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers/mock_directory"))
 
     def tearDown(self):
         os.chdir(self.prev_dir)
@@ -109,6 +107,4 @@ class TestTerraformVariables(TestCase):
         """Upstream auto.tfvars overrides a downstream variable's default, so the edge must be present."""
         actual = get_auto_var_usage_graph("config")
 
-        self.assertTrue(
-            actual.has_edge("config/area/area.auto.tfvars", "config/area/svc")
-        )
+        self.assertTrue(actual.has_edge("config/area/area.auto.tfvars", "config/area/svc"))

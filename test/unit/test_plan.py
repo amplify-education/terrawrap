@@ -1,4 +1,5 @@
 """Tests for plan output processing helpers"""
+
 from unittest import TestCase
 
 from terrawrap.utils.plan import extract_show_json

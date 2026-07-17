@@ -22,21 +22,19 @@ Options:
      --version                              Show the version.
 """
 
+import concurrent.futures
 import os
 import re
-import concurrent.futures
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict
+from typing import Dict, List, Optional, Tuple
 
 from docopt import docopt
 
-from terrawrap.utils.version import version_check
-from terrawrap.version import __version__
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
-    parse_wrapper_configs,
     find_wrapper_config_files,
+    parse_wrapper_configs,
     resolve_envvars,
 )
 from terrawrap.utils.git_utils import get_git_root
@@ -45,11 +43,11 @@ from terrawrap.utils.plan_check import (
     get_modified_subdirectories,
     is_plan_check_enabled,
 )
+from terrawrap.utils.version import version_check
+from terrawrap.version import __version__
 
 TERRAFORM_PERFORM_ACTIONS = "Terraform will perform the following actions"
-IAM_POLICY_RE = re.compile(
-    "[-~+] .*(aws_iam_|aws_s3_bucket_policy|aws_organizations_policy).*"
-)
+IAM_POLICY_RE = re.compile("[-~+] .*(aws_iam_|aws_s3_bucket_policy|aws_organizations_policy).*")
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 CURRENT_DIRECTORY = os.getcwd()
 
@@ -76,9 +74,7 @@ def get_subdirectories(root_dir: str) -> Tuple[List[str], List[str]]:
     symlinked_directories = []
 
     for current_dir, dirs, files in os.walk(root_dir, followlinks=True):
-        if ".terraform" not in current_dir and any(
-            entry.endswith(".tf") for entry in files
-        ):
+        if ".terraform" not in current_dir and any(entry.endswith(".tf") for entry in files):
             if not is_plan_check_enabled(current_dir):
                 continue
 
@@ -118,9 +114,7 @@ def convert_plan_to_json(
     )
 
     if exit_code == PlanExitCode.FAILURE.value:
-        raise RuntimeError(
-            f"'terraform show' failed for {plan_binary_file}:\n{''.join(stdout)}"
-        )
+        raise RuntimeError(f"'terraform show' failed for {plan_binary_file}:\n{''.join(stdout)}")
 
     # `tf` echoes the command and execute_command merges stderr into stdout, so
     # the captured stream may contain a command-echo line and any terraform
@@ -174,11 +168,7 @@ def init_and_plan_directory(
     )
 
     if init_exit_code:
-        print(
-            "'terraform init' failed for {}:\n{}".format(
-                directory, "".join(init_stdout)
-            )
-        )
+        print("'terraform init' failed for {}:\n{}".format(directory, "".join(init_stdout)))
         return WrapperExitCode.TERRAFORM_FAILURE
 
     if os.path.exists("%s/%s" % (directory, "pr_checker.tfvars")):
@@ -212,17 +202,11 @@ def init_and_plan_directory(
     )
 
     if plan_exit_code == PlanExitCode.FAILURE.value:
-        print(
-            "'terraform plan' failed for {}:\n{}".format(
-                directory, "".join(plan_stdout)
-            )
-        )
+        print("'terraform plan' failed for {}:\n{}".format(directory, "".join(plan_stdout)))
         return WrapperExitCode.TERRAFORM_FAILURE
     elif print_diff and plan_exit_code == PlanExitCode.SUCCESS_WITH_DIFF.value:
         print(
-            "'terraform plan' generated following changes for {}:\n{}".format(
-                directory, "".join(plan_stdout)
-            )
+            "'terraform plan' generated following changes for {}:\n{}".format(directory, "".join(plan_stdout))
         )
 
     if output_directory:
@@ -264,11 +248,7 @@ def check_for_iam_changes(stdout: List[str], directory: str) -> WrapperExitCode:
                 iam_resources.append(match.group(0))
 
     if iam_resources:
-        print(
-            "Detected IAM resources modified in {0}:\n{1}\n".format(
-                directory, "\n".join(iam_resources)
-            )
-        )
+        print("Detected IAM resources modified in {0}:\n{1}\n".format(directory, "\n".join(iam_resources)))
         return WrapperExitCode.IAM_CHANGES
 
     return WrapperExitCode.SUCCESS
@@ -297,9 +277,7 @@ def execute_init_and_plan(
     # Lookup everyone's environment variables at once so that we get the benefit of Parameter Store calls
     # being cached.
     directory_to_envvars = {
-        directory: resolve_envvars(
-            parse_wrapper_configs(find_wrapper_config_files(directory)).envvars
-        )
+        directory: resolve_envvars(parse_wrapper_configs(find_wrapper_config_files(directory)).envvars)
         for directory in regular_directories + symlinked_directories
     }
 
@@ -357,8 +335,7 @@ def main():
         num_parallel = int(arguments["--parallel-jobs"])
     except ValueError:
         raise RuntimeError(
-            "Unable to parse number of parallel jobs, '%s' is not an integer."
-            % arguments["--parallel-jobs"]
+            "Unable to parse number of parallel jobs, '%s' is not an integer." % arguments["--parallel-jobs"]
         )
 
     # Get the directory with Terraform config passed to this script as an argument
@@ -367,9 +344,7 @@ def main():
         config_dir = os.path.abspath(os.path.join(CURRENT_DIRECTORY, config_dir))
 
     if modified_only:
-        regular_directories, symlinked_directories = get_modified_subdirectories(
-            config_dir
-        )
+        regular_directories, symlinked_directories = get_modified_subdirectories(config_dir)
     else:
         regular_directories, symlinked_directories = get_subdirectories(config_dir)
 
@@ -389,9 +364,7 @@ def main():
     )
 
     if failing_directories:
-        print(
-            "General Terraform failures detected. Check the output above and please resolve any issues."
-        )
+        print("General Terraform failures detected. Check the output above and please resolve any issues.")
         print("Directories with Terraform failures:")
         for directory in failing_directories:
             print("\t%s" % directory)

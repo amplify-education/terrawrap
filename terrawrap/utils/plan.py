@@ -1,4 +1,5 @@
 """Helpers for processing terraform plan output."""
+
 from typing import List
 
 

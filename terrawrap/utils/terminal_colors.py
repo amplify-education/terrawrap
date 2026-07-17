@@ -1,4 +1,5 @@
 """Utility for applying effects to terminal text with ANSI escape sequences."""
+
 from enum import Enum
 from typing import Any
 

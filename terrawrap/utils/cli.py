@@ -1,4 +1,5 @@
 """Module for containing CLI convenience functions"""
+
 from __future__ import print_function
 
 import base64
@@ -9,17 +10,15 @@ import subprocess
 import tempfile
 import time
 from enum import Enum
+from typing import List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
-from typing import List, Optional, Tuple, Union
-
 import requests
-
 from amplify_aws_utils.resource_helper import Jitter
 from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
 from requests.exceptions import HTTPError
 
-from terrawrap.utils.git_utils import get_git_root, get_git_hash
+from terrawrap.utils.git_utils import get_git_hash, get_git_root
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +85,7 @@ def execute_command(
 
     # It's possible for an envvar to be set to none, so exclude those envvars.
     if "env" in kwargs:
-        kwargs["env"] = {
-            key: value for key, value in kwargs["env"].items() if value is not None
-        }
+        kwargs["env"] = {key: value for key, value in kwargs["env"].items() if value is not None}
 
     # Get time - nanoseconds since epoch
     start_time = int(time.time())
@@ -102,9 +99,7 @@ def execute_command(
                 start_time=start_time,
             )
         except HTTPError as http_exception:
-            logger.error(
-                "An error occurred while connecting to audit API: %s", http_exception
-            )
+            logger.error("An error occurred while connecting to audit API: %s", http_exception)
 
     else:
         logger.info("No audit_api_url provided")
@@ -153,9 +148,7 @@ def execute_command(
                 update=True,
             )
         except HTTPError as http_exception:
-            logger.error(
-                "An error occurred while connecting to audit API: %s", http_exception
-            )
+            logger.error("An error occurred while connecting to audit API: %s", http_exception)
     else:
         logger.info("No audit_api_url provided")
 
@@ -184,9 +177,7 @@ def _execute_command(
     :return: A tuple of the exit code and output of the command.
     """
     stdout_write, stdout_path = tempfile.mkstemp()
-    with open(stdout_path, "rb") as stdout_read, open(
-        "/dev/null", "w", encoding="utf-8"
-    ) as dev_null:
+    with open(stdout_path, "rb") as stdout_read, open("/dev/null", "w", encoding="utf-8") as dev_null:
         if print_command:
             print(f"Executing: {' '.join(args)}")
 
@@ -235,18 +226,12 @@ def _post_audit_info(
     path = path.replace(root, "")
 
     status = (
-        Status.IN_PROGRESS
-        if exit_code is None
-        else (Status.SUCCESS if exit_code == 0 else Status.FAILED)
+        Status.IN_PROGRESS if exit_code is None else (Status.SUCCESS if exit_code == 0 else Status.FAILED)
     )
 
     logger.info("Attempting to send data to Audit API: %s - %s", path, status)
 
-    url = (
-        (audit_api_url + AUDIT_UPDATE_PATH)
-        if update
-        else (audit_api_url + AUDIT_POST_PATH)
-    )
+    url = (audit_api_url + AUDIT_UPDATE_PATH) if update else (audit_api_url + AUDIT_POST_PATH)
 
     auth = BotoAWSRequestsAuth(
         aws_host=urlparse(audit_api_url).hostname,
