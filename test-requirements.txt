@@ -1,11 +1,5 @@
 -r requirements.txt
 
-# Linting tools
-mypy>=1.10.0,<2
-# mypy types
-types-PyYAML>=5.4.3,<6
-types-filelock>=3.0.12,<4
-types-requests>=2.31.0,<3
 # Testing tools
 pytest>=7.4.0,<8
 pytest-cov>=4.1.0,<5
