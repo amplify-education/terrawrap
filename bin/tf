@@ -2,7 +2,7 @@
 """Terraform Wrapper
 
 Usage:
-    tf [--no-resolve-envvars] (<tf_path> <tf_command>) [<additional_arguments>...]
+    tf [--no-resolve-envvars] [--no-version-check] (<tf_path> <tf_command>) [<additional_arguments>...]
     tf -h,--help
 
 Options:
@@ -11,6 +11,9 @@ Options:
     additional_arguments    Space separated arguments to pass to the wrapped terraform command. Ex: -lock=True
     -h,--help               Display this help message and quit.
     --no-resolve-envvars    Disable automatic resolution of envvars from .tf_wrapper files.
+    --no-version-check      Skip the PyPI staleness check for this invocation. Intended for callers
+                            (e.g. plan_check) that invoke `tf` many times per run and already perform
+                            their own version_check once.
 
 Examples:
     tf some/path/to/tf_files plan
@@ -236,6 +239,17 @@ def repush_state(path: str) -> bool:
     return False
 
 
+def should_skip_version_check(argv: List[str]) -> bool:
+    """
+    True if --no-version-check was passed as one of the leading optional flags.
+    Checked (and consumed from a copy of argv) ahead of process_arguments so
+    handler() can decide whether to call version_check before the rest of
+    argument parsing runs.
+    :param argv: The raw argument vector, e.g. sys.argv.
+    """
+    return "--no-version-check" in argv[1:3]
+
+
 def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
     try:
         resolve_envvars = True
@@ -248,8 +262,11 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
             print("Terrawrap %s" % __version__)
             sys.exit(0)
 
-        if args[1] in ["--no-resolve-envvars"]:
-            resolve_envvars = False
+        # Strip leading optional flags (order-independent) ahead of the required
+        # <tf_path> <tf_command> positionals.
+        while len(args) > 1 and args[1] in ("--no-resolve-envvars", "--no-version-check"):
+            if args[1] == "--no-resolve-envvars":
+                resolve_envvars = False
             args.pop(1)
 
         path = args[1]
@@ -263,7 +280,8 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
 
 
 def handler():
-    version_check(current_version=__version__)
+    if not should_skip_version_check(sys.argv):
+        version_check(current_version=__version__)
     path, command, additional_arguments, should_resolve_envvars = process_arguments(sys.argv)
 
     tf_config_path = get_absolute_path(path=path)
