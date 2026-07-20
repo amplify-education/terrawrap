@@ -239,20 +239,10 @@ def repush_state(path: str) -> bool:
     return False
 
 
-def should_skip_version_check(argv: List[str]) -> bool:
-    """
-    True if --no-version-check was passed as one of the leading optional flags.
-    Checked (and consumed from a copy of argv) ahead of process_arguments so
-    handler() can decide whether to call version_check before the rest of
-    argument parsing runs.
-    :param argv: The raw argument vector, e.g. sys.argv.
-    """
-    return "--no-version-check" in argv[1:3]
-
-
-def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
+def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool, bool]:
     try:
         resolve_envvars = True
+        skip_version_check = False
 
         if args[1] in ["-h", "--help"]:
             print(__doc__)
@@ -263,26 +253,33 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
             sys.exit(0)
 
         # Strip leading optional flags (order-independent) ahead of the required
-        # <tf_path> <tf_command> positionals.
+        # <tf_path> <tf_command> positionals. This is the single place that
+        # recognizes these flags; callers (e.g. handler() below) act on the
+        # returned booleans rather than re-parsing argv themselves, so adding
+        # a third leading flag only means updating this loop.
         while len(args) > 1 and args[1] in ("--no-resolve-envvars", "--no-version-check"):
             if args[1] == "--no-resolve-envvars":
                 resolve_envvars = False
+            else:
+                skip_version_check = True
             args.pop(1)
 
         path = args[1]
         command = args[2]
         additional_arguments = args[3:]
 
-        return path, command, additional_arguments, resolve_envvars
+        return path, command, additional_arguments, resolve_envvars, skip_version_check
     except IndexError:
         print(__doc__)
         sys.exit(0)
 
 
 def handler():
-    if not should_skip_version_check(sys.argv):
+    path, command, additional_arguments, should_resolve_envvars, skip_version_check = process_arguments(
+        sys.argv
+    )
+    if not skip_version_check:
         version_check(current_version=__version__)
-    path, command, additional_arguments, should_resolve_envvars = process_arguments(sys.argv)
 
     tf_config_path = get_absolute_path(path=path)
 

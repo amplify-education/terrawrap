@@ -9,13 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- `convert_plan_to_json` retries `terraform show -json` once when the first attempt exits
-  without the FAILURE code but still produces no JSON. Observed intermittently in
-  amplify-education/terraform-config CI under `--parallel-jobs=16`, hitting a different
-  directory on different runs each time (never the same directory twice) — a same-input
-  retry reliably clears it. `extract_show_json`'s error message now also names the exit
-  code and explicitly flags a genuinely empty capture, instead of surfacing only whatever
-  noise (e.g. the version-staleness banner below) happened to precede the missing JSON.
+- `convert_plan_to_json` retries `terraform show -json` once when the first attempt exits 0
+  but still produces no JSON. Observed intermittently in amplify-education/terraform-config
+  CI under `--parallel-jobs=16`, hitting a different directory on different runs each time
+  (never the same directory twice) — a same-input retry reliably clears it. Any non-zero
+  exit is still a hard failure and is never retried. `extract_show_json`'s error message
+  now also names the exit code and explicitly flags a genuinely empty capture, instead of
+  surfacing only whatever noise (e.g. the version-staleness banner below) happened to
+  precede the missing JSON.
 - `plan_check`'s nested `tf` subprocess calls (init, plan, and the show-to-JSON conversion)
   now pass the new `tf --no-version-check` flag. Each of these calls previously re-ran its
   own PyPI staleness check and printed a "Terrawrap is stale" banner to stderr, which
@@ -27,6 +28,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tf --no-version-check`: skips the per-invocation PyPI staleness check. Intended for
   callers like `plan_check` that invoke `tf` many times per run and already perform their
   own check once at the top level.
+
+## \[0.10.28\] - 2026-07-18
 
 ### Changed
 

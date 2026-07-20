@@ -54,10 +54,10 @@ def convert_plan_to_json(
     """
     Converts binary terraform plan to json. Saves it in the same directory.
 
-    Retries the `terraform show -json` conversion once if the first attempt exits
-    without the FAILURE code but still produces no JSON — an intermittent failure
-    mode observed under high --parallel-jobs concurrency (see CHANGELOG) that a
-    same-input retry reliably clears.
+    Retries the `terraform show -json` conversion once if the first attempt exits 0
+    but still produces no JSON — an intermittent failure mode observed under high
+    --parallel-jobs concurrency (see CHANGELOG) that a same-input retry reliably
+    clears. Any non-zero exit is a hard failure and is never retried.
 
     :param plan_binary_file: File with a plan saved in a binary format
     :param source_directory: Directory with source terraform files
@@ -78,9 +78,15 @@ def convert_plan_to_json(
     ]
 
     def run_show() -> Tuple[List[str], int]:
+        # `terraform show` (unlike `terraform plan -detailed-exitcode`) only ever exits 0
+        # or 1 on success/failure, so PlanExitCode's plan-specific values (SUCCESS_WITH_DIFF)
+        # don't apply here. Anything other than a clean 0 exit is a hard failure raised
+        # immediately, not retried — only a 0 exit with no JSON is the known transient flake.
         exit_code, stdout = execute_command(show_command, print_output=False, env=command_env)
-        if exit_code == PlanExitCode.FAILURE.value:
-            raise RuntimeError(f"'terraform show' failed for {plan_binary_file}:\n{''.join(stdout)}")
+        if exit_code != 0:
+            raise RuntimeError(
+                f"'terraform show' failed for {plan_binary_file} (exit code {exit_code}):\n{''.join(stdout)}"
+            )
         return stdout, exit_code
 
     stdout, exit_code = run_show()
