@@ -2,7 +2,7 @@
 """Terraform Wrapper
 
 Usage:
-    tf [--no-resolve-envvars] (<tf_path> <tf_command>) [<additional_arguments>...]
+    tf [--no-resolve-envvars] [--no-version-check] (<tf_path> <tf_command>) [<additional_arguments>...]
     tf -h,--help
 
 Options:
@@ -11,6 +11,9 @@ Options:
     additional_arguments    Space separated arguments to pass to the wrapped terraform command. Ex: -lock=True
     -h,--help               Display this help message and quit.
     --no-resolve-envvars    Disable automatic resolution of envvars from .tf_wrapper files.
+    --no-version-check      Skip the PyPI staleness check for this invocation. Intended for callers
+                            (e.g. plan_check) that invoke `tf` many times per run and already perform
+                            their own version_check once.
 
 Examples:
     tf some/path/to/tf_files plan
@@ -236,9 +239,10 @@ def repush_state(path: str) -> bool:
     return False
 
 
-def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
+def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool, bool]:
     try:
         resolve_envvars = True
+        skip_version_check = False
 
         if args[1] in ["-h", "--help"]:
             print(__doc__)
@@ -248,23 +252,34 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool]:
             print("Terrawrap %s" % __version__)
             sys.exit(0)
 
-        if args[1] in ["--no-resolve-envvars"]:
-            resolve_envvars = False
+        # Strip leading optional flags (order-independent) ahead of the required
+        # <tf_path> <tf_command> positionals. This is the single place that
+        # recognizes these flags; callers (e.g. handler() below) act on the
+        # returned booleans rather than re-parsing argv themselves, so adding
+        # a third leading flag only means updating this loop.
+        while len(args) > 1 and args[1] in ("--no-resolve-envvars", "--no-version-check"):
+            if args[1] == "--no-resolve-envvars":
+                resolve_envvars = False
+            else:
+                skip_version_check = True
             args.pop(1)
 
         path = args[1]
         command = args[2]
         additional_arguments = args[3:]
 
-        return path, command, additional_arguments, resolve_envvars
+        return path, command, additional_arguments, resolve_envvars, skip_version_check
     except IndexError:
         print(__doc__)
         sys.exit(0)
 
 
 def handler():
-    version_check(current_version=__version__)
-    path, command, additional_arguments, should_resolve_envvars = process_arguments(sys.argv)
+    path, command, additional_arguments, should_resolve_envvars, skip_version_check = process_arguments(
+        sys.argv
+    )
+    if not skip_version_check:
+        version_check(current_version=__version__)
 
     tf_config_path = get_absolute_path(path=path)
 

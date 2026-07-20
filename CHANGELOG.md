@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.10.29\] - 2026-07-20
+
+### Fixed
+
+- `convert_plan_to_json` retries `terraform show -json` once when the first attempt exits 0
+  but still produces no JSON. Observed intermittently in amplify-education/terraform-config
+  CI under `--parallel-jobs=16`, hitting a different directory on different runs each time
+  (never the same directory twice) — a same-input retry reliably clears it. Any non-zero
+  exit is still a hard failure and is never retried. `extract_show_json`'s error message
+  now also names the exit code and explicitly flags a genuinely empty capture, instead of
+  surfacing only whatever noise (e.g. the version-staleness banner below) happened to
+  precede the missing JSON.
+- `plan_check`'s nested `tf` subprocess calls (init, plan, and the show-to-JSON conversion)
+  now pass the new `tf --no-version-check` flag. Each of these calls previously re-ran its
+  own PyPI staleness check and printed a "Terrawrap is stale" banner to stderr, which
+  `execute_command`'s `capture_stderr=True` merges into the captured stdout — polluting
+  (and, in the failure above, dominating) the diagnostic output for real terraform errors.
+
+### Added
+
+- `tf --no-version-check`: skips the per-invocation PyPI staleness check. Intended for
+  callers like `plan_check` that invoke `tf` many times per run and already perform their
+  own check once at the top level.
+
 ## \[0.10.28\] - 2026-07-18
 
 ### Changed

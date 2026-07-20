@@ -38,7 +38,7 @@ from terrawrap.utils.config import (
     resolve_envvars,
 )
 from terrawrap.utils.git_utils import get_git_root
-from terrawrap.utils.plan import extract_show_json
+from terrawrap.utils.plan import PlanExitCode, convert_plan_to_json
 from terrawrap.utils.plan_check import (
     get_modified_subdirectories,
     is_plan_check_enabled,
@@ -56,12 +56,6 @@ class WrapperExitCode(Enum):
     SUCCESS = 0
     IAM_CHANGES = 2
     TERRAFORM_FAILURE = 3
-
-
-class PlanExitCode(Enum):
-    SUCCESS_NO_DIFF = 0
-    FAILURE = 1
-    SUCCESS_WITH_DIFF = 2
 
 
 def get_subdirectories(root_dir: str) -> Tuple[List[str], List[str]]:
@@ -83,50 +77,6 @@ def get_subdirectories(root_dir: str) -> Tuple[List[str], List[str]]:
             else:
                 regular_directories.append(current_dir)
     return regular_directories, symlinked_directories
-
-
-def convert_plan_to_json(
-    plan_binary_file: Path,
-    source_directory: Path,
-    additional_envvars: Dict[str, Optional[str]],
-) -> Path:
-    """
-    Converts binary terraform plan to json. Saves it in the same directory.
-    :param plan_binary_file: File with a plan saved in a binary format
-    :param source_directory: Directory with source terraform files
-    :param additional_envvars: A dictionary representing additional environment variables to supply
-    :return: Path object pointing to a json plan file
-    """
-    wrapper_py = os.path.join(SCRIPT_DIR, "tf")
-    command_env: Dict[str, Optional[str]] = dict(os.environ)
-    command_env.update(additional_envvars)
-
-    exit_code, stdout = execute_command(
-        [
-            wrapper_py,
-            source_directory.__str__(),
-            "show",
-            "-json",
-            str(plan_binary_file),
-        ],
-        print_output=False,
-        env=command_env,
-    )
-
-    if exit_code == PlanExitCode.FAILURE.value:
-        raise RuntimeError(f"'terraform show' failed for {plan_binary_file}:\n{''.join(stdout)}")
-
-    # `tf` echoes the command and execute_command merges stderr into stdout, so
-    # the captured stream may contain a command-echo line and any terraform
-    # warnings (lockfile, deprecations, etc.) before the JSON. Locate the JSON
-    # by content rather than trusting line counts.
-    show_json = extract_show_json(stdout)
-
-    plan_json_file = plan_binary_file.parent / "tfplan.json"
-    with plan_json_file.open("w") as plan_json_stream:
-        plan_json_stream.write(show_json)
-
-    return plan_json_file
 
 
 def init_and_plan_directory(
@@ -160,9 +110,12 @@ def init_and_plan_directory(
 
     # We're using --no-resolve-envvars here because we've already resolved the environment variables in
     # the constructor. We are then passing in those environment variables explicitly in the
-    # execute_command call below.
+    # execute_command call below. --no-version-check skips the per-invocation PyPI staleness
+    # check: plan_check makes dozens of these nested `tf` calls per run (see convert_plan_to_json),
+    # each of which would otherwise hit PyPI and print a stale-version nag merged into the
+    # captured stdout, obscuring real failures downstream.
     init_exit_code, init_stdout = execute_command(
-        [wrapper_py, "--no-resolve-envvars", directory, "init", "-upgrade"] + arguments,
+        [wrapper_py, "--no-resolve-envvars", "--no-version-check", directory, "init", "-upgrade"] + arguments,
         print_output=False,
         env=command_env,
     )
@@ -184,13 +137,12 @@ def init_and_plan_directory(
         plan_binary_file = plan_directory / "tfplan.binary"
         arguments.append(f"-out={plan_binary_file}")
 
-    # We're using --no-resolve-envvars here because we've already resolved the environment variables in
-    # the constructor. We are then passing in those environment variables explicitly in the
-    # execute_command call below.
+    # See the --no-version-check note on the init call above.
     plan_exit_code, plan_stdout = execute_command(
         [
             wrapper_py,
             "--no-resolve-envvars",
+            "--no-version-check",
             directory,
             "plan",
             "-detailed-exitcode",
@@ -215,6 +167,7 @@ def init_and_plan_directory(
                 plan_binary_file,
                 Path(directory),
                 additional_envvars,
+                wrapper_script=wrapper_py,
             )
         except RuntimeError as exception:
             print("\n".join(exception.args))
