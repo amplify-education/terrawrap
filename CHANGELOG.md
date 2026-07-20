@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.10.28\] - 2026-07-18
+
+### Changed
+
+- Removed the vestigial `mypy` pin and moved `types-*` packages from `test-requirements.txt`
+  into the `mirrors-mypy` hook's `additional_dependencies`, where the pinned mypy the hook
+  actually runs can see them.
+
 ## \[0.10.26\] - 2026-07-16
 
 ### Changed
