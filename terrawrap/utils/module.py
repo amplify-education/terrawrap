@@ -1,7 +1,9 @@
 """Utility functions for working with Terraform modules"""
+
 import concurrent.futures
 import os
 from typing import Set, Tuple
+
 from networkx import DiGraph
 
 from terrawrap.utils.hcl import hcl2_load

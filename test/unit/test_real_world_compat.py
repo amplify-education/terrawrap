@@ -4,6 +4,7 @@ Each TestCase mirrors a shape observed in amplify-education/terraform-config.
 The intent is to lock in the contract for shapes that already exist
 in deployed config, so future schema work doesn't silently break them.
 """
+
 import os
 import shutil
 import tempfile
@@ -58,9 +59,7 @@ class TestRootConfigWrapper(_WrapperFixtureCase):
 
         config = parse_wrapper_configs([wrapper])
 
-        self.assertEqual(
-            "https://terraform-audit-api.devops.amplify.com", config.audit_api_url
-        )
+        self.assertEqual("https://terraform-audit-api.devops.amplify.com", config.audit_api_url)
         self.assertIsInstance(config.envvars["GITHUB_OWNER"], TextEnvVarConfig)
         self.assertEqual("amplify-education", config.envvars["GITHUB_OWNER"].value)
 
@@ -132,14 +131,10 @@ class TestAccountLevelInheritance(_WrapperFixtureCase):
             ["/account/app_auth/datadog/app_key"],
             config.envvars["DATADOG_APP_KEY"].paths,
         )
-        self.assertEqual(
-            ["/account/app_auth/gitea/read_token"], config.envvars["GITEA_TOKEN"].paths
-        )
+        self.assertEqual(["/account/app_auth/gitea/read_token"], config.envvars["GITEA_TOKEN"].paths)
         self.assertIsInstance(config.backends.s3, S3BackendConfig)
         self.assertEqual("us-east-1", config.backends.s3.region)
-        self.assertEqual(
-            "amplify-learning-dev-ue1-terraform", config.backends.s3.bucket
-        )
+        self.assertEqual("amplify-learning-dev-ue1-terraform", config.backends.s3.bucket)
         self.assertEqual("terraform-locking", config.backends.s3.dynamodb_table)
 
 
@@ -316,9 +311,7 @@ class TestGCSBackend(_WrapperFixtureCase):
         config = parse_wrapper_configs([wrapper])
 
         self.assertIsInstance(config.backends.gcs, GCSBackendConfig)
-        self.assertEqual(
-            "amplify-devops-ue1-terraform-state", config.backends.gcs.bucket
-        )
+        self.assertEqual("amplify-devops-ue1-terraform-state", config.backends.gcs.bucket)
         self.assertIsNone(config.backends.s3)
 
 
@@ -385,9 +378,7 @@ class TestDependsOnRepoRelative(_WrapperFixtureCase):
 
         config = parse_wrapper_configs([wrapper])
 
-        self.assertEqual(
-            ["config/aws/amplify-learning-dev/general/iam"], config.depends_on
-        )
+        self.assertEqual(["config/aws/amplify-learning-dev/general/iam"], config.depends_on)
 
 
 class TestDependsOnFileRelative(_WrapperFixtureCase):
@@ -601,6 +592,4 @@ class TestBackendsAndEnvvarsAndDependsCombined(_WrapperFixtureCase):
 
         self.assertIsInstance(config.envvars["SNOWFLAKE_USER"], SSMEnvVarConfig)
         self.assertEqual("amplify-devops-uw2-terraform", config.backends.s3.bucket)
-        self.assertEqual(
-            ["config/snowflake/amplify_prod_data_export_providers"], config.depends_on
-        )
+        self.assertEqual(["config/snowflake/amplify_prod_data_export_providers"], config.depends_on)

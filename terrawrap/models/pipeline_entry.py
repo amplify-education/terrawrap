@@ -1,4 +1,5 @@
 """Module for containing Pipeline Entries"""
+
 import logging
 import os
 import tempfile
@@ -30,9 +31,7 @@ class PipelineEntry:
         self.variables = variables
 
     # pylint: disable=too-many-locals
-    def execute(
-        self, operation: str, debug: bool = False
-    ) -> Tuple[int, List[str], bool]:
+    def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
         """
         Function for executing this pipeline entry.
         :param operation: The Terraform operation to execute. IE: apply, plan
@@ -53,11 +52,7 @@ class PipelineEntry:
         # execute_command call below.
         base_args = ["tf", "--no-resolve-envvars", self.path]
         init_args = base_args + ["init"] + self.variables
-        plan_args = (
-            base_args
-            + ["plan", "-detailed-exitcode", f"-out={plan_file_name}"]
-            + self.variables
-        )
+        plan_args = base_args + ["plan", "-detailed-exitcode", f"-out={plan_file_name}"] + self.variables
         operation_args = base_args + [operation] + self.variables
 
         if operation in ["apply", "destroy"]:

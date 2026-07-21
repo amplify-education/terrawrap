@@ -1,25 +1,26 @@
 """Holds config utilities"""
+
 import os
 import sys
 from typing import Dict, List, Optional, Tuple
-import networkx
-import yaml
 
 import jsons
+import networkx
+import yaml
 from jsons import DeserializationError
 
-from terrawrap.utils.hcl import hcl2_load
-from terrawrap.exceptions import NotTerraformConfigDirectory, NoDependency
+from terrawrap.exceptions import NoDependency, NotTerraformConfigDirectory
 from terrawrap.models.wrapper_config import (
-    WrapperConfig,
     AbstractEnvVarConfig,
+    BackendsConfig,
     SSMEnvVarConfig,
     TextEnvVarConfig,
-    BackendsConfig,
     UnsetEnvVarConfig,
+    WrapperConfig,
 )
 from terrawrap.utils.collection_utils import update
-from terrawrap.utils.path import get_absolute_path, calc_repo_path
+from terrawrap.utils.hcl import hcl2_load
+from terrawrap.utils.path import calc_repo_path, get_absolute_path
 from terrawrap.utils.ssm_resolver import resolve_ssm_paths
 
 TF_WRAP_FILE = ".tf_wrapper"
@@ -82,14 +83,10 @@ def parse_wrapper_configs(wrapper_config_files: List[str]) -> WrapperConfig:
         with open(wrapper_config_path, encoding="utf-8") as wrapper_config_file:
             wrapper_config = yaml.safe_load(wrapper_config_file)
             if wrapper_config and isinstance(wrapper_config, dict):
-                generated_wrapper_config = update(
-                    generated_wrapper_config, wrapper_config
-                )
+                generated_wrapper_config = update(generated_wrapper_config, wrapper_config)
 
     try:
-        wrapper_config_obj: WrapperConfig = jsons.load(
-            generated_wrapper_config, WrapperConfig, strict=True
-        )
+        wrapper_config_obj: WrapperConfig = jsons.load(generated_wrapper_config, WrapperConfig, strict=True)
         return wrapper_config_obj
     except DeserializationError as exception:
         print(f"Cannot parse wrapper config from files: {wrapper_config_files}")
@@ -137,9 +134,7 @@ def create_wrapper_config_obj(config_dir, wrapper_file=None):
     return wrapper_config_obj
 
 
-def walk_and_graph_directory(
-    starting_dir: str, config_dict
-) -> Tuple[networkx.DiGraph, List[str]]:
+def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.DiGraph, List[str]]:
     """
     Given a starting directory, walks it and returns all dependency info.
     :param starting_dir: The starting directory
@@ -164,9 +159,7 @@ def walk_and_graph_directory(
                     continue
                 single_config_dependency_graph = networkx.DiGraph()
                 visited: List[str] = []
-                graph_wrapper_dependencies(
-                    root, config_dict, single_config_dependency_graph, visited
-                )
+                graph_wrapper_dependencies(root, config_dict, single_config_dependency_graph, visited)
                 graph_list.append(single_config_dependency_graph)
         if not has_tf_wrapper and is_config_directory(root):
             post_graph_runs.append(root)
@@ -203,9 +196,7 @@ def walk_without_graph_directory(starting_dir: str) -> List[str]:
 
 
 # pylint: disable=R0912
-def graph_wrapper_dependencies(
-    config_dir: str, config_dict, graph: networkx.DiGraph, visited: List[str]
-):
+def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiGraph, visited: List[str]):
     """
     Given a directory, recursively finds all other directories it depends on and builds a graph.
     :param config_dir: The config directory to obtain a dependency graph for
@@ -244,9 +235,7 @@ def graph_wrapper_dependencies(
     wrappers.reverse()  # we want the closest wrapper file that gives inherited dependencies
     for wrapper in wrappers:
         wrapper_dir = os.path.dirname(wrapper)
-        if config_dict.get(
-            wrapper_dir
-        ):  # add to dictionary so we only read the file once
+        if config_dict.get(wrapper_dir):  # add to dictionary so we only read the file once
             new_wrapper_config_obj = config_dict[wrapper_dir].get("wrapper_config")
         else:
             new_wrapper_config_obj = create_wrapper_config_obj(wrapper_dir)
@@ -271,9 +260,7 @@ def graph_wrapper_dependencies(
         graph_wrapper_dependencies(predecessor, config_dict, graph, visited)
 
 
-def resolve_envvars(
-    envvar_configs: Dict[str, AbstractEnvVarConfig]
-) -> Dict[str, Optional[str]]:
+def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, Optional[str]]:
     """
     Resolves the 'envvars' section from the wrapper config to actual environment variables that can be easily
     supplied to a command.
@@ -318,9 +305,7 @@ def calc_backend_config(
         terraform_bucket = f"{region}--mclass--terraform--{account_short_name}"
 
         options = {
-            "dynamodb_table": variables.get(
-                "terraform_lock_table", "terraform-locking"
-            ),
+            "dynamodb_table": variables.get("terraform_lock_table", "terraform-locking"),
             "encrypt": "true",
             "key": f"{repo_path}.tfstate",
             "region": region,
@@ -337,24 +322,16 @@ def calc_backend_config(
             options.pop("dynamodb_table")
             # use_lockfile is needed here to support the native terraform backend option
             # https://developer.hashicorp.com/terraform/language/upgrade-guides#s3-native-state-locking
-            options["use_lockfile"] = str(
-                existing_backend_config.s3.use_lockfile
-            ).lower()
+            options["use_lockfile"] = str(existing_backend_config.s3.use_lockfile).lower()
 
     # copy any backend options from the backend config
     if wrapper_config.backends:
         wrapper_options: Dict[str, Optional[str]] = {}
-        if (
-            existing_backend_config.gcs is not None
-            and wrapper_config.backends.gcs is not None
-        ):
+        if existing_backend_config.gcs is not None and wrapper_config.backends.gcs is not None:
             # convert the object into a dict so we can append each field to the backend config dynamically
             wrapper_options = vars(wrapper_config.backends.gcs)
             wrapper_options["prefix"] = repo_path
-        if (
-            existing_backend_config.s3 is not None
-            and wrapper_config.backends.s3 is not None
-        ):
+        if existing_backend_config.s3 is not None and wrapper_config.backends.s3 is not None:
             wrapper_options = vars(wrapper_config.backends.s3)
 
             # an S3 lock can be used alongside a DynamoDB lock, or independently.
@@ -364,16 +341,9 @@ def calc_backend_config(
             if wrapper_config.backends.s3.use_lockfile:
                 wrapper_options.pop("dynamodb_table")
 
-        options.update(
-            {key: value for key, value in wrapper_options.items() if value is not None}
-        )
+        options.update({key: value for key, value in wrapper_options.items() if value is not None})
 
-    backend_config.extend(
-        [
-            f"-backend-config={key}={str(value).lower()}"
-            for key, value in options.items()
-        ]
-    )
+    backend_config.extend([f"-backend-config={key}={str(value).lower()}" for key, value in options.items()])
     return backend_config
 
 
@@ -425,9 +395,7 @@ def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
             terraform_config_blocks: List[Dict] = configs.get("terraform", [])
             for terraform_config in terraform_config_blocks:
                 if "backend" in terraform_config:
-                    return jsons.load(
-                        terraform_config["backend"][0], BackendsConfig, strict=True
-                    )
+                    return jsons.load(terraform_config["backend"][0], BackendsConfig, strict=True)
             return None
         except Exception:
             print(f"Error while parsing file {file_path}")

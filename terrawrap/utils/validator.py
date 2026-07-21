@@ -6,6 +6,7 @@ surfaces deserialization errors with their file path. The repair step ports
 ``depends_on`` entries and back-fills ``depends_on: []`` on referenced
 targets that lack one (graph_apply requires the array to exist).
 """
+
 import logging
 import os
 from typing import List, Optional, Set, Tuple
@@ -28,9 +29,7 @@ def find_tf_wrappers(root: str) -> List[str]:
     """Walk ``root`` for every ``.tf_wrapper``, pruning hidden and build dirs."""
     matches = []
     for dirpath, dirnames, files in os.walk(root):
-        dirnames[:] = [
-            d for d in dirnames if not d.startswith(".") and d not in _SKIP_DIRS
-        ]
+        dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in _SKIP_DIRS]
         for name in files:
             if name == TF_WRAP_FILE:
                 matches.append(os.path.join(dirpath, name))
@@ -72,9 +71,7 @@ def _resolve_dep(dep: str, tf_wrapper_path: str, repo_root: str) -> str:
     return abs_dep
 
 
-def _prune_dead_deps(
-    tf_path: str, data, repo_root: str, referenced_targets: Set[str]
-) -> bool:
+def _prune_dead_deps(tf_path: str, data, repo_root: str, referenced_targets: Set[str]) -> bool:
     """Drop ``depends_on`` entries that don't resolve to a directory.
 
     Mutates ``data`` in place and records every kept target in ``referenced_targets``.
@@ -157,9 +154,7 @@ def _load_yaml(path: str):
         return None
     if not isinstance(loaded, dict):
         if loaded is not None:
-            logger.warning(
-                "skipping %s: expected a mapping, got %s", path, type(loaded).__name__
-            )
+            logger.warning("skipping %s: expected a mapping, got %s", path, type(loaded).__name__)
         return None
     return loaded
 

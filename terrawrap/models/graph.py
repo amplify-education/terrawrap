@@ -1,19 +1,18 @@
 """Module containing the ApplyGraph class"""
+
 import concurrent.futures
-from typing import List, Dict, Set
+from typing import Dict, List, Set
 
 import networkx
 
+from terrawrap.models.graph_entry import Entry, GraphEntry, NoOpGraphEntry
 from terrawrap.utils.graph import find_source_nodes
-from terrawrap.models.graph_entry import GraphEntry, NoOpGraphEntry, Entry
 
 
 class ApplyGraph:
     """Class for representing an Apply Graph."""
 
-    def __init__(
-        self, command: str, graph: networkx.DiGraph, post_graph: List[str], prefix: str
-    ):
+    def __init__(self, command: str, graph: networkx.DiGraph, post_graph: List[str], prefix: str):
         """
         :param command: The Terraform command that this pipeline should execute.
         :param graph: The graph to be executed.
@@ -45,9 +44,7 @@ class ApplyGraph:
         sources = find_source_nodes(self.graph)
         futures_to_paths = {}
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=num_parallel
-        ) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
             for source in sources:
                 entry = self._get_or_create_entry(source)
 
@@ -68,9 +65,7 @@ class ApplyGraph:
 
                 successors = list(self.graph.successors(path))
                 if successors:
-                    self.recursive_executor(
-                        executor, successors, num_parallel, debug, print_only_changes
-                    )
+                    self.recursive_executor(executor, successors, num_parallel, debug, print_only_changes)
 
         for node in self.graph:
             item = self.graph_dict.get(node)
@@ -122,9 +117,7 @@ class ApplyGraph:
 
             next_successors = list(self.graph.successors(path))
             if next_successors:
-                self.recursive_executor(
-                    executor, next_successors, num_parallel, debug, print_only_changes
-                )
+                self.recursive_executor(executor, next_successors, num_parallel, debug, print_only_changes)
 
     def execute_post_graph(
         self,
@@ -140,9 +133,7 @@ class ApplyGraph:
         """
         futures_to_paths = {}
 
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=num_parallel
-        ) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
             for node in self.post_graph:
                 entry = self._get_or_create_entry(node)
 

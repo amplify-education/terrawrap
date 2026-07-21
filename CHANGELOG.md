@@ -5,7 +5,87 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## \[0.10.21\] - 2026-05-21
+## \[0.11.3\] - 2026-07-21
+
+### Changed
+
+- Ported the `0.10.22`–`0.10.29` changes from `main` onto the `0.11.x` line (which
+  pins `python-hcl2~=8.1`): the multi-path SSM envvar support and `tf_validate` CLI,
+  the SigV4 `aws_host` derivation, the `504 Gateway Timeout` retry, the ruff
+  migration, the `mypy`/type-stub dependency cleanup, the `plan_check`
+  `--no-version-check` flow, and the `convert_plan_to_json` retry. All Terraform-file
+  parsing continues to route through the `terrawrap.utils.hcl` v8-compat wrappers.
+  See the `0.10.22`–`0.10.29` entries below for details.
+
+## \[0.10.29\] - 2026-07-20
+
+### Fixed
+
+- `convert_plan_to_json` retries `terraform show -json` once when the first attempt exits 0
+  but still produces no JSON. Observed intermittently in amplify-education/terraform-config
+  CI under `--parallel-jobs=16`, hitting a different directory on different runs each time
+  (never the same directory twice) — a same-input retry reliably clears it. Any non-zero
+  exit is still a hard failure and is never retried. `extract_show_json`'s error message
+  now also names the exit code and explicitly flags a genuinely empty capture, instead of
+  surfacing only whatever noise (e.g. the version-staleness banner below) happened to
+  precede the missing JSON.
+- `plan_check`'s nested `tf` subprocess calls (init, plan, and the show-to-JSON conversion)
+  now pass the new `tf --no-version-check` flag. Each of these calls previously re-ran its
+  own PyPI staleness check and printed a "Terrawrap is stale" banner to stderr, which
+  `execute_command`'s `capture_stderr=True` merges into the captured stdout — polluting
+  (and, in the failure above, dominating) the diagnostic output for real terraform errors.
+
+### Added
+
+- `tf --no-version-check`: skips the per-invocation PyPI staleness check. Intended for
+  callers like `plan_check` that invoke `tf` many times per run and already perform their
+  own check once at the top level.
+
+## \[0.10.28\] - 2026-07-18
+
+### Changed
+
+- Removed the vestigial `mypy` pin and moved `types-*` packages from `test-requirements.txt`
+  into the `mirrors-mypy` hook's `additional_dependencies`, where the pinned mypy the hook
+  actually runs can see them.
+
+## \[0.10.26\] - 2026-07-16
+
+### Changed
+
+- Replaced pylint, isort, and black with `ruff` (lint + format) in pre-commit. Reformatting to
+  ruff's 110-column line length reflowed docstrings, print strings, and CLI usage text across
+  `terrawrap/`, `test/`, and `bin/`; behavior is unchanged. (AT-14951)
+
+## \[0.10.25\] - 2026-06-17
+
+### Fixed
+
+- `version_check` exception handler now emits its warning to `stderr` instead of
+  `stdout`. When the PyPI version lookup fails (network timeout, unreachable host),
+  the bare `print()` was writing to stdout and could corrupt the output of
+  subsequent `terraform show -json` calls, producing `no JSON object found` parse
+  failures in the plan-check pipeline. (PR #230)
+
+## \[0.10.24\] - 2026-06-09
+
+### Fixed
+
+- `plan_check --modified-only` now runs a plan for a directory whose only change
+  is a file deletion. A deleted file is absent from the filesystem-derived
+  dependency graph, so the changed path was silently skipped and the directory
+  was never planned. It now falls back to the deleted file's parent directory,
+  still gated by `should_run_plan_for` (a directory removed entirely stays
+  excluded). (PR #229)
+
+## \[0.10.23\] - 2026-06-08
+
+### Fixed
+
+- `tf` now retries commands that fail with `504 Gateway Timeout`, alongside the
+  existing retryable conditions. (PR #228)
+
+## \[0.10.22\] - 2026-05-26
 
 ### Added
 
@@ -44,6 +124,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `ssm-cache` is no longer a dependency.
 - `SSM_ENVVAR_CACHE` module global in `terrawrap.utils.config` is removed.
+
+## \[0.10.21\] - 2026-05-26
+
+### Fixed
+
+- `tf audit` now derives the SigV4 signing host (`aws_host`) from `audit_api_url`
+  instead of a hard-coded value, so audit requests sign correctly when the audit
+  endpoint differs per environment. (PR #224)
 
 ## \[0.10.20\] - 2026-05-18
 

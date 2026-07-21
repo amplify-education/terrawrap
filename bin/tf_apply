@@ -3,7 +3,8 @@
 Terraform Wrapper Apply
 
 Usage:
-    tf_apply --pipeline=PIPELINE [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug] [--print-only-changes]
+    tf_apply --pipeline=PIPELINE [--operation=OPERATION] [--parallel-jobs=NUM_JOBS] [--debug]
+             [--print-only-changes]
     tf_apply --version
 
 Options:
@@ -23,9 +24,9 @@ Options:
 from docopt import docopt
 
 from terrawrap.models.pipeline import Pipeline
+from terrawrap.utils.path import get_absolute_path
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
-from terrawrap.utils.path import get_absolute_path
 
 
 def handler():
@@ -40,8 +41,7 @@ def handler():
         num_parallel = int(args["--parallel-jobs"])
     except ValueError:
         raise RuntimeError(
-            "Unable to parse number of parallel jobs, '%s' is not an integer."
-            % args["--parallel-jobs"]
+            "Unable to parse number of parallel jobs, '%s' is not an integer." % args["--parallel-jobs"]
         )
 
     pipeline = Pipeline(operation, pipeline_path=pipeline_file)

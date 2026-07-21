@@ -1,14 +1,14 @@
 """Contains functions for checking the latest version of this package"""
+
+import os
 import sys
 import tempfile
-import os
 from time import sleep
 from typing import Optional, Tuple
 
 import requests
-from packaging import version
 from diskcache import Cache
-
+from packaging import version
 
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
 cache = Cache(os.path.join(tempfile.gettempdir(), "terrawrap_version_cache"))
@@ -54,6 +54,7 @@ def version_check(current_version: str) -> bool:
     except Exception as exp:
         print(
             f"WARNING: Encountered some error while checking for latest version of Terrawrap: {repr(exp)}",
+            file=sys.stderr,
         )
     return False
 
@@ -68,9 +69,7 @@ def get_latest_version(current_version: str) -> Tuple[str, Optional[str]]:
     :param current_version: The current version of Terrawrap (used for cache invalidation).
     :return: Tuple of (latest stable version, latest RC version or None).
     """
-    response = requests.get(
-        "https://pypi.python.org/pypi/terrawrap/json", timeout=5
-    ).json()
+    response = requests.get("https://pypi.python.org/pypi/terrawrap/json", timeout=5).json()
     all_versions = [version.parse(v) for v in response["releases"]]
     stable_versions = [v for v in all_versions if not v.is_prerelease]
     rc_versions = [v for v in all_versions if v.is_prerelease]
