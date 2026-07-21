@@ -1,12 +1,19 @@
 """Test git utilities"""
+
 import os
 from logging import Logger
 from unittest import TestCase
-from unittest.mock import patch, ANY, call
+from unittest.mock import ANY, call, patch
+
 from requests.exceptions import HTTPError
 
-from terrawrap.utils.cli import execute_command, MAX_RETRIES, Status, _post_audit_info
-
+from terrawrap.utils.cli import (
+    MAX_RETRIES,
+    Status,
+    _get_retriable_errors,
+    _post_audit_info,
+    execute_command,
+)
 
 MOCK_ERROR = HTTPError()
 
@@ -73,6 +80,19 @@ class TestCli(TestCase):
         self.assertEqual(exit_code, 255)
         self.assertEqual(stdout, [])
 
+    def test_get_retriable_errors_504(self):
+        """Lines carrying a known transient signature (e.g. a 504 Gateway
+        Timeout from the backend API) are retriable; unrelated lines are not."""
+        lines = [
+            "Error: error updating monitor: 504 Gateway Timeout\n",
+            "Error: invalid resource address\n",
+        ]
+
+        self.assertEqual(
+            _get_retriable_errors(lines),
+            ["Error: error updating monitor: 504 Gateway Timeout\n"],
+        )
+
     @patch.object(Logger, "error")
     @patch("terrawrap.utils.cli._post_audit_info")
     def test_execute_command_silent_error(self, mock_audit_info, mock_logger):
@@ -121,9 +141,48 @@ class TestCli(TestCase):
                     "status": status,
                     "output": "",
                     "git_hash": ANY,
+                    # ANY: build_id is read from CODEBUILD_BUILD_ID, which is None
+                    # locally but set when this suite runs inside CodeBuild.
+                    "build_id": ANY,
                 },
                 timeout=30,
             )
+
+    @patch.dict(os.environ, {"CODEBUILD_BUILD_ID": "terraform-apply:abc-123"})
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_post_audit_info_echoes_build_id(self, mock_post, _):
+        """The audit payload echoes CODEBUILD_BUILD_ID so the API can correlate
+        the apply back to its UI-triggered PENDING placeholder."""
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        _post_audit_info(
+            audit_api_url="https://foo.bar",
+            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+            start_time=12345,
+            exit_code=0,
+        )
+
+        self.assertEqual(mock_post.call_args.kwargs["json"]["build_id"], "terraform-apply:abc-123")
+
+    @patch.dict(os.environ)
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_post_audit_info_build_id_empty(self, mock_post, _):
+        """Outside CodeBuild (e.g. a pipeline ECS apply) build_id is "" — never
+        None, since the API deserializes build_id as a required str and rejects
+        null."""
+        os.environ.pop("CODEBUILD_BUILD_ID", None)
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        _post_audit_info(
+            audit_api_url="https://foo.bar",
+            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+            start_time=12345,
+            exit_code=0,
+        )
+
+        self.assertEqual(mock_post.call_args.kwargs["json"]["build_id"], "")
 
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")

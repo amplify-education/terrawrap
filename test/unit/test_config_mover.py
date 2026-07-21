@@ -2,22 +2,21 @@
 
 import contextlib
 import io
+import os
 import shutil
 import tempfile
 import uuid
 from pathlib import Path
 from typing import Optional
 from unittest import TestCase
-from unittest.mock import patch, MagicMock
-
-import os
+from unittest.mock import MagicMock, patch
 
 import git
 import pytest
 from botocore.exceptions import ClientError
 
-from terrawrap.utils.hcl import hcl2_loads
 from terrawrap.models.config_mover import ConfigMover
+from terrawrap.utils.hcl import hcl2_loads
 
 
 class TestConfigMover(TestCase):
@@ -63,9 +62,7 @@ class TestConfigMover(TestCase):
         # Add a fake origin so `calc_repo_path` (which shells out to
         # `git remote show origin`) can parse a repo name.
         inner_repo = git.Repo.init(self._repo_root_path)
-        inner_repo.create_remote(
-            "origin", "https://github.com/amplify-education/terraform-config.git"
-        )
+        inner_repo.create_remote("origin", "https://github.com/amplify-education/terraform-config.git")
         self.prev_dir = Path(os.getcwd()).absolute()
         os.chdir(self._repo_root_path)
 
@@ -91,9 +88,7 @@ class TestConfigMover(TestCase):
         ]
 
         expected_s3_key = "terraform-config/config/apps/app2.tfstate"
-        check_output_mock.return_value = (
-            b"https://github.com/amplify-education/terraform-config.git"
-        )
+        check_output_mock.return_value = b"https://github.com/amplify-education/terraform-config.git"
         for path in paths:
             actual = self.config_mover()._build_state_file_s3_key(path)
             assert actual == expected_s3_key
@@ -232,9 +227,7 @@ class TestConfigMover(TestCase):
         directory = self._default_source / uuid.uuid4().hex
         subdirectory = directory / "subdirectory"
 
-        check_output_mock.return_value = (
-            b"https://github.com/amplify-education/terraform-config.git"
-        )
+        check_output_mock.return_value = b"https://github.com/amplify-education/terraform-config.git"
 
         git.Repo.init(self._repo_root_path)
         config_mover = self.config_mover(source=directory)
@@ -392,7 +385,6 @@ class TestConfigMover(TestCase):
         mock_files = ["config1.tf", "config2.tf", "config3.tf"]
 
         for test_case in test_cases:
-
             for mock_file in mock_files:
                 test_file = self._default_source / mock_file
                 test_file.unlink(missing_ok=True)

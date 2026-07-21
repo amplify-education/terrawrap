@@ -1,11 +1,12 @@
 """Test path utilities"""
+
 import os
 from unittest import TestCase
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from networkx import DiGraph
 
-from terrawrap.utils.path import get_file_graph, calc_repo_path
+from terrawrap.utils.path import calc_repo_path, get_file_graph
 
 
 class TestPath(TestCase):
@@ -13,9 +14,7 @@ class TestPath(TestCase):
 
     def setUp(self):
         self.prev_dir = os.getcwd()
-        os.chdir(
-            os.path.normpath(os.path.dirname(__file__) + "/../helpers/mock_directory")
-        )
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers/mock_directory"))
 
     def tearDown(self):
         os.chdir(self.prev_dir)
@@ -79,14 +78,10 @@ class TestPath(TestCase):
         result = calc_repo_path("path/config")
         self.assertEqual(result, "repo-1/config")
 
-        check_output_mock.return_value = (
-            b"https://github.com/amplify-education/repo-2.git"
-        )
+        check_output_mock.return_value = b"https://github.com/amplify-education/repo-2.git"
         result = calc_repo_path("path/config")
         self.assertEqual(result, "repo-2/config")
 
-        check_output_mock.return_value = (
-            b"Fetch URL: https://github.com/amplify-education/repo-3.git"
-        )
+        check_output_mock.return_value = b"Fetch URL: https://github.com/amplify-education/repo-3.git"
         result = calc_repo_path("path/config")
         self.assertEqual(result, "repo-3/config")

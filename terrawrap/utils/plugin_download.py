@@ -3,7 +3,7 @@
 import os
 import platform
 import stat
-from typing import Dict, Tuple, Optional
+from typing import Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 import boto3
@@ -38,7 +38,7 @@ class PluginDownload:
             machine = platform.machine()
             path_with_platform = f"{path}/{system}/{machine}"
 
-            lock_path = f'{file_path}.{"lock"}'
+            lock_path = f"{file_path}.{'lock'}"
             # It seems that this is the name of the abstract class, but also an alias for the proper class, so
             # this warning is not relevant for us.
             # pylint: disable=abstract-class-instantiated
@@ -48,9 +48,7 @@ class PluginDownload:
                 try:
                     self._download_file(path_with_platform, file_path)
                 except FileDownloadFailed:
-                    print(
-                        f"Unable to get plugin from {path_with_platform}. Attempting {path} instead"
-                    )
+                    print(f"Unable to get plugin from {path_with_platform}. Attempting {path} instead")
                     self._download_file(path, file_path)
 
     def _download_file(self, url: str, file_path: str):
@@ -62,7 +60,7 @@ class PluginDownload:
         """
         # get the etag from the etag file if it exists
         etag = None
-        etag_path = f'{file_path}.{"etag"}'
+        etag_path = f"{file_path}.{'etag'}"
         if os.path.isfile(etag_path) and os.path.isfile(file_path):
             with open(etag_path, "r", encoding="utf-8") as etag_file:
                 etag = etag_file.read()
@@ -87,9 +85,7 @@ class PluginDownload:
                 with open(etag_path, "w", encoding="utf-8") as etag_file:
                     etag_file.write(etag)
 
-    def _get_file_content(
-        self, url: str, etag: Optional[str]
-    ) -> Optional[Tuple[bytes, Optional[str]]]:
+    def _get_file_content(self, url: str, etag: Optional[str]) -> Optional[Tuple[bytes, Optional[str]]]:
         """
         Download a file from either S3 or HTTP
 
@@ -107,13 +103,9 @@ class PluginDownload:
         if parsed_url.scheme == "s3":
             return self._get_s3_content(url, etag)
 
-        raise RuntimeError(
-            "Invalid file download scheme. URL must start with one of (http, https, s3"
-        )
+        raise RuntimeError("Invalid file download scheme. URL must start with one of (http, https, s3")
 
-    def _get_http_content(
-        self, url: str, etag: Optional[str]
-    ) -> Optional[Tuple[bytes, Optional[str]]]:
+    def _get_http_content(self, url: str, etag: Optional[str]) -> Optional[Tuple[bytes, Optional[str]]]:
         """Download a file over HTTP/HTTPS"""
         headers = {}
 
@@ -132,9 +124,7 @@ class PluginDownload:
         except requests.HTTPError as exception:
             raise FileDownloadFailed() from exception
 
-    def _get_s3_content(
-        self, url: str, etag: Optional[str]
-    ) -> Optional[Tuple[bytes, Optional[str]]]:
+    def _get_s3_content(self, url: str, etag: Optional[str]) -> Optional[Tuple[bytes, Optional[str]]]:
         """Download a file from S3 using the AWS SDK"""
         parsed_url = urlparse(url)
 
