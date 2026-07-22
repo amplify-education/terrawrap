@@ -7,10 +7,10 @@ from typing import Any, Iterable, List, Union
 
 import boto3
 import git
-import hcl2
 from botocore.exceptions import ClientError
 
 from terrawrap.utils.config import find_variable_files, parse_variable_files
+from terrawrap.utils.hcl import hcl2_loads
 from terrawrap.utils.path import calc_repo_path
 from terrawrap.utils.terminal_colors import TerminalColors as Colors
 
@@ -81,7 +81,7 @@ class ConfigMover:
 
         for path in tf_files:
             content = path.read_text()
-            config = hcl2.loads(content)
+            config = hcl2_loads(content)
             modules = config.get("module", [])
 
             for module in modules:

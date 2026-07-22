@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.3\] - 2026-07-21
+
+### Changed
+
+- Ported the `0.10.22`–`0.10.29` changes from `main` onto the `0.11.x` line (which
+  pins `python-hcl2~=8.1`): the multi-path SSM envvar support and `tf_validate` CLI,
+  the SigV4 `aws_host` derivation, the `504 Gateway Timeout` retry, the ruff
+  migration, the `mypy`/type-stub dependency cleanup, the `plan_check`
+  `--no-version-check` flow, and the `convert_plan_to_json` retry. All Terraform-file
+  parsing continues to route through the `terrawrap.utils.hcl` v8-compat wrappers.
+  See the `0.10.22`–`0.10.29` entries below for details.
+
+## \[0.11.2\] - 2026-05-27
+
+### Changed
+
+- Ported the `0.10.18`–`0.10.21` changes from `main` onto the `0.11.x` line: the
+  duplicate-`tfaudit`-records fix in the `GraphEntry` apply path, the `plan_check`
+  default-overridden `auto.tfvars` dependency fix, the multi-path SSM envvar support
+  and `tf_validate` CLI, and the SigV4 `aws_host` derivation. (PR #222)
+
+## \[0.11.1\] - 2026-05-14
+
+### Fixed
+
+- Suppress the release-candidate upgrade notice when a newer stable release already
+  exists. When PyPI carried both `0.11.0` and `0.11.0rc2`, users on `0.10.x` and
+  `0.11.x` were nudged to opt into the RC even though its final release had already
+  shipped; the notice now surfaces only when `latest_rc > latest_stable`. (PR #218)
+
+## \[0.11.0\] - 2026-05-05
+
+### Changed
+
+- Upgraded `python-hcl2` from `>=3,<4` to `~=8.1`. python-hcl2 v8 preserves quotes in
+  serialized strings and adds metadata markers, so all Terraform-file parsing now routes
+  through the new `terrawrap.utils.hcl` wrappers (`hcl2_load`/`hcl2_loads`), which apply
+  `SerializationOptions(strip_string_quotes=True, explicit_blocks=False, with_comments=False)`
+  to restore v7-style output. Callers in `config`, `config_mover`, `module`, and
+  `tf_variables` were migrated to the wrappers so the rest of the codebase keeps working
+  with plain dicts and unquoted string values. (PR #215)
+
 ## \[0.10.29\] - 2026-07-20
 
 ### Fixed

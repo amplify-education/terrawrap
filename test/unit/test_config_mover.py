@@ -12,11 +12,11 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 import git
-import hcl2
 import pytest
 from botocore.exceptions import ClientError
 
 from terrawrap.models.config_mover import ConfigMover
+from terrawrap.utils.hcl import hcl2_loads
 
 
 class TestConfigMover(TestCase):
@@ -27,7 +27,7 @@ class TestConfigMover(TestCase):
 
     @staticmethod
     def _read_hcl2_modules(hcl2_content: str):
-        config = hcl2.loads(hcl2_content)
+        config = hcl2_loads(hcl2_content)
         result = {}
         modules = config.get("module", [])
         for module in modules:

@@ -4,7 +4,6 @@ import os
 import sys
 from typing import Dict, List, Optional, Tuple
 
-import hcl2
 import jsons
 import networkx
 import yaml
@@ -20,6 +19,7 @@ from terrawrap.models.wrapper_config import (
     WrapperConfig,
 )
 from terrawrap.utils.collection_utils import update
+from terrawrap.utils.hcl import hcl2_load
 from terrawrap.utils.path import calc_repo_path, get_absolute_path
 from terrawrap.utils.ssm_resolver import resolve_ssm_paths
 
@@ -357,7 +357,7 @@ def parse_variable_files(variable_files: List[str]) -> Dict[str, str]:
 
     for variable_file in variable_files:
         with open(variable_file, encoding="utf-8") as var_file:
-            variables.update(hcl2.load(var_file).items())
+            variables.update(hcl2_load(var_file).items())
 
     return variables
 
@@ -390,7 +390,7 @@ def parse_backend_config_for_dir(dir_path: str) -> Optional[BackendsConfig]:
 def _parse_backend_config_for_file(file_path: str) -> Optional[BackendsConfig]:
     with open(file_path, encoding="utf-8") as tf_file:
         try:
-            configs: Dict[str, List] = hcl2.load(tf_file)
+            configs: Dict[str, List] = hcl2_load(tf_file)
 
             terraform_config_blocks: List[Dict] = configs.get("terraform", [])
             for terraform_config in terraform_config_blocks:
