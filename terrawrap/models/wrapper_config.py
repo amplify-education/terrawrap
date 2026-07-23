@@ -137,6 +137,23 @@ def env_var_deserializer(obj_dict, cls, **kwargs):
 jsons.set_deserializer(env_var_deserializer, AbstractEnvVarConfig)
 
 
+class AuditApiUrls(List[str]):
+    """List of audit API URLs; deserializes from a scalar URL or a list of URLs."""
+
+
+# pylint: disable=unused-argument
+def audit_api_urls_deserializer(obj, cls, **kwargs):
+    """Normalize the YAML ``audit_api_url`` value to a list of URL strings."""
+    if isinstance(obj, str):
+        return AuditApiUrls([obj])
+    if isinstance(obj, list) and all(isinstance(url, str) for url in obj):
+        return AuditApiUrls(obj)
+    raise TypeError(f"audit_api_url must be a string or list of strings, got {obj!r}")
+
+
+jsons.set_deserializer(audit_api_urls_deserializer, AuditApiUrls)
+
+
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 class WrapperConfig:
     def __init__(
@@ -149,7 +166,7 @@ class WrapperConfig:
         backends: Optional[BackendsConfig] = None,
         depends_on: Optional[List[str]] = None,
         config: bool = True,
-        audit_api_url: Optional[str] = None,
+        audit_api_url: Optional[AuditApiUrls] = None,
         apply_automatically: bool = True,
         plugins: Optional[Dict[str, str]] = None,
     ):
@@ -161,6 +178,11 @@ class WrapperConfig:
         self.backends = backends
         self.depends_on = depends_on
         self.config = config
+        # Normalize so consumers always see a list of URLs (or None); direct
+        # construction with a plain string or list is normalized the same way
+        # the AuditApiUrls deserializer normalizes YAML values.
+        if audit_api_url is not None and not isinstance(audit_api_url, list):
+            audit_api_url = AuditApiUrls([audit_api_url])
         self.audit_api_url = audit_api_url
         self.apply_automatically = apply_automatically
         self.plugins = plugins or {}

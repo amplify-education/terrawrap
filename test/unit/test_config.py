@@ -412,6 +412,78 @@ class TestPathMergeSemantics(TestCase):
         self.assertEqual(["/account/app_auth/github/terraform_token"], envvar.paths)
 
 
+class TestAuditApiUrlParsing(TestCase):
+    """Verify audit_api_url accepts a scalar URL or a list of URLs."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="terrawrap_audit_url_")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write(self, rel_path: str, body: str) -> str:
+        abs_path = os.path.join(self.tmpdir, rel_path)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        with open(abs_path, "w", encoding="utf-8") as handle:
+            handle.write(textwrap.dedent(body).lstrip())
+        return abs_path
+
+    def test_scalar_url(self):
+        """A scalar audit_api_url deserializes as a single-element list."""
+        parent = self._write(
+            "parent/.tf_wrapper",
+            """
+            audit_api_url: https://audit.example.com
+            """,
+        )
+
+        config = parse_wrapper_configs([parent])
+
+        self.assertEqual(["https://audit.example.com"], config.audit_api_url)
+
+    def test_list_of_urls(self):
+        """A list audit_api_url deserializes as a list of strings."""
+        parent = self._write(
+            "parent/.tf_wrapper",
+            """
+            audit_api_url:
+              - https://audit-a.example.com
+              - https://audit-b.example.com
+            """,
+        )
+
+        config = parse_wrapper_configs([parent])
+
+        self.assertEqual(
+            ["https://audit-a.example.com", "https://audit-b.example.com"],
+            config.audit_api_url,
+        )
+
+    def test_child_list_replaces_parent_scalar(self):
+        """A child list overrides a parent scalar without a type-mismatch crash."""
+        parent = self._write(
+            "parent/.tf_wrapper",
+            """
+            audit_api_url: https://parent.example.com
+            """,
+        )
+        child = self._write(
+            "parent/child/.tf_wrapper",
+            """
+            audit_api_url:
+              - https://child-a.example.com
+              - https://child-b.example.com
+            """,
+        )
+
+        config = parse_wrapper_configs([parent, child])
+
+        self.assertEqual(
+            ["https://child-a.example.com", "https://child-b.example.com"],
+            config.audit_api_url,
+        )
+
+
 class TestSiblingIsolation(TestCase):
     """Regression tests proving child .tf_wrappers cannot leak into sibling subtrees."""
 

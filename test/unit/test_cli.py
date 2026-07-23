@@ -115,6 +115,41 @@ class TestCli(TestCase):
 
         mock_logger.assert_has_calls(expected_calls)
 
+    @patch("terrawrap.utils.cli._post_audit_info")
+    def test_execute_command_multiple_audit_urls(self, mock_audit_info):
+        """A list of audit API URLs posts the initial and update audit info to every URL."""
+        self.mock_process.poll.return_value = 0
+        urls = ["https://audit-a.example.com", "https://audit-b.example.com"]
+
+        exit_code, _ = execute_command(["apply", "1"], audit_api_url=urls, cwd=os.getcwd())
+
+        self.assertEqual(exit_code, 0)
+        posted_urls = [c.kwargs["audit_api_url"] for c in mock_audit_info.call_args_list]
+        # Initial 'in progress' post to each URL, then the status update to each URL.
+        self.assertEqual(urls + urls, posted_urls)
+        for update_call in mock_audit_info.call_args_list[2:]:
+            self.assertTrue(update_call.kwargs["update"])
+
+    @patch.object(Logger, "error")
+    @patch("terrawrap.utils.cli._post_audit_info")
+    def test_execute_command_multi_url_one_fails(self, mock_audit_info, mock_logger):
+        """A failing audit URL is logged and does not block posting to the remaining URLs."""
+        self.mock_process.poll.return_value = 0
+        urls = ["https://audit-a.example.com", "https://audit-b.example.com"]
+        mock_audit_info.side_effect = [MOCK_ERROR, None, MOCK_ERROR, None]
+
+        exit_code, _ = execute_command(["apply", "1"], audit_api_url=urls, cwd=os.getcwd())
+
+        self.assertEqual(exit_code, 0)
+        posted_urls = [c.kwargs["audit_api_url"] for c in mock_audit_info.call_args_list]
+        self.assertEqual(urls + urls, posted_urls)
+        mock_logger.assert_has_calls(
+            [
+                call("An error occurred while connecting to audit API: %s", MOCK_ERROR),
+                call("An error occurred while connecting to audit API: %s", MOCK_ERROR),
+            ]
+        )
+
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")
     def test_post_audit_info_statuses(self, mock_post, _):

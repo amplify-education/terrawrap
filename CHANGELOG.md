@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.4\] - 2026-07-23
+
+### Added
+
+- `audit_api_url` in `.tf_wrapper` now also accepts a list of URLs. Each apply/destroy
+  posts its audit info (initial "in progress" and the final status update) to every URL
+  in the list; a failure posting to one URL is logged and does not block the others.
+  A scalar value keeps the existing single-URL behavior. This lets an environment
+  report applies to more than one terraform-audit-api instance (e.g. devops-testing
+  applies feeding both the devops-testing and devops audit APIs).
+
 ## \[0.11.3\] - 2026-07-21
 
 ### Changed
