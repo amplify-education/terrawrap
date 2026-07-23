@@ -65,7 +65,7 @@ def execute_command(
     print_command: bool = False,
     retry: bool = False,
     timeout: int = 15 * 60,
-    audit_api_url: Optional[str] = None,
+    audit_api_url: Optional[Union[str, List[str]]] = None,
     **kwargs,
 ) -> Tuple[int, List[str]]:
     """
@@ -77,11 +77,14 @@ def execute_command(
     :param print_command: True if the command should be printed before executing. Defaults to False.
     :param timeout: Max amount of time to keep retrying to execute command. Defaults to 15 minutes.
     :param retry: Retry a number of times if network errors. Defaults to False.
-    :param audit_api_url: Audit API URL to submit POST request. Defaults to None so no data is sent.
+    :param audit_api_url: Audit API URL(s) to submit POST requests to. Accepts a single URL or a list
+    of URLs; each URL receives the same audit info. Defaults to None so no data is sent.
     :param kwargs: Any additional keyword arguments to Popen.
     :return: A tuple of the exit code and output of the command.
     """
     try_count = 0
+
+    audit_api_urls = [audit_api_url] if isinstance(audit_api_url, str) else list(audit_api_url or [])
 
     # It's possible for an envvar to be set to none, so exclude those envvars.
     if "env" in kwargs:
@@ -90,16 +93,17 @@ def execute_command(
     # Get time - nanoseconds since epoch
     start_time = int(time.time())
 
-    if audit_api_url and kwargs["cwd"] and ("apply" in args or "destroy" in args):
-        try:
-            # Call _post_audit_info for working directory, setting status to 'in progress'
-            _post_audit_info(
-                audit_api_url=audit_api_url,
-                path=kwargs["cwd"],
-                start_time=start_time,
-            )
-        except HTTPError as http_exception:
-            logger.error("An error occurred while connecting to audit API: %s", http_exception)
+    if audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args):
+        for url in audit_api_urls:
+            try:
+                # Call _post_audit_info for working directory, setting status to 'in progress'
+                _post_audit_info(
+                    audit_api_url=url,
+                    path=kwargs["cwd"],
+                    start_time=start_time,
+                )
+            except HTTPError as http_exception:
+                logger.error("An error occurred while connecting to audit API: %s", http_exception)
 
     else:
         logger.info("No audit_api_url provided")
@@ -136,19 +140,20 @@ def execute_command(
 
         time_passed = jitter.backoff()
 
-    if audit_api_url and kwargs["cwd"] and ("apply" in args or "destroy" in args):
+    if audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args):
         # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
-        try:
-            _post_audit_info(
-                audit_api_url=audit_api_url,
-                path=kwargs["cwd"],
-                exit_code=exit_code,
-                stdout=stdout,
-                start_time=start_time,
-                update=True,
-            )
-        except HTTPError as http_exception:
-            logger.error("An error occurred while connecting to audit API: %s", http_exception)
+        for url in audit_api_urls:
+            try:
+                _post_audit_info(
+                    audit_api_url=url,
+                    path=kwargs["cwd"],
+                    exit_code=exit_code,
+                    stdout=stdout,
+                    start_time=start_time,
+                    update=True,
+                )
+            except HTTPError as http_exception:
+                logger.error("An error occurred while connecting to audit API: %s", http_exception)
     else:
         logger.info("No audit_api_url provided")
 

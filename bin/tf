@@ -28,7 +28,7 @@ import re
 import shutil
 import sys
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import boto3
 from dateutil.parser import parse
@@ -95,7 +95,7 @@ def exec_tf_command(
     variables: Dict[str, str],
     arguments: List[str],
     additional_envvars: Dict[str, str],
-    audit_api_url: str,
+    audit_api_url: Optional[Union[str, List[str]]],
 ):
     variable_envvars = convert_variables_to_envvars(variables=variables)
 

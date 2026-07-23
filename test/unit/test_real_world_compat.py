@@ -45,7 +45,7 @@ class TestRootConfigWrapper(_WrapperFixtureCase):
     """Pattern: top-level config/.tf_wrapper with audit_api_url + a text envvar."""
 
     def test_root_config_parses(self):
-        """audit_api_url is preserved and a scalar text envvar resolves verbatim."""
+        """audit_api_url normalizes to a URL list and a scalar text envvar resolves verbatim."""
         wrapper = self._write(
             "config/.tf_wrapper",
             """
@@ -59,7 +59,7 @@ class TestRootConfigWrapper(_WrapperFixtureCase):
 
         config = parse_wrapper_configs([wrapper])
 
-        self.assertEqual("https://terraform-audit-api.devops.amplify.com", config.audit_api_url)
+        self.assertEqual(["https://terraform-audit-api.devops.amplify.com"], config.audit_api_url)
         self.assertIsInstance(config.envvars["GITHUB_OWNER"], TextEnvVarConfig)
         self.assertEqual("amplify-education", config.envvars["GITHUB_OWNER"].value)
 
