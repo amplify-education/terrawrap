@@ -50,7 +50,7 @@ class GraphEntry(Entry):
         self.abs_path = get_absolute_path(path=path)
         wrapper_config_files = find_wrapper_config_files(self.abs_path)
         self.wrapper_config = parse_wrapper_configs(wrapper_config_files)
-        self.envvars = resolve_envvars(self.wrapper_config.envvars)
+        self.envvars = resolve_envvars(self.wrapper_config.envvars, self.abs_path)
         self.variables = variables
         self.state = "Pending"
 

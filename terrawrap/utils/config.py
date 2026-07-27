@@ -263,25 +263,38 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
         graph_wrapper_dependencies(predecessor, config_dict, graph, visited)
 
 
-@functools.lru_cache(maxsize=1)
-def _repo_root() -> str:
-    """Absolute path to the root of the git repo terrawrap was invoked from."""
+@functools.lru_cache(maxsize=None)
+def _repo_root(config_dir: Optional[str] = None) -> str:
+    """
+    Finds the root of the git repo holding the given config directory. Resolving from the config directory
+    rather than the process working directory keeps 'command' envvars working when terrawrap is invoked from
+    outside the checkout it was pointed at.
+    :param config_dir: The Terraform config directory being operated on. Falls back to the process working
+    directory when not given.
+    :return: The absolute path to the root of the git repo.
+    """
     try:
-        byte_output = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], stderr=subprocess.PIPE)
+        byte_output = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], cwd=config_dir, stderr=subprocess.PIPE
+        )
     except (subprocess.CalledProcessError, OSError) as exception:
         raise EnvVarResolutionError(
-            "Could not determine the git repo root, which 'command' envvars run from. Are we in a git repo?"
+            f"Could not determine the git repo root for {config_dir or os.getcwd()}, which 'command' "
+            "envvars run from. Is it in a git repo?"
         ) from exception
     return byte_output.decode("utf-8", errors="replace").strip()
 
 
-def _resolve_command(envvar_name: str, envvar_config: CommandEnvVarConfig) -> str:
+def _resolve_command(
+    envvar_name: str, envvar_config: CommandEnvVarConfig, config_dir: Optional[str] = None
+) -> str:
     """
     Runs a 'command' envvar's command and returns its stdout as the envvar value. Commands run from the
     repo root so they can be written relative to it regardless of which config directory terrawrap was
     pointed at.
     :param envvar_name: The name of the environment variable, used for error messages.
     :param envvar_config: The 'command' envvar config to resolve.
+    :param config_dir: The Terraform config directory being operated on, used to locate the repo root.
     :return: The command's stdout, stripped of surrounding whitespace.
     """
     try:
@@ -289,7 +302,7 @@ def _resolve_command(envvar_name: str, envvar_config: CommandEnvVarConfig) -> st
             envvar_config.command,
             capture_output=True,
             check=True,
-            cwd=_repo_root(),
+            cwd=_repo_root(config_dir),
             timeout=envvar_config.timeout,
         )
     except subprocess.CalledProcessError as exception:
@@ -310,11 +323,15 @@ def _resolve_command(envvar_name: str, envvar_config: CommandEnvVarConfig) -> st
     return completed.stdout.decode("utf-8", errors="replace").strip()
 
 
-def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, Optional[str]]:
+def resolve_envvars(
+    envvar_configs: Dict[str, AbstractEnvVarConfig], config_dir: Optional[str] = None
+) -> Dict[str, Optional[str]]:
     """
     Resolves the 'envvars' section from the wrapper config to actual environment variables that can be easily
     supplied to a command.
     :param envvar_configs: The 'envvars' dictionary from the wrapper config.
+    :param config_dir: The Terraform config directory the envvars were gathered for. Only used by 'command'
+    envvars, to locate the repo root they run from.
     :return: A dictionary representing the environment variables that were resolved, with the key being the
     name of the environment variable and the value being the value of the environment variable.
     """
@@ -327,7 +344,7 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
         if isinstance(envvar_config, UnsetEnvVarConfig):
             resolved_envvars[envvar_name] = None
         if isinstance(envvar_config, CommandEnvVarConfig):
-            resolved_envvars[envvar_name] = _resolve_command(envvar_name, envvar_config)
+            resolved_envvars[envvar_name] = _resolve_command(envvar_name, envvar_config, config_dir)
     return resolved_envvars
 
 

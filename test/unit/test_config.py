@@ -558,6 +558,25 @@ class TestCommandEnvVarSource(TestCase):
 
         self.assertEqual({"MY_TOKEN": "resolved-value"}, resolve_envvars(config.envvars))
 
+    def test_command_runs_from_the_config_dirs_repo_root(self):
+        """The repo root comes from the config directory, not the process working directory."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        config_dir = os.path.dirname(os.path.abspath(__file__))
+        original_cwd = os.getcwd()
+        os.chdir(self.tmpdir)
+        try:
+            resolved = resolve_envvars({"CWD": CommandEnvVarConfig(["pwd"])}, config_dir)
+        finally:
+            os.chdir(original_cwd)
+
+        self.assertEqual({"CWD": repo_root}, resolved)
+
+    def test_config_dir_outside_a_git_repo_raises(self):
+        with self.assertRaises(EnvVarResolutionError) as context:
+            resolve_envvars({"CWD": CommandEnvVarConfig(["pwd"])}, self.tmpdir)
+
+        self.assertIn("Could not determine the git repo root", str(context.exception))
+
     def test_surrounding_whitespace_is_stripped(self):
         """Trailing newlines from a command must not leak into the envvar value."""
         resolved = resolve_envvars({"PADDED": CommandEnvVarConfig(["printf", "  padded  "])})

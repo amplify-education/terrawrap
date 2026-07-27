@@ -183,9 +183,9 @@ envvars:
 - `command` must be an argument vector, not a string. Commands run without a
   shell, so pipes, redirection, and quoting are not interpreted; a string is
   rejected rather than split.
-- Commands run with the **root of the git repo** as their working directory, so
-  they can be written relative to it no matter which config directory terrawrap
-  was pointed at.
+- Commands run with the **root of the git repo holding the config directory** as
+  their working directory, so they can be written relative to it no matter which
+  config directory terrawrap was pointed at, or where terrawrap was invoked from.
 - A non-zero exit, a timeout, or a command that cannot be run is a hard error
   naming the envvar — it never resolves to an empty value.
 - Envvars resolve on every terrawrap invocation, so a command that is slow or

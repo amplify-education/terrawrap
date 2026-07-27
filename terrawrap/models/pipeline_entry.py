@@ -27,7 +27,7 @@ class PipelineEntry:
         self.path = get_absolute_path(path=path)
         wrapper_config_files = find_wrapper_config_files(self.path)
         wrapper_config = parse_wrapper_configs(wrapper_config_files)
-        self.envvars = resolve_envvars(wrapper_config.envvars)
+        self.envvars = resolve_envvars(wrapper_config.envvars, self.path)
         self.variables = variables
 
     # pylint: disable=too-many-locals

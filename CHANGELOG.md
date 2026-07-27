@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.12.0\] - 2026-07-27
+
+### Added
+
+- New `command` envvar source for `.tf_wrapper`. The named command runs from the root of the repo holding
+  the config directory and its stdout becomes the environment variable's value, so credentials that must be
+  minted per run no longer have to be stored anywhere. A non-zero exit, a timeout (default 30s), or an
+  unrunnable command is a hard error.
+
 ## \[0.11.4\] - 2026-07-23
 
 ### Added
@@ -409,14 +418,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Remove duplicate TF Audit calls from `graph_entry`; the inner `bin/tf`
   invocation already records the apply. (AT-7866, PR #160)
-
-## \[0.12.0\] - 2026-07-27
-
-### Added
-
-- New `command` envvar source for `.tf_wrapper`. The named command runs from the repo root and its stdout
-  becomes the environment variable's value, so credentials that must be minted per run no longer have to be
-  stored anywhere. A non-zero exit, a timeout (default 30s), or an unrunnable command is a hard error.
 
 ## \[0.9.20\] - 2022-09-23
 
