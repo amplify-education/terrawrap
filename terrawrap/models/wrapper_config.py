@@ -7,11 +7,14 @@ from typing import Dict, List, Optional
 
 import jsons
 
+DEFAULT_COMMAND_TIMEOUT = 30
+
 
 class EnvVarSource(Enum):
     SSM = "ssm"
     TEXT = "text"
     UNSET = "unset"
+    COMMAND = "command"
 
 
 class AbstractEnvVarConfig:
@@ -44,6 +47,15 @@ class TextEnvVarConfig(AbstractEnvVarConfig):
 class UnsetEnvVarConfig(AbstractEnvVarConfig):
     def __init__(self):
         super().__init__(EnvVarSource.UNSET)
+
+
+class CommandEnvVarConfig(AbstractEnvVarConfig):
+    def __init__(self, command: List[str], timeout: int = DEFAULT_COMMAND_TIMEOUT):
+        if not command:
+            raise ValueError("CommandEnvVarConfig requires at least one command argument")
+        super().__init__(EnvVarSource.COMMAND)
+        self.command = command
+        self.timeout = timeout
 
 
 class S3BackendConfig:
@@ -121,6 +133,35 @@ def _ssm_paths_from_dict(obj_dict: Dict) -> List[str]:
     return paths
 
 
+def _parse_command_args(raw) -> List[str]:
+    """Validate a YAML ``command`` value as a non-empty argument vector.
+
+    A bare string is rejected rather than split: the command runs without a
+    shell, so accepting one would silently mis-parse quoting and pipes.
+    """
+    if isinstance(raw, str):
+        raise TypeError(
+            f"command envvar 'command' must be a list of arguments, not a string, got {raw!r}. "
+            "The command runs without a shell, so quoting and pipes are not interpreted."
+        )
+    if not isinstance(raw, list):
+        raise TypeError(f"command envvar 'command' must be a list of strings, got {raw!r}")
+    if not raw:
+        raise ValueError("command envvar 'command' list must not be empty")
+    if not all(isinstance(arg, str) for arg in raw):
+        raise TypeError(f"command envvar 'command' must be a list of strings, got {raw!r}")
+    return list(raw)
+
+
+def _parse_timeout(raw) -> int:
+    """Validate a YAML ``timeout`` value as a positive number of seconds."""
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise TypeError(f"command envvar 'timeout' must be an integer, got {raw!r}")
+    if raw <= 0:
+        raise ValueError(f"command envvar 'timeout' must be greater than zero, got {raw!r}")
+    return raw
+
+
 # pylint: disable=unused-argument
 def env_var_deserializer(obj_dict, cls, **kwargs):
     """convert a dict to a subclass of AbstractEnvVarConfig"""
@@ -131,6 +172,13 @@ def env_var_deserializer(obj_dict, cls, **kwargs):
         return TextEnvVarConfig(obj_dict["value"])
     if source == EnvVarSource.UNSET.value:
         return UnsetEnvVarConfig()
+    if source == EnvVarSource.COMMAND.value:
+        if "command" not in obj_dict:
+            raise KeyError("command envvar requires 'command'")
+        return CommandEnvVarConfig(
+            command=_parse_command_args(obj_dict["command"]),
+            timeout=_parse_timeout(obj_dict.get("timeout", DEFAULT_COMMAND_TIMEOUT)),
+        )
     raise RuntimeError("Invalid Source")
 
 

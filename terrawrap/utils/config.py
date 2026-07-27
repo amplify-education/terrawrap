@@ -1,6 +1,8 @@
 """Holds config utilities"""
 
+import functools
 import os
+import subprocess
 import sys
 from typing import Dict, List, Optional, Tuple
 
@@ -9,10 +11,11 @@ import networkx
 import yaml
 from jsons import DeserializationError
 
-from terrawrap.exceptions import NoDependency, NotTerraformConfigDirectory
+from terrawrap.exceptions import EnvVarResolutionError, NoDependency, NotTerraformConfigDirectory
 from terrawrap.models.wrapper_config import (
     AbstractEnvVarConfig,
     BackendsConfig,
+    CommandEnvVarConfig,
     SSMEnvVarConfig,
     TextEnvVarConfig,
     UnsetEnvVarConfig,
@@ -260,6 +263,53 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
         graph_wrapper_dependencies(predecessor, config_dict, graph, visited)
 
 
+@functools.lru_cache(maxsize=1)
+def _repo_root() -> str:
+    """Absolute path to the root of the git repo terrawrap was invoked from."""
+    try:
+        byte_output = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], stderr=subprocess.PIPE)
+    except (subprocess.CalledProcessError, OSError) as exception:
+        raise EnvVarResolutionError(
+            "Could not determine the git repo root, which 'command' envvars run from. Are we in a git repo?"
+        ) from exception
+    return byte_output.decode("utf-8", errors="replace").strip()
+
+
+def _resolve_command(envvar_name: str, envvar_config: CommandEnvVarConfig) -> str:
+    """
+    Runs a 'command' envvar's command and returns its stdout as the envvar value. Commands run from the
+    repo root so they can be written relative to it regardless of which config directory terrawrap was
+    pointed at.
+    :param envvar_name: The name of the environment variable, used for error messages.
+    :param envvar_config: The 'command' envvar config to resolve.
+    :return: The command's stdout, stripped of surrounding whitespace.
+    """
+    try:
+        completed = subprocess.run(
+            envvar_config.command,
+            capture_output=True,
+            check=True,
+            cwd=_repo_root(),
+            timeout=envvar_config.timeout,
+        )
+    except subprocess.CalledProcessError as exception:
+        stderr = exception.stderr.decode("utf-8", errors="replace").strip()
+        raise EnvVarResolutionError(
+            f"Command for envvar {envvar_name} exited {exception.returncode}: "
+            f"{envvar_config.command}\n{stderr}"
+        ) from exception
+    except subprocess.TimeoutExpired as exception:
+        raise EnvVarResolutionError(
+            f"Command for envvar {envvar_name} timed out after {envvar_config.timeout}s: "
+            f"{envvar_config.command}"
+        ) from exception
+    except OSError as exception:
+        raise EnvVarResolutionError(
+            f"Command for envvar {envvar_name} could not be run: {envvar_config.command}"
+        ) from exception
+    return completed.stdout.decode("utf-8", errors="replace").strip()
+
+
 def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, Optional[str]]:
     """
     Resolves the 'envvars' section from the wrapper config to actual environment variables that can be easily
@@ -276,6 +326,8 @@ def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str
             resolved_envvars[envvar_name] = str(envvar_config.value)
         if isinstance(envvar_config, UnsetEnvVarConfig):
             resolved_envvars[envvar_name] = None
+        if isinstance(envvar_config, CommandEnvVarConfig):
+            resolved_envvars[envvar_name] = _resolve_command(envvar_name, envvar_config)
     return resolved_envvars
 
 

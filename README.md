@@ -138,10 +138,12 @@ backend_check: True # If true, require this directory to have a terraform backen
 
 envvars:
   <NAME_OF_ENVVAR>:
-    source: # The source of the envvar. One of `['ssm', 'text', 'unset']`.
+    source: # The source of the envvar. One of `['ssm', 'text', 'unset', 'command']`.
     path: # If source is `ssm`, the SSM Parameter Store path to read the value from. May be a single string or a list of strings (ordered fallbacks).
     value: # if the source of the envvar is `text`, the string value to set as the environment variable.
     # If the source is unset, any previous value for the environment variable is removed and the environment variable will not be set.
+    command: # If source is `command`, the argument vector to run. The command's stdout becomes the value.
+    timeout: # If source is `command`, seconds to allow the command to run. Defaults to 30.
 
 plugins:
     <NAME_OF_PLUGIN>: <plugin url>
@@ -162,6 +164,32 @@ envvars:
       - /account/app_auth/github/terraform_token
       - /shared/github/terraform_token
 ```
+
+### `command` envvars
+
+A `command` envvar runs a command and uses its stdout, stripped of surrounding
+whitespace, as the value. This suits credentials that must be minted per run
+rather than stored — a short-lived token exchanged from the caller's existing
+identity, for example.
+
+```yaml
+envvars:
+  CONSUL_HTTP_TOKEN:
+    source: command
+    command: ["clis/consul_login.py", "--print-token"]
+    timeout: 60
+```
+
+- `command` must be an argument vector, not a string. Commands run without a
+  shell, so pipes, redirection, and quoting are not interpreted; a string is
+  rejected rather than split.
+- Commands run with the **root of the git repo** as their working directory, so
+  they can be written relative to it no matter which config directory terrawrap
+  was pointed at.
+- A non-zero exit, a timeout, or a command that cannot be run is a hard error
+  naming the envvar — it never resolves to an empty value.
+- Envvars resolve on every terrawrap invocation, so a command that is slow or
+  rate-limited should cache its own result.
 
 ### Plugins
 

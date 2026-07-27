@@ -9,11 +9,15 @@ from unittest.mock import patch
 
 import networkx
 
+from terrawrap.exceptions import EnvVarResolutionError
 from terrawrap.models.wrapper_config import (
+    DEFAULT_COMMAND_TIMEOUT,
     BackendsConfig,
+    CommandEnvVarConfig,
     S3BackendConfig,
     SSMEnvVarConfig,
     WrapperConfig,
+    env_var_deserializer,
 )
 from terrawrap.utils.config import (
     calc_backend_config,
@@ -516,3 +520,111 @@ class TestSiblingIsolation(TestCase):
         enterprise_wrapper = os.path.join(self.tmpdir, "github", "amplify-enterprise", ".tf_wrapper")
         self.assertIn(github_wrapper, files)
         self.assertNotIn(enterprise_wrapper, files)
+
+
+class TestCommandEnvVarSource(TestCase):
+    """Verify the `command` envvar source parses, resolves, and fails loudly."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="terrawrap_command_")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write(self, rel_path: str, body: str) -> str:
+        abs_path = os.path.join(self.tmpdir, rel_path)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        with open(abs_path, "w", encoding="utf-8") as handle:
+            handle.write(textwrap.dedent(body).lstrip())
+        return abs_path
+
+    def test_command_resolves_to_stdout(self):
+        """A `command` envvar resolves to the command's stdout."""
+        wrapper = self._write(
+            "config/.tf_wrapper",
+            """
+            envvars:
+              MY_TOKEN:
+                source: command
+                command: ["echo", "resolved-value"]
+            """,
+        )
+
+        config = parse_wrapper_configs([wrapper])
+        envvar = config.envvars["MY_TOKEN"]
+        self.assertIsInstance(envvar, CommandEnvVarConfig)
+        self.assertEqual(["echo", "resolved-value"], envvar.command)
+        self.assertEqual(DEFAULT_COMMAND_TIMEOUT, envvar.timeout)
+
+        self.assertEqual({"MY_TOKEN": "resolved-value"}, resolve_envvars(config.envvars))
+
+    def test_surrounding_whitespace_is_stripped(self):
+        """Trailing newlines from a command must not leak into the envvar value."""
+        resolved = resolve_envvars({"PADDED": CommandEnvVarConfig(["printf", "  padded  "])})
+
+        self.assertEqual({"PADDED": "padded"}, resolved)
+
+    def test_explicit_timeout_is_parsed(self):
+        """An explicit `timeout` overrides the default."""
+        wrapper = self._write(
+            "config/.tf_wrapper",
+            """
+            envvars:
+              MY_TOKEN:
+                source: command
+                command: ["echo", "hi"]
+                timeout: 5
+            """,
+        )
+
+        config = parse_wrapper_configs([wrapper])
+
+        self.assertEqual(5, config.envvars["MY_TOKEN"].timeout)
+
+    def test_string_command_is_rejected(self):
+        """A bare string would be mis-parsed without a shell, so reject it outright."""
+        with self.assertRaises(TypeError):
+            env_var_deserializer({"source": "command", "command": "echo hi"}, CommandEnvVarConfig)
+
+    def test_empty_command_is_rejected(self):
+        with self.assertRaises(ValueError):
+            env_var_deserializer({"source": "command", "command": []}, CommandEnvVarConfig)
+
+    def test_missing_command_key_is_rejected(self):
+        with self.assertRaises(KeyError):
+            env_var_deserializer({"source": "command"}, CommandEnvVarConfig)
+
+    def test_non_integer_timeout_is_rejected(self):
+        with self.assertRaises(TypeError):
+            env_var_deserializer(
+                {"source": "command", "command": ["echo"], "timeout": "30"}, CommandEnvVarConfig
+            )
+
+    def test_zero_timeout_is_rejected(self):
+        with self.assertRaises(ValueError):
+            env_var_deserializer(
+                {"source": "command", "command": ["echo"], "timeout": 0}, CommandEnvVarConfig
+            )
+
+    def test_failing_command_raises_with_stderr(self):
+        """A non-zero exit must fail loudly, not resolve to an empty value."""
+        command = ["sh", "-c", "echo 'boom' >&2; exit 3"]
+
+        with self.assertRaises(EnvVarResolutionError) as context:
+            resolve_envvars({"MY_TOKEN": CommandEnvVarConfig(command)})
+
+        self.assertIn("MY_TOKEN", str(context.exception))
+        self.assertIn("exited 3", str(context.exception))
+        self.assertIn("boom", str(context.exception))
+
+    def test_timed_out_command_raises(self):
+        with self.assertRaises(EnvVarResolutionError) as context:
+            resolve_envvars({"MY_TOKEN": CommandEnvVarConfig(["sleep", "10"], timeout=1)})
+
+        self.assertIn("timed out after 1s", str(context.exception))
+
+    def test_missing_binary_raises(self):
+        with self.assertRaises(EnvVarResolutionError) as context:
+            resolve_envvars({"MY_TOKEN": CommandEnvVarConfig(["terrawrap-no-such-binary-b3f1a2"])})
+
+        self.assertIn("could not be run", str(context.exception))
