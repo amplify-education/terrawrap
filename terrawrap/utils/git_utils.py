@@ -1,7 +1,8 @@
 """Utility functions for working with Git"""
-from typing import Set
 
 import os
+from typing import Set
+
 from git import Repo
 
 

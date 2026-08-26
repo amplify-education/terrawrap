@@ -1,6 +1,7 @@
 """Tests for file downloading utilities"""
+
 from unittest import TestCase
-from unittest.mock import patch, mock_open, MagicMock, call
+from unittest.mock import MagicMock, call, mock_open, patch
 
 import requests_mock
 from botocore.exceptions import ClientError
@@ -49,9 +50,7 @@ class TestPluginDownload(TestCase):
         etag_write_call = call("fake_etag")
         file_write_call = call(b"fake content")
 
-        open_mock.return_value.write.assert_has_calls(
-            [file_write_call, etag_write_call]
-        )
+        open_mock.return_value.write.assert_has_calls([file_write_call, etag_write_call])
 
     @requests_mock.Mocker()
     @patch("builtins.open", new_callable=mock_open, read_data="fake_etag")
@@ -102,9 +101,7 @@ class TestPluginDownload(TestCase):
                 "http://example.com/FakeLinux/x86_42",
                 "/home/fake_user/.terraform.d/plugins/foo",
             )
-            generic_call = call(
-                "http://example.com", "/home/fake_user/.terraform.d/plugins/foo"
-            )
+            generic_call = call("http://example.com", "/home/fake_user/.terraform.d/plugins/foo")
 
             download_file_mock.assert_has_calls([platform_specific_call, generic_call])
 
@@ -127,17 +124,13 @@ class TestPluginDownload(TestCase):
         etag_write_call = call("fake_etag")
         file_write_call = call(b"fake content")
 
-        open_mock.return_value.write.assert_has_calls(
-            [file_write_call, etag_write_call]
-        )
+        open_mock.return_value.write.assert_has_calls([file_write_call, etag_write_call])
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("os.path.isfile", MagicMock(return_value=False))
     def test_download_from_s3_cached(self, open_mock):
         """Test downloading a file from s3 that is cached"""
-        self.s3_client.get_object.side_effect = ClientError(
-            {"Error": {"Code": "304"}}, ""
-        )
+        self.s3_client.get_object.side_effect = ClientError({"Error": {"Code": "304"}}, "")
 
         self.plugin_download._download_file("s3://test/bar", "/tmp/plugins/foo")
 

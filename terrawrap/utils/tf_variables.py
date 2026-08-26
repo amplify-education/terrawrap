@@ -1,12 +1,14 @@
 """Utilities for working with Terraform variables"""
+
 import concurrent.futures
 import os
 from collections import defaultdict, namedtuple
 from typing import Dict, Set, Tuple, Union
 
-import hcl2
 from lark import Token
 from networkx import DiGraph
+
+from terrawrap.utils.hcl import hcl2_load
 
 Variable = namedtuple("Variable", ["name", "value"])
 
@@ -26,11 +28,9 @@ def get_auto_vars(root_directory: str) -> Dict[str, Set[Variable]]:
         vars_files = [file_name for file_name in files if file_name.endswith(".tfvars")]
         for file_name in vars_files:
             with open(current_dir + "/" + file_name, "r", encoding="utf-8") as file:
-                variables = hcl2.load(file)
+                variables = hcl2_load(file)
                 for key, value in variables.items():
-                    auto_vars[os.path.join(current_dir, file_name)].add(
-                        Variable(key, _make_hashable(value))
-                    )
+                    auto_vars[os.path.join(current_dir, file_name)].add(Variable(key, _make_hashable(value)))
 
     return dict(auto_vars)
 
@@ -39,10 +39,7 @@ def _make_hashable(input_value):
     if isinstance(input_value, list):
         return tuple(_make_hashable(item) for item in input_value)
     if isinstance(input_value, dict):
-        return tuple(
-            (_make_hashable(key), _make_hashable(value))
-            for key, value in input_value.items()
-        )
+        return tuple((_make_hashable(key), _make_hashable(value)) for key, value in input_value.items())
     if isinstance(input_value, Token):
         return str(input_value)
     return input_value
@@ -56,7 +53,7 @@ def get_nondefault_variables_for_file(file_path: str) -> Set[str]:
     """
     variables = set()
     with open(file_path, "r", encoding="utf-8") as file:
-        tf_info = hcl2.load(file)
+        tf_info = hcl2_load(file)
         for variable in tf_info.get("variable", []):
             for variable_name, var_config in variable.items():
                 # Use existence check, not truthiness — `default = false`/`0`/`""`/`[]`
@@ -75,7 +72,7 @@ def get_declared_variables_for_file(file_path: str) -> Set[str]:
     """
     variables = set()
     with open(file_path, "r", encoding="utf-8") as file:
-        tf_info = hcl2.load(file)
+        tf_info = hcl2_load(file)
         for variable in tf_info.get("variable", []):
             variables.update(variable.keys())
 
@@ -96,8 +93,7 @@ def get_source_for_variable(
     possible_sources = [
         file
         for file, var_info in vars_map.items()
-        if any(var[0] == var_name for var in var_info)
-        and usage_directory.startswith(os.path.dirname(file))
+        if any(var[0] == var_name for var in var_info) and usage_directory.startswith(os.path.dirname(file))
     ]
 
     if not possible_sources:
@@ -132,9 +128,7 @@ def get_auto_var_usage_graph(root_directory: str) -> DiGraph:
                 if not file.endswith(".tf"):
                     continue
 
-                future = executor.submit(
-                    _collect_variable_usages, current_dir, file, auto_vars
-                )
+                future = executor.submit(_collect_variable_usages, current_dir, file, auto_vars)
                 future_list.append(future)
 
         for future in concurrent.futures.as_completed(future_list):

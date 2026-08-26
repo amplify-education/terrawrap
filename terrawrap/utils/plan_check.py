@@ -1,4 +1,5 @@
 """Utility functions for determining which directories plan_check should run against"""
+
 import os
 from typing import List, Tuple
 
@@ -50,13 +51,9 @@ def get_modified_subdirectories(plan_path: str) -> Tuple[List[str], List[str]]:
             directories_to_check.update(affected_directories)
 
     # group directories into regular and symlink paths so downstream code can treat them differently
-    regular_directories = [
-        directory for directory in directories_to_check if not os.path.islink(directory)
-    ]
+    regular_directories = [directory for directory in directories_to_check if not os.path.islink(directory)]
 
-    symlinked_directories = [
-        directory for directory in directories_to_check if os.path.islink(directory)
-    ]
+    symlinked_directories = [directory for directory in directories_to_check if os.path.islink(directory)]
 
     return regular_directories, symlinked_directories
 

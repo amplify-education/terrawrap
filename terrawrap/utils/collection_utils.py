@@ -1,4 +1,5 @@
 """Utilities for working with collections"""
+
 from typing import Dict
 
 # Leaf list fields that should use child-wins replacement instead of additive

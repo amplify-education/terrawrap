@@ -1,19 +1,20 @@
 """Test git utilities"""
+
 import os
 from logging import Logger
 from unittest import TestCase
-from unittest.mock import patch, ANY, call
+from unittest.mock import ANY, call, patch
+
 from requests.exceptions import HTTPError
 
 from terrawrap.utils.cli import (
-    execute_command,
     MAX_RETRIES,
     Status,
+    _get_retriable_errors,
     _post_audit_info,
     _post_log_chunk,
-    _get_retriable_errors,
+    execute_command,
 )
-
 
 MOCK_ERROR = HTTPError()
 
@@ -115,6 +116,41 @@ class TestCli(TestCase):
 
         mock_logger.assert_has_calls(expected_calls)
 
+    @patch("terrawrap.utils.cli._post_audit_info")
+    def test_execute_command_multiple_audit_urls(self, mock_audit_info):
+        """A list of audit API URLs posts the initial and update audit info to every URL."""
+        self.mock_process.poll.return_value = 0
+        urls = ["https://audit-a.example.com", "https://audit-b.example.com"]
+
+        exit_code, _ = execute_command(["apply", "1"], audit_api_url=urls, cwd=os.getcwd())
+
+        self.assertEqual(exit_code, 0)
+        posted_urls = [c.kwargs["audit_api_url"] for c in mock_audit_info.call_args_list]
+        # Initial 'in progress' post to each URL, then the status update to each URL.
+        self.assertEqual(urls + urls, posted_urls)
+        for update_call in mock_audit_info.call_args_list[2:]:
+            self.assertTrue(update_call.kwargs["update"])
+
+    @patch.object(Logger, "error")
+    @patch("terrawrap.utils.cli._post_audit_info")
+    def test_execute_command_multi_url_one_fails(self, mock_audit_info, mock_logger):
+        """A failing audit URL is logged and does not block posting to the remaining URLs."""
+        self.mock_process.poll.return_value = 0
+        urls = ["https://audit-a.example.com", "https://audit-b.example.com"]
+        mock_audit_info.side_effect = [MOCK_ERROR, None, MOCK_ERROR, None]
+
+        exit_code, _ = execute_command(["apply", "1"], audit_api_url=urls, cwd=os.getcwd())
+
+        self.assertEqual(exit_code, 0)
+        posted_urls = [c.kwargs["audit_api_url"] for c in mock_audit_info.call_args_list]
+        self.assertEqual(urls + urls, posted_urls)
+        mock_logger.assert_has_calls(
+            [
+                call("An error occurred while connecting to audit API: %s", MOCK_ERROR),
+                call("An error occurred while connecting to audit API: %s", MOCK_ERROR),
+            ]
+        )
+
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")
     def test_post_audit_info_statuses(self, mock_post, _):
@@ -141,9 +177,48 @@ class TestCli(TestCase):
                     "status": status,
                     "output": "",
                     "git_hash": ANY,
+                    # ANY: build_id is read from CODEBUILD_BUILD_ID, which is None
+                    # locally but set when this suite runs inside CodeBuild.
+                    "build_id": ANY,
                 },
                 timeout=30,
             )
+
+    @patch.dict(os.environ, {"CODEBUILD_BUILD_ID": "terraform-apply:abc-123"})
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_post_audit_info_echoes_build_id(self, mock_post, _):
+        """The audit payload echoes CODEBUILD_BUILD_ID so the API can correlate
+        the apply back to its UI-triggered PENDING placeholder."""
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        _post_audit_info(
+            audit_api_url="https://foo.bar",
+            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+            start_time=12345,
+            exit_code=0,
+        )
+
+        self.assertEqual(mock_post.call_args.kwargs["json"]["build_id"], "terraform-apply:abc-123")
+
+    @patch.dict(os.environ)
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    @patch("requests.post")
+    def test_post_audit_info_build_id_empty(self, mock_post, _):
+        """Outside CodeBuild (e.g. a pipeline ECS apply) build_id is "" — never
+        None, since the API deserializes build_id as a required str and rejects
+        null."""
+        os.environ.pop("CODEBUILD_BUILD_ID", None)
+        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+
+        _post_audit_info(
+            audit_api_url="https://foo.bar",
+            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+            start_time=12345,
+            exit_code=0,
+        )
+
+        self.assertEqual(mock_post.call_args.kwargs["json"]["build_id"], "")
 
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")
@@ -261,9 +336,7 @@ class TestChunkStreaming(TestCase):
         sequences = [c.kwargs["sequence"] for c in mock_post_chunk.call_args_list]
         self.assertEqual(sequences, [0, 1])
 
-        first_chunk, second_chunk = (
-            c.kwargs["content"] for c in mock_post_chunk.call_args_list
-        )
+        first_chunk, second_chunk = (c.kwargs["content"] for c in mock_post_chunk.call_args_list)
         self.assertEqual(first_chunk.count("\n"), 10)
         self.assertEqual(second_chunk, "10\n11\n12\n13\n14\n")
 

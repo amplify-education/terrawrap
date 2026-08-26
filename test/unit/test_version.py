@@ -1,8 +1,9 @@
 """Test version utils"""
-from unittest import TestCase
-from unittest.mock import patch, MagicMock
 
-from terrawrap.utils.version import version_check, get_latest_version, cache
+from unittest import TestCase
+from unittest.mock import MagicMock, patch
+
+from terrawrap.utils.version import cache, get_latest_version, version_check
 
 
 class TestVersion(TestCase):
@@ -76,9 +77,7 @@ class TestVersion(TestCase):
             response = version_check(current_version=current_version)
 
         self.assertTrue(response)
-        printed = "".join(
-            call.args[0] for call in mock_stderr.write.call_args_list if call.args
-        )
+        printed = "".join(call.args[0] for call in mock_stderr.write.call_args_list if call.args)
         self.assertNotIn("release candidate", printed)
 
     @patch("terrawrap.utils.version.get_latest_version")
@@ -91,9 +90,7 @@ class TestVersion(TestCase):
             response = version_check(current_version=current_version)
 
         self.assertFalse(response)
-        printed = "".join(
-            call.args[0] for call in mock_stderr.write.call_args_list if call.args
-        )
+        printed = "".join(call.args[0] for call in mock_stderr.write.call_args_list if call.args)
         self.assertNotIn("release candidate", printed)
 
     @patch("terrawrap.utils.version.get_latest_version")
@@ -111,9 +108,7 @@ class TestVersion(TestCase):
     def test_get_latest_version_happy(self, mock_get):
         """VersionUtils get latest version returns stable and rc"""
         current_version = "1.0.0"
-        mock_get.return_value.json.return_value = {
-            "releases": {"1.0.0": [], "1.0.1": [], "1.0.2rc1": []}
-        }
+        mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": [], "1.0.2rc1": []}}
 
         # pylint:disable=C0103
         stable, rc = get_latest_version(current_version=current_version)
@@ -126,9 +121,7 @@ class TestVersion(TestCase):
     def test_get_latest_version_no_rc(self, mock_get):
         """VersionUtils get latest version returns None for rc when no RCs exist"""
         current_version = "1.0.0"
-        mock_get.return_value.json.return_value = {
-            "releases": {"1.0.0": [], "1.0.1": []}
-        }
+        mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": []}}
         # pylint:disable=C0103
         stable, rc = get_latest_version(current_version=current_version)
 

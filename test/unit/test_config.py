@@ -1,26 +1,26 @@
 """Test terraform config utilities"""
+
 import os
 import shutil
 import tempfile
 import textwrap
 from unittest import TestCase
-
 from unittest.mock import patch
 
 import networkx
 
 from terrawrap.models.wrapper_config import (
-    SSMEnvVarConfig,
-    WrapperConfig,
     BackendsConfig,
     S3BackendConfig,
+    SSMEnvVarConfig,
+    WrapperConfig,
 )
 from terrawrap.utils.config import (
     calc_backend_config,
-    parse_wrapper_configs,
     find_wrapper_config_files,
-    resolve_envvars,
     graph_wrapper_dependencies,
+    parse_wrapper_configs,
+    resolve_envvars,
     walk_and_graph_directory,
     walk_without_graph_directory,
 )
@@ -66,12 +66,8 @@ class TestConfig(TestCase):
 
     def test_walk_and_graph_directory(self):
         """Test dependency graph for a recursive dependency"""
-        starting_dir = os.path.join(
-            os.getcwd(), "mock_graph_directory/config/account_level/regional_level_2"
-        )
-        actual_graph, actual_post_graph = walk_and_graph_directory(
-            starting_dir, self.config_dict
-        )
+        starting_dir = os.path.join(os.getcwd(), "mock_graph_directory/config/account_level/regional_level_2")
+        actual_graph, actual_post_graph = walk_and_graph_directory(starting_dir, self.config_dict)
 
         expected_graph = networkx.DiGraph()
         app1 = os.path.join(
@@ -130,9 +126,7 @@ class TestConfig(TestCase):
 
     def wont_apply_automatically_in_parrallel(self):
         """Test will not automatically apply if set with no dependency info"""
-        starting_dir = os.path.join(
-            os.getcwd(), "mock_graph_directory/config/account_level/regional_level_3"
-        )
+        starting_dir = os.path.join(os.getcwd(), "mock_graph_directory/config/account_level/regional_level_3")
         actual_post_graph = walk_without_graph_directory(starting_dir)
 
         app1 = os.path.join(starting_dir, "/app1")
@@ -204,9 +198,7 @@ class TestConfig(TestCase):
     def test_calc_backend_config_with_role_arn(self):
         """Test that the correct role is used in backend config"""
         wrapper_config = WrapperConfig(
-            backends=BackendsConfig(
-                s3=S3BackendConfig(bucket=BUCKET, region=REGION, role_arn=ROLE_ARN)
-            )
+            backends=BackendsConfig(s3=S3BackendConfig(bucket=BUCKET, region=REGION, role_arn=ROLE_ARN))
         )
 
         actual_config = calc_backend_config(
@@ -252,12 +244,8 @@ class TestConfig(TestCase):
             ]
         )
 
-        self.assertEqual(
-            "OVERWRITTEN_VALUE", wrapper_config.envvars["OVERWRITTEN_KEY"].value
-        )
-        self.assertEqual(
-            "HARDCODED_VALUE", wrapper_config.envvars["HARDCODED_KEY"].value
-        )
+        self.assertEqual("OVERWRITTEN_VALUE", wrapper_config.envvars["OVERWRITTEN_KEY"].value)
+        self.assertEqual("HARDCODED_VALUE", wrapper_config.envvars["HARDCODED_KEY"].value)
         self.assertEqual(["FAKE_SSM_PATH"], wrapper_config.envvars["SSM_KEY"].paths)
 
     @patch("terrawrap.utils.config.resolve_ssm_paths")
@@ -340,9 +328,7 @@ class TestPathMergeSemantics(TestCase):
 
         config = parse_wrapper_configs([parent, child])
 
-        self.assertEqual(
-            ["/child/path/a", "/child/path/b"], config.envvars["MY_VAR"].paths
-        )
+        self.assertEqual(["/child/path/a", "/child/path/b"], config.envvars["MY_VAR"].paths)
 
     def test_child_string_replaces_parent_list(self):
         """Parent list `path` followed by child scalar — child wins as a single-element list."""
@@ -426,18 +412,86 @@ class TestPathMergeSemantics(TestCase):
         self.assertEqual(["/account/app_auth/github/terraform_token"], envvar.paths)
 
 
+class TestAuditApiUrlParsing(TestCase):
+    """Verify audit_api_url accepts a scalar URL or a list of URLs."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="terrawrap_audit_url_")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write(self, rel_path: str, body: str) -> str:
+        abs_path = os.path.join(self.tmpdir, rel_path)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        with open(abs_path, "w", encoding="utf-8") as handle:
+            handle.write(textwrap.dedent(body).lstrip())
+        return abs_path
+
+    def test_scalar_url(self):
+        """A scalar audit_api_url deserializes as a single-element list."""
+        parent = self._write(
+            "parent/.tf_wrapper",
+            """
+            audit_api_url: https://audit.example.com
+            """,
+        )
+
+        config = parse_wrapper_configs([parent])
+
+        self.assertEqual(["https://audit.example.com"], config.audit_api_url)
+
+    def test_list_of_urls(self):
+        """A list audit_api_url deserializes as a list of strings."""
+        parent = self._write(
+            "parent/.tf_wrapper",
+            """
+            audit_api_url:
+              - https://audit-a.example.com
+              - https://audit-b.example.com
+            """,
+        )
+
+        config = parse_wrapper_configs([parent])
+
+        self.assertEqual(
+            ["https://audit-a.example.com", "https://audit-b.example.com"],
+            config.audit_api_url,
+        )
+
+    def test_child_list_replaces_parent_scalar(self):
+        """A child list overrides a parent scalar without a type-mismatch crash."""
+        parent = self._write(
+            "parent/.tf_wrapper",
+            """
+            audit_api_url: https://parent.example.com
+            """,
+        )
+        child = self._write(
+            "parent/child/.tf_wrapper",
+            """
+            audit_api_url:
+              - https://child-a.example.com
+              - https://child-b.example.com
+            """,
+        )
+
+        config = parse_wrapper_configs([parent, child])
+
+        self.assertEqual(
+            ["https://child-a.example.com", "https://child-b.example.com"],
+            config.audit_api_url,
+        )
+
+
 class TestSiblingIsolation(TestCase):
     """Regression tests proving child .tf_wrappers cannot leak into sibling subtrees."""
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="terrawrap_sibling_")
         os.makedirs(os.path.join(self.tmpdir, "github", "amplify-enterprise"))
-        os.makedirs(
-            os.path.join(self.tmpdir, "github", "amplify-education", "astrotools")
-        )
-        with open(
-            os.path.join(self.tmpdir, "github", ".tf_wrapper"), "w", encoding="utf-8"
-        ) as handle:
+        os.makedirs(os.path.join(self.tmpdir, "github", "amplify-education", "astrotools"))
+        with open(os.path.join(self.tmpdir, "github", ".tf_wrapper"), "w", encoding="utf-8") as handle:
             handle.write("envvars:\n  GITHUB_TOKEN:\n    source: unset\n")
         with open(
             os.path.join(self.tmpdir, "github", "amplify-enterprise", ".tf_wrapper"),
@@ -459,8 +513,6 @@ class TestSiblingIsolation(TestCase):
         files = find_wrapper_config_files(sibling)
 
         github_wrapper = os.path.join(self.tmpdir, "github", ".tf_wrapper")
-        enterprise_wrapper = os.path.join(
-            self.tmpdir, "github", "amplify-enterprise", ".tf_wrapper"
-        )
+        enterprise_wrapper = os.path.join(self.tmpdir, "github", "amplify-enterprise", ".tf_wrapper")
         self.assertIn(github_wrapper, files)
         self.assertNotIn(enterprise_wrapper, files)

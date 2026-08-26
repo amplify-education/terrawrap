@@ -1,24 +1,24 @@
 """Module for containing CLI convenience functions"""
+
 from __future__ import print_function
 
 import base64
 import gzip
 import logging
+import os
 import subprocess
 import tempfile
 import time
 from enum import Enum
+from typing import Callable, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
-from typing import Callable, List, Optional, Tuple, Union
-
 import requests
-
 from amplify_aws_utils.resource_helper import Jitter
 from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
 from requests.exceptions import HTTPError
 
-from terrawrap.utils.git_utils import get_git_root, get_git_hash
+from terrawrap.utils.git_utils import get_git_hash, get_git_root
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ def execute_command(
     print_command: bool = False,
     retry: bool = False,
     timeout: int = 15 * 60,
-    audit_api_url: Optional[str] = None,
+    audit_api_url: Optional[Union[str, List[str]]] = None,
     **kwargs,
 ) -> Tuple[int, List[str]]:
     """
@@ -80,55 +80,54 @@ def execute_command(
     :param print_command: True if the command should be printed before executing. Defaults to False.
     :param timeout: Max amount of time to keep retrying to execute command. Defaults to 15 minutes.
     :param retry: Retry a number of times if network errors. Defaults to False.
-    :param audit_api_url: Audit API URL to submit POST request. Defaults to None so no data is sent.
+    :param audit_api_url: Audit API URL(s) to submit POST requests to. Accepts a single URL or a list
+    of URLs; each URL receives the same audit info. Defaults to None so no data is sent.
     :param kwargs: Any additional keyword arguments to Popen.
     :return: A tuple of the exit code and output of the command.
     """
     try_count = 0
 
+    audit_api_urls = [audit_api_url] if isinstance(audit_api_url, str) else list(audit_api_url or [])
+
     # It's possible for an envvar to be set to none, so exclude those envvars.
     if "env" in kwargs:
-        kwargs["env"] = {
-            key: value for key, value in kwargs["env"].items() if value is not None
-        }
+        kwargs["env"] = {key: value for key, value in kwargs["env"].items() if value is not None}
 
     # Get time - nanoseconds since epoch
     start_time = int(time.time())
 
-    if audit_api_url and kwargs["cwd"] and ("apply" in args or "destroy" in args):
-        try:
-            # Call _post_audit_info for working directory, setting status to 'in progress'
-            _post_audit_info(
-                audit_api_url=audit_api_url,
-                path=kwargs["cwd"],
-                start_time=start_time,
-            )
-        except HTTPError as http_exception:
-            logger.error(
-                "An error occurred while connecting to audit API: %s", http_exception
-            )
+    if audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args):
+        for url in audit_api_urls:
+            try:
+                # Call _post_audit_info for working directory, setting status to 'in progress'
+                _post_audit_info(
+                    audit_api_url=url,
+                    path=kwargs["cwd"],
+                    start_time=start_time,
+                )
+            except HTTPError as http_exception:
+                logger.error("An error occurred while connecting to audit API: %s", http_exception)
 
     else:
         logger.info("No audit_api_url provided")
 
-    should_stream = bool(
-        audit_api_url and kwargs.get("cwd") and ("apply" in args or "destroy" in args)
-    )
+    should_stream = bool(audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args))
     chunk_seq = 0
 
     def _chunk_callback(content: str) -> None:
         nonlocal chunk_seq
-        try:
-            _post_log_chunk(
-                audit_api_url=audit_api_url,  # type: ignore[arg-type]
-                path=kwargs["cwd"],
-                start_time=start_time,
-                sequence=chunk_seq,
-                content=content,
-            )
-            chunk_seq += 1
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.warning("Failed to post log chunk %d: %s", chunk_seq, exc)
+        for url in audit_api_urls:
+            try:
+                _post_log_chunk(
+                    audit_api_url=url,
+                    path=kwargs["cwd"],
+                    start_time=start_time,
+                    sequence=chunk_seq,
+                    content=content,
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning("Failed to post log chunk %d to %s: %s", chunk_seq, url, exc)
+        chunk_seq += 1
 
     jitter = Jitter()
     time_passed = 0
@@ -163,21 +162,20 @@ def execute_command(
 
         time_passed = jitter.backoff()
 
-    if audit_api_url and kwargs["cwd"] and ("apply" in args or "destroy" in args):
+    if audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args):
         # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
-        try:
-            _post_audit_info(
-                audit_api_url=audit_api_url,
-                path=kwargs["cwd"],
-                exit_code=exit_code,
-                stdout=stdout,
-                start_time=start_time,
-                update=True,
-            )
-        except HTTPError as http_exception:
-            logger.error(
-                "An error occurred while connecting to audit API: %s", http_exception
-            )
+        for url in audit_api_urls:
+            try:
+                _post_audit_info(
+                    audit_api_url=url,
+                    path=kwargs["cwd"],
+                    exit_code=exit_code,
+                    stdout=stdout,
+                    start_time=start_time,
+                    update=True,
+                )
+            except HTTPError as http_exception:
+                logger.error("An error occurred while connecting to audit API: %s", http_exception)
     else:
         logger.info("No audit_api_url provided")
 
@@ -208,9 +206,7 @@ def _execute_command(
     :return: A tuple of the exit code and output of the command.
     """
     stdout_write, stdout_path = tempfile.mkstemp()
-    with open(stdout_path, "rb") as stdout_read, open(
-        "/dev/null", "w", encoding="utf-8"
-    ) as dev_null:
+    with open(stdout_path, "rb") as stdout_read, open("/dev/null", "w", encoding="utf-8") as dev_null:
         if print_command:
             print(f"Executing: {' '.join(args)}")
 
@@ -238,10 +234,7 @@ def _execute_command(
                 if output == "\n":
                     line_count += 1
                 now = time.time()
-                if (
-                    line_count >= CHUNK_LINE_COUNT
-                    or now - last_flush >= CHUNK_FLUSH_INTERVAL
-                ):
+                if line_count >= CHUNK_LINE_COUNT or now - last_flush >= CHUNK_FLUSH_INTERVAL:
                     on_chunk("".join(buf))
                     buf = []
                     line_count = 0
@@ -280,18 +273,12 @@ def _post_audit_info(
     path = path.replace(root, "")
 
     status = (
-        Status.IN_PROGRESS
-        if exit_code is None
-        else (Status.SUCCESS if exit_code == 0 else Status.FAILED)
+        Status.IN_PROGRESS if exit_code is None else (Status.SUCCESS if exit_code == 0 else Status.FAILED)
     )
 
     logger.info("Attempting to send data to Audit API: %s - %s", path, status)
 
-    url = (
-        (audit_api_url + AUDIT_UPDATE_PATH)
-        if update
-        else (audit_api_url + AUDIT_POST_PATH)
-    )
+    url = (audit_api_url + AUDIT_UPDATE_PATH) if update else (audit_api_url + AUDIT_POST_PATH)
 
     auth = BotoAWSRequestsAuth(
         aws_host=urlparse(audit_api_url).hostname,
@@ -306,6 +293,12 @@ def _post_audit_info(
         "start_time": start_time,
         "status": status,
         "git_hash": sha,
+        # Echo the CodeBuild build id so terraform-audit-api can correlate a
+        # UI-triggered apply back to its PENDING placeholder row. Empty string
+        # (not None) for pipeline/local applies with no CodeBuild build: the API
+        # deserializes build_id as a required str and rejects null, and treats ""
+        # as "no correlation" (reconcile is skipped).
+        "build_id": os.environ.get("CODEBUILD_BUILD_ID") or "",
     }
 
     if len(stdout_str) > OUTPUT_COMPRESSION_THRESHOLD:

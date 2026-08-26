@@ -1,9 +1,11 @@
-""" Holds graph utilities"""
+"""Holds graph utilities"""
 
 import os
 from pathlib import Path
-from typing import List, Tuple, Any, Dict, Set
+from typing import Any, Dict, List, Set, Tuple
+
 import networkx
+
 from terrawrap.exceptions import NoDependency
 from terrawrap.utils.config import walk_without_graph_directory
 
@@ -45,9 +47,7 @@ def find_source_nodes(graph: networkx.DiGraph) -> List[str]:
     return source_nodes
 
 
-def successors(
-    depth: int, node: str, graph: networkx.DiGraph
-) -> Tuple[int, str, List[str]]:
+def successors(depth: int, node: str, graph: networkx.DiGraph) -> Tuple[int, str, List[str]]:
     """
     For a given node in a given graph, return the node with it's successors.
     :param depth: The current depth of the successors
@@ -79,9 +79,7 @@ def generate_dependencies(nodes: List[str], graph: networkx.DiGraph) -> List[Any
     return dependencies
 
 
-def generate_helper(
-    nodes: List[str], graph: networkx.DiGraph, depth: int, path: List[Any]
-) -> List[str]:
+def generate_helper(nodes: List[str], graph: networkx.DiGraph, depth: int, path: List[Any]) -> List[str]:
     """
     The recursive helper function for generate_dependencies
     :param nodes: A list of nodes

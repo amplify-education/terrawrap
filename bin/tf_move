@@ -2,8 +2,8 @@
 """
 Terraform Wrapper Move
 
-This tool can be used to move terraform configuration from one directory to another (within the same environment)
-without having to recreate AWS resources.
+This tool can be used to move terraform configuration from one directory to another (within the same
+environment) without having to recreate AWS resources.
 
 Usage:
     tf_move [options] <source_path> <target_path>
@@ -11,7 +11,8 @@ Usage:
 
 Arguments:
     source_path             Valid terraform directory you wish to relocate.
-    target_path             Non-existent or empty directory to which terraform files will be moved. Must be inside the same environment.
+    target_path             Non-existent or empty directory to which terraform files will be moved.
+                             Must be inside the same environment.
 
 Options:
     -y                      Skip confirmation prompt.[default: False]
@@ -21,7 +22,6 @@ Options:
 
 import sys
 from pathlib import Path
-
 
 from docopt import docopt
 

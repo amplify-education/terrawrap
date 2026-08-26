@@ -1,4 +1,5 @@
 """Test git utilities"""
+
 import os
 from collections import namedtuple
 from unittest import TestCase

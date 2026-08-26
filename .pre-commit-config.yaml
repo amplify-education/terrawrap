@@ -25,11 +25,12 @@ repos:
     hooks:
       - id: mdformat
         name: Format markdown
-  - repo: https://github.com/psf/black
-    rev: 22.8.0
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.21
     hooks:
-      - id: black
-        language_version: python3.10
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
     hooks:
@@ -44,11 +45,4 @@ repos:
           - types-PyYAML==6.0.12.9
           - types-python-dateutil==2.8.19.12
           - types-pytz==2023.3.0.0
-  - repo: https://github.com/pycqa/pylint
-    rev: v3.3.1
-    hooks:
-      - id: pylint
-        name: pylint (Python Linting)
-        types: [python]
-        files: ^(terrawrap|test)/
-        args: [--rcfile=pylintrc, --output-format=colorized, --score=no]
+          - types-filelock>=3.0.12,<4

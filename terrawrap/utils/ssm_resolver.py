@@ -7,6 +7,7 @@ paths the caller cannot access (AccessDeniedException) or that do not exist
 skipped, SsmPathsExhausted is raised with the attempted paths and the
 caller's IAM identity to aid debugging.
 """
+
 import logging
 from typing import Dict, List, Optional
 
@@ -71,9 +72,7 @@ class SsmResolver:
             if cached is not _UNCACHED:
                 return cached  # type: ignore[return-value]
             try:
-                response = throttled_call(
-                    self._ssm().get_parameter, Name=path, WithDecryption=True
-                )
+                response = throttled_call(self._ssm().get_parameter, Name=path, WithDecryption=True)
             except ClientError as exc:
                 code = exc.response.get("Error", {}).get("Code", "")
                 if code in _FALLTHROUGH_ERROR_CODES:

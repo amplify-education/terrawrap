@@ -5,14 +5,109 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## \[0.10.26\] - 2026-06-30
+## \[0.11.5\] - 2026-08-26
 
 ### Added
 
 - Stream `terraform apply` output to the audit API as log chunks in real time,
   enabling the tfaudit frontend to poll and display live apply output.
   Chunks are flushed every 10 lines or 5 seconds (whichever comes first) via
-  a new `POST /log_chunk` IAM-authenticated endpoint on `audit_api_url`.
+  a new `POST /log_chunk` IAM-authenticated endpoint on `audit_api_url`. Chunks
+  are posted to every URL in `audit_api_url`, matching the multi-URL behavior
+  added in `0.11.4`.
+
+## \[0.11.4\] - 2026-07-23
+
+### Added
+
+- `audit_api_url` in `.tf_wrapper` now also accepts a list of URLs. Each apply/destroy
+  posts its audit info (initial "in progress" and the final status update) to every URL
+  in the list; a failure posting to one URL is logged and does not block the others.
+  A scalar value keeps the existing single-URL behavior. This lets an environment
+  report applies to more than one terraform-audit-api instance (e.g. devops-testing
+  applies feeding both the devops-testing and devops audit APIs).
+
+## \[0.11.3\] - 2026-07-21
+
+### Changed
+
+- Ported the `0.10.22`–`0.10.29` changes from `main` onto the `0.11.x` line (which
+  pins `python-hcl2~=8.1`): the multi-path SSM envvar support and `tf_validate` CLI,
+  the SigV4 `aws_host` derivation, the `504 Gateway Timeout` retry, the ruff
+  migration, the `mypy`/type-stub dependency cleanup, the `plan_check`
+  `--no-version-check` flow, and the `convert_plan_to_json` retry. All Terraform-file
+  parsing continues to route through the `terrawrap.utils.hcl` v8-compat wrappers.
+  See the `0.10.22`–`0.10.29` entries below for details.
+
+## \[0.11.2\] - 2026-05-27
+
+### Changed
+
+- Ported the `0.10.18`–`0.10.21` changes from `main` onto the `0.11.x` line: the
+  duplicate-`tfaudit`-records fix in the `GraphEntry` apply path, the `plan_check`
+  default-overridden `auto.tfvars` dependency fix, the multi-path SSM envvar support
+  and `tf_validate` CLI, and the SigV4 `aws_host` derivation. (PR #222)
+
+## \[0.11.1\] - 2026-05-14
+
+### Fixed
+
+- Suppress the release-candidate upgrade notice when a newer stable release already
+  exists. When PyPI carried both `0.11.0` and `0.11.0rc2`, users on `0.10.x` and
+  `0.11.x` were nudged to opt into the RC even though its final release had already
+  shipped; the notice now surfaces only when `latest_rc > latest_stable`. (PR #218)
+
+## \[0.11.0\] - 2026-05-05
+
+### Changed
+
+- Upgraded `python-hcl2` from `>=3,<4` to `~=8.1`. python-hcl2 v8 preserves quotes in
+  serialized strings and adds metadata markers, so all Terraform-file parsing now routes
+  through the new `terrawrap.utils.hcl` wrappers (`hcl2_load`/`hcl2_loads`), which apply
+  `SerializationOptions(strip_string_quotes=True, explicit_blocks=False, with_comments=False)`
+  to restore v7-style output. Callers in `config`, `config_mover`, `module`, and
+  `tf_variables` were migrated to the wrappers so the rest of the codebase keeps working
+  with plain dicts and unquoted string values. (PR #215)
+
+## \[0.10.29\] - 2026-07-20
+
+### Fixed
+
+- `convert_plan_to_json` retries `terraform show -json` once when the first attempt exits 0
+  but still produces no JSON. Observed intermittently in amplify-education/terraform-config
+  CI under `--parallel-jobs=16`, hitting a different directory on different runs each time
+  (never the same directory twice) — a same-input retry reliably clears it. Any non-zero
+  exit is still a hard failure and is never retried. `extract_show_json`'s error message
+  now also names the exit code and explicitly flags a genuinely empty capture, instead of
+  surfacing only whatever noise (e.g. the version-staleness banner below) happened to
+  precede the missing JSON.
+- `plan_check`'s nested `tf` subprocess calls (init, plan, and the show-to-JSON conversion)
+  now pass the new `tf --no-version-check` flag. Each of these calls previously re-ran its
+  own PyPI staleness check and printed a "Terrawrap is stale" banner to stderr, which
+  `execute_command`'s `capture_stderr=True` merges into the captured stdout — polluting
+  (and, in the failure above, dominating) the diagnostic output for real terraform errors.
+
+### Added
+
+- `tf --no-version-check`: skips the per-invocation PyPI staleness check. Intended for
+  callers like `plan_check` that invoke `tf` many times per run and already perform their
+  own check once at the top level.
+
+## \[0.10.28\] - 2026-07-18
+
+### Changed
+
+- Removed the vestigial `mypy` pin and moved `types-*` packages from `test-requirements.txt`
+  into the `mirrors-mypy` hook's `additional_dependencies`, where the pinned mypy the hook
+  actually runs can see them.
+
+## \[0.10.26\] - 2026-07-16
+
+### Changed
+
+- Replaced pylint, isort, and black with `ruff` (lint + format) in pre-commit. Reformatting to
+  ruff's 110-column line length reflowed docstrings, print strings, and CLI usage text across
+  `terrawrap/`, `test/`, and `bin/`; behavior is unchanged. (AT-14951)
 
 ## \[0.10.25\] - 2026-06-17
 

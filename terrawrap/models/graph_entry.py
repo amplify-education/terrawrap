@@ -1,7 +1,7 @@
 """Module for containing Graph Entries"""
-from abc import ABC, abstractmethod
 
 import os
+from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple
 
 from terrawrap.utils.cli import execute_command
@@ -20,9 +20,7 @@ class Entry(ABC):
     state = ""
 
     @abstractmethod
-    def execute(
-        self, operation: str, debug: bool = False
-    ) -> Tuple[int, List[str], bool]:
+    def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
         """Execute a graph entry"""
         return 0, [], False
 
@@ -35,9 +33,7 @@ class NoOpGraphEntry(Entry):
         self.variables = variables
         self.state = "no-op"
 
-    def execute(
-        self, operation: str, debug: bool = False
-    ) -> Tuple[int, List[str], bool]:
+    def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
         print(f"Skipping execute for {self.path} {operation} ...")
         return 0, [], False
 
@@ -59,9 +55,7 @@ class GraphEntry(Entry):
         self.state = "Pending"
 
     # pylint: disable=too-many-locals
-    def execute(
-        self, operation: str, debug: bool = False
-    ) -> Tuple[int, List[str], bool]:
+    def execute(self, operation: str, debug: bool = False) -> Tuple[int, List[str], bool]:
         """
         Function for executing this Graph Entry.
         :param operation: The Terraform operation to execute. IE: apply, plan
@@ -118,10 +112,7 @@ class GraphEntry(Entry):
             self.state = "Failed"
 
         changes_detected = True
-        if any(
-            "Resources: 0 added, 0 changed, 0 destroyed" in line
-            for line in operation_stdout
-        ):
+        if any("Resources: 0 added, 0 changed, 0 destroyed" in line for line in operation_stdout):
             changes_detected = False
 
         print(f"\nFinished executing {self.abs_path} {operation} ...")
