@@ -26,6 +26,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Union
@@ -117,6 +118,20 @@ def exec_tf_command(
         if response.lower().strip() != "y":
             print("Please do better by taking one of the appropriate precautions suggested above.")
             sys.exit(1)
+
+    if command == "console":
+        # `console` is an interactive REPL: terraform's own line editor decides
+        # whether to echo typed input based on whether stdout is a terminal.
+        # execute_command always redirects stdout to a plain file for retry/
+        # lock-recovery/audit purposes, none of which apply to console (it's
+        # never retried, has no lock/state error to recover from, and audit
+        # posting is gated to apply/destroy). Run it with inherited stdio
+        # instead so terraform sees a real terminal and echoes keystrokes.
+        sys.exit(
+            subprocess.run(
+                ["terraform", command] + arguments, cwd=path, env=command_env, check=False
+            ).returncode
+        )
 
     try_count = 0
     while True:
