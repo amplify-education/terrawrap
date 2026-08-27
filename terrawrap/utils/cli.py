@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 import base64
+import codecs
 import gzip
 import logging
 import os
@@ -192,14 +193,24 @@ def _execute_command(
         # pylint: disable=consider-using-with
         process = subprocess.Popen(args, *pargs, **kwargs)
 
+        # Terraform's output (e.g. the box-drawing characters in its error
+        # formatting) contains multi-byte UTF-8 sequences. Decoding one raw
+        # byte at a time would mangle those into replacement characters, so
+        # feed bytes through an incremental decoder that buffers only the
+        # 1-3 bytes of a single in-progress character - not whole lines -
+        # preserving the immediate, un-buffered flush that interactive
+        # terraform prompts (which don't end in a newline) rely on.
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         while True:
-            output = stdout_read.read(1).decode(errors="replace")
-
-            if output == "" and process.poll() is not None:
-                break
+            raw_byte = stdout_read.read(1)
+            is_eof = raw_byte == b"" and process.poll() is not None
+            output = decoder.decode(raw_byte, final=is_eof)
 
             if print_output and output:
                 print(output, end="", flush=True)
+
+            if is_eof:
+                break
 
         exit_code = process.poll()
 

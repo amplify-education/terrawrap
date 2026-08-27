@@ -26,6 +26,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Union
@@ -117,6 +118,25 @@ def exec_tf_command(
         if response.lower().strip() != "y":
             print("Please do better by taking one of the appropriate precautions suggested above.")
             sys.exit(1)
+
+    if command == "console":
+        # `console` is an interactive REPL: terraform's own line editor decides
+        # whether to echo typed input based on whether stdout is a terminal.
+        # execute_command always redirects stdout to a plain file to support
+        # retry/lock-and-digest recovery/audit posting. Audit posting is
+        # already gated to apply/destroy, so console never triggered it, but
+        # console does hold a state lock and can hit the same retriable
+        # network/digest-mismatch errors as other commands. Running it with
+        # inherited stdio deliberately forgoes terrawrap's auto-recovery for
+        # those, in exchange for a real terminal so terraform echoes
+        # keystrokes: a stale lock now surfaces terraform's raw error instead
+        # of being auto-force-unlocked, recoverable via
+        # `terraform force-unlock <lock-id>` in this same directory.
+        sys.exit(
+            subprocess.run(
+                ["terraform", command] + arguments, cwd=path, env=command_env, check=False
+            ).returncode
+        )
 
     try_count = 0
     while True:
