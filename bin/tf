@@ -122,11 +122,17 @@ def exec_tf_command(
     if command == "console":
         # `console` is an interactive REPL: terraform's own line editor decides
         # whether to echo typed input based on whether stdout is a terminal.
-        # execute_command always redirects stdout to a plain file for retry/
-        # lock-recovery/audit purposes, none of which apply to console (it's
-        # never retried, has no lock/state error to recover from, and audit
-        # posting is gated to apply/destroy). Run it with inherited stdio
-        # instead so terraform sees a real terminal and echoes keystrokes.
+        # execute_command always redirects stdout to a plain file to support
+        # retry/lock-recovery/audit posting. Audit posting is already gated to
+        # apply/destroy, so console never triggered it; console does hold a
+        # state lock and can hit the same retriable network errors as other
+        # commands, so running it with inherited stdio deliberately forgoes
+        # terrawrap's stale-lock auto-recovery and retry for it, in exchange
+        # for a real terminal so terraform echoes keystrokes. A stale lock
+        # left by e.g. a crashed CI apply now surfaces terraform's raw lock
+        # error instead of being auto-force-unlocked - an interactive user can
+        # resolve it with `tf <path> force-unlock` same as before this change
+        # existed for other commands.
         sys.exit(
             subprocess.run(
                 ["terraform", command] + arguments, cwd=path, env=command_env, check=False

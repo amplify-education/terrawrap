@@ -20,8 +20,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   through the same stdout-capture-to-file path as every other command, but
   terraform's own line editor only echoes keystrokes when it detects stdout is
   a real terminal. `console` now execs terraform directly with inherited
-  stdio, skipping the capture/retry/audit machinery that doesn't apply to an
-  interactive REPL anyway.
+  stdio. Audit posting is already gated to apply/destroy so this doesn't
+  change that, but it does deliberately give up terrawrap's stale-lock
+  auto-recovery and network-error retry for `console` specifically, in
+  exchange for a working terminal; a stale lock now surfaces terraform's raw
+  error instead of being auto-unlocked, recoverable the same way any other
+  stale lock is (`tf <path> force-unlock`).
 
 ## \[0.11.4\] - 2026-07-23
 

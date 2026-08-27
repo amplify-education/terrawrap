@@ -59,7 +59,10 @@ class TestExecTfCommandConsole(TestCase):
 
     def test_console_runs_with_inherited_stdio_and_skips_execute_command(self):
         """console execs terraform directly (no stdout/stdin redirection) and
-        never goes through the capture-to-file path used by other commands."""
+        never goes through the capture-to-file path used by other commands.
+        Variables reach terraform only via TF_VAR_* env (console never gets
+        `-var` arguments appended), so `env` must still carry them through the
+        bypass."""
         with (
             patch.object(self.mod, "execute_command") as mock_execute_command,
             patch.object(self.mod.subprocess, "run") as mock_run,
@@ -70,9 +73,9 @@ class TestExecTfCommandConsole(TestCase):
                 self.mod.exec_tf_command(
                     command="console",
                     path="/some/path",
-                    variables={},
-                    arguments=["-var", "foo=bar"],
-                    additional_envvars={},
+                    variables={"foo": "bar"},
+                    arguments=[],
+                    additional_envvars={"EXTRA_ENVVAR": "baz"},
                     audit_api_url=None,
                 )
 
@@ -80,8 +83,10 @@ class TestExecTfCommandConsole(TestCase):
         mock_execute_command.assert_not_called()
         mock_run.assert_called_once()
         called_args, called_kwargs = mock_run.call_args
-        self.assertEqual(called_args[0], ["terraform", "console", "-var", "foo=bar"])
+        self.assertEqual(called_args[0], ["terraform", "console"])
         self.assertEqual(called_kwargs["cwd"], "/some/path")
+        self.assertEqual(called_kwargs["env"]["TF_VAR_foo"], "bar")
+        self.assertEqual(called_kwargs["env"]["EXTRA_ENVVAR"], "baz")
         self.assertNotIn("stdout", called_kwargs)
         self.assertNotIn("stdin", called_kwargs)
 
