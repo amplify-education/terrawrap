@@ -44,6 +44,77 @@ class TestCli(TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(stdout, [])
 
+    def _run_with_stdout_bytes(self, payload: bytes, *, poll_results=(0,)):
+        """Feed `payload` into the temp file terrawrap streams from, as if a
+        subprocess had written it, then run execute_command against it.
+        `poll_results` is returned from successive process.poll() calls (the
+        last value repeats once exhausted), letting a test simulate the
+        process still running for a while before it exits.
+        Returns (exit_code, stdout, printed_text)."""
+
+        def fake_popen(_args, *_pargs, **kwargs):
+            os.write(kwargs["stdout"], payload)
+            return self.mock_process
+
+        def poll_side_effect(_results=list(poll_results)):
+            return _results.pop(0) if len(_results) > 1 else _results[0]
+
+        self.mock_popen.side_effect = fake_popen
+        self.mock_process.poll.side_effect = poll_side_effect
+
+        with patch("builtins.print") as mock_print:
+            exit_code, stdout = execute_command(["echo"])
+
+        printed_chunks = [print_call.args[0] for print_call in mock_print.call_args_list]
+        return exit_code, stdout, printed_chunks
+
+    def test_execute_command_decodes_multibyte_utf8_split_across_reads(self):
+        """Terraform's box-drawing characters (e.g. U+2502) are multi-byte UTF-8
+        sequences. Reading/decoding one raw byte at a time used to mangle each
+        byte into its own U+FFFD replacement character; the incremental decoder
+        must reassemble the full character instead."""
+        payload = "│ lock info\n".encode("utf-8")
+
+        _, stdout, printed_chunks = self._run_with_stdout_bytes(payload)
+        printed = "".join(printed_chunks)
+
+        self.assertEqual(printed, "│ lock info\n")
+        self.assertNotIn("�", printed)
+        self.assertEqual(stdout, ["│ lock info\n"])
+        # The 3-byte "│" sequence collapses into a single decoded character
+        # rather than 3 separate (mangled) print calls.
+        self.assertEqual(printed_chunks[0], "│")
+
+    def test_execute_command_flushes_prompt_without_trailing_newline(self):
+        """A terraform prompt (e.g. `Enter a value:`) has no trailing newline
+        and still must reach the user immediately, not be withheld waiting for
+        a newline or process exit - otherwise interactive `apply` runs would
+        appear to hang while actually waiting on stdin."""
+        prompt = b"Enter a value: "
+
+        # poll() reports "still running" for the first couple of checks after
+        # the prompt bytes are read, so the read loop can't rely on process
+        # exit to flush output - it must print as soon as each character is
+        # decodable, not buffer until EOF.
+        _, _, printed_chunks = self._run_with_stdout_bytes(prompt, poll_results=(None, None, 0))
+
+        self.assertEqual("".join(printed_chunks), "Enter a value: ")
+        # Each ASCII byte is printed as its own chunk as soon as it's decoded,
+        # proving output isn't batched/withheld until the process exits.
+        self.assertEqual(len(printed_chunks), len(prompt))
+
+    def test_execute_command_replaces_truncated_multibyte_sequence_at_eof(self):
+        """A multi-byte sequence truncated by process exit (e.g. output cut off
+        mid-character) is replaced, not left buffered forever - proving the
+        incremental decoder's final flush can't hang the read loop."""
+        truncated = b"\xe2\x94"  # first two of three bytes of U+2502
+
+        exit_code, stdout, printed_chunks = self._run_with_stdout_bytes(truncated)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual("".join(printed_chunks), "�")
+        self.assertEqual(stdout, ["�"])
+
     @patch("terrawrap.utils.cli._get_retriable_errors")
     @patch("io.open")
     def test_execute_command_retry(self, mock_open, mock_network_error):

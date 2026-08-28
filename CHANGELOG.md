@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## \[0.11.5\] - 2026-08-26
+## \[0.11.6\] - 2026-08-28
 
 ### Added
 
@@ -15,6 +15,28 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a new `POST /log_chunk` IAM-authenticated endpoint on `audit_api_url`. Chunks
   are posted to every URL in `audit_api_url`, matching the multi-URL behavior
   added in `0.11.4`.
+
+## \[0.11.5\] - 2026-08-27
+
+### Fixed
+
+- Terraform output streamed through `tf` (e.g. the box-drawing characters in its
+  error-lock formatting) no longer gets mangled into `U+FFFD` replacement
+  characters. `_execute_command` decoded each raw byte independently, which
+  broke multi-byte UTF-8 sequences apart; it now feeds bytes through an
+  incremental UTF-8 decoder that reassembles full characters while still
+  flushing output immediately (not line-buffered), so interactive terraform
+  prompts still display without delay.
+- `tf <path> console` no longer swallows typed input. `console` was routed
+  through the same stdout-capture-to-file path as every other command, but
+  terraform's own line editor only echoes keystrokes when it detects stdout is
+  a real terminal. `console` now execs terraform directly with inherited
+  stdio. Audit posting is already gated to apply/destroy so this doesn't
+  change that, but it does deliberately give up terrawrap's stale-lock/
+  digest-mismatch auto-recovery and network-error retry for `console`
+  specifically, in exchange for a working terminal; a stale lock now surfaces
+  terraform's raw error instead of being auto-unlocked, recoverable via
+  `terraform force-unlock <lock-id>` in that directory.
 
 ## \[0.11.4\] - 2026-07-23
 

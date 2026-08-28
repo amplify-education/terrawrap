@@ -4,6 +4,7 @@ import importlib.machinery
 import importlib.util
 import os
 from unittest import TestCase
+from unittest.mock import patch
 
 _BIN_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "bin", "tf"))
 
@@ -45,3 +46,63 @@ class TestProcessArguments(TestCase):
             ["tf", "--no-resolve-envvars", "--no-version-check", "dir", "init", "-upgrade"]
         )
         self.assertEqual(result, ("dir", "init", ["-upgrade"], False, True))
+
+
+class TestExecTfCommandConsole(TestCase):
+    """`console` bypasses execute_command's capture-to-file path entirely,
+    since terraform's own line editor only echoes typed input when it detects
+    stdout is a real terminal."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_tf_module()
+
+    def test_console_runs_with_inherited_stdio_and_skips_execute_command(self):
+        """console execs terraform directly (no stdout/stdin redirection) and
+        never goes through the capture-to-file path used by other commands.
+        Variables reach terraform only via TF_VAR_* env (console never gets
+        `-var` arguments appended), so `env` must still carry them through the
+        bypass."""
+        with (
+            patch.object(self.mod, "execute_command") as mock_execute_command,
+            patch.object(self.mod.subprocess, "run") as mock_run,
+        ):
+            mock_run.return_value.returncode = 0
+
+            with self.assertRaises(SystemExit) as raised:
+                self.mod.exec_tf_command(
+                    command="console",
+                    path="/some/path",
+                    variables={"foo": "bar"},
+                    arguments=[],
+                    additional_envvars={"EXTRA_ENVVAR": "baz"},
+                    audit_api_url=None,
+                )
+
+        self.assertEqual(raised.exception.code, 0)
+        mock_execute_command.assert_not_called()
+        mock_run.assert_called_once()
+        called_args, called_kwargs = mock_run.call_args
+        self.assertEqual(called_args[0], ["terraform", "console"])
+        self.assertEqual(called_kwargs["cwd"], "/some/path")
+        self.assertEqual(called_kwargs["env"]["TF_VAR_foo"], "bar")
+        self.assertEqual(called_kwargs["env"]["EXTRA_ENVVAR"], "baz")
+        self.assertNotIn("stdout", called_kwargs)
+        self.assertNotIn("stdin", called_kwargs)
+
+    def test_console_exits_with_terraform_return_code(self):
+        """A non-zero console exit code (e.g. Ctrl-D vs. a crash) propagates."""
+        with patch.object(self.mod, "execute_command"), patch.object(self.mod.subprocess, "run") as mock_run:
+            mock_run.return_value.returncode = 1
+
+            with self.assertRaises(SystemExit) as raised:
+                self.mod.exec_tf_command(
+                    command="console",
+                    path="/some/path",
+                    variables={},
+                    arguments=[],
+                    additional_envvars={},
+                    audit_api_url=None,
+                )
+
+        self.assertEqual(raised.exception.code, 1)
