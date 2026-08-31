@@ -4,7 +4,15 @@ The schema check loads each file through :func:`parse_wrapper_configs` and
 surfaces deserialization errors with their file path. The repair step ports
 ``scripts/check_tf_wrapper.sh`` from terraform-config: it prunes dead
 ``depends_on`` entries and back-fills ``depends_on: []`` on referenced
-targets that lack one (graph_apply requires the array to exist).
+targets that lack one.
+
+A missing ``depends_on`` and an explicit ``depends_on: []`` are not fully
+equivalent: as a *dependency target* (``graph_wrapper_dependencies``), both
+are a leaf with no further dependencies. But a directory walked directly
+with a missing ``depends_on`` is scheduled in the unordered post-graph batch
+instead of the ordered dependency graph (``walk_and_graph_directory``), so
+the back-fill still changes scheduling and inherited-dependency resolution
+for directories nobody else's ``depends_on`` references.
 """
 
 import logging

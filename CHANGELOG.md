@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.6\] - 2026-08-31
+
+### Fixed
+
+- A directory listed in another directory's `depends_on` no longer needs its own
+  `.tf_wrapper` (or a `depends_on` key in it) to avoid crashing `graph_apply`/`graph_wrapper`
+  dependency-graph construction with `Cannot list a dependency without tf_wrapper dependency configuration` / `sys.exit(1)`. A dependency target with no `.tf_wrapper`, or one that
+  doesn't declare `depends_on`, is now treated as a leaf with no further dependencies of its
+  own — the directory declaring the dependency carries that responsibility, not the target.
+  `walk_and_graph_directory` also no longer double-schedules such a target: previously it
+  could land in both the ordered dependency graph and the unordered post-graph batch, causing
+  it to apply twice.
+- A `depends_on` entry pointing at a directory with no Terraform config (no `.tf` files) is
+  now skipped, with a printed message naming it, instead of silently entering the graph and
+  having `terraform init`/`apply` run against it.
+
+### Changed
+
+- A `depends_on` entry pointing at a target with `apply_automatically: false` is now a hard
+  failure (`graph_wrapper_dependencies` prints an explanation and exits) instead of either
+  auto-applying the manually-managed target (the old bug) or silently excluding it from the
+  graph. Excluding it can't actually preserve the dependent's ordering guarantee — a no-op
+  placeholder wouldn't gate anything either, since `ApplyGraph._can_be_applied` treats a
+  no-op predecessor as already satisfied — so there's no way to honor the dependency short of
+  stopping and making the author resolve it explicitly: either drop the dependency, or set
+  `apply_automatically: true` on the target.
+
 ## \[0.11.5\] - 2026-08-27
 
 ### Fixed
