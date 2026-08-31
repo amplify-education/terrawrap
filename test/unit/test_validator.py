@@ -17,6 +17,7 @@ from terrawrap.utils.validator import (
     find_tf_wrappers,
     fix_depends_on,
     validate_and_fix,
+    validate_depends_on,
     validate_schema,
 )
 
@@ -239,6 +240,89 @@ class TestFixDependsOn(TestCase):
         consumer_yaml = self._read_yaml(os.path.join(self.config_dir, "foo/consumer/.tf_wrapper"))
         self.assertEqual(["../sibling"], consumer_yaml["depends_on"])
 
+    def test_relative_dep_prefers_file_local_over_coincidental_repo_root_match(self):
+        """A '../x' entry resolves against the file's own directory even when repo_root/x also exists.
+
+        Regression guard: resolving repo-root-relative first could silently pick an unrelated
+        directory that happens to share a name with the intended sibling.
+        """
+        self._make_dir("foo")
+        self._make_dir("foo/sibling")
+        self._make_dir("sibling")  # coincidental repo-root/sibling — must NOT be the resolved target
+        self._write_wrapper(
+            "foo/consumer",
+            """
+            depends_on:
+              - ../sibling
+            """,
+        )
+
+        fix_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
+
+        correct_target = os.path.join(self.config_dir, "foo/sibling", ".tf_wrapper")
+        wrong_target = os.path.join(self.config_dir, "sibling", ".tf_wrapper")
+        self.assertTrue(os.path.isfile(correct_target))
+        self.assertFalse(os.path.isfile(wrong_target))
+
+    def test_missing_target_wrapper_is_created(self):
+        """A depends_on target with no .tf_wrapper at all gets one created with depends_on: [].
+
+        Regression guard: a target directory with no .tf_wrapper broke graph_apply for the
+        whole tree (see the validator module docstring).
+        """
+        target_dir = self._make_dir("target")
+        self._write_wrapper(
+            "consumer",
+            """
+            depends_on:
+              - config/target
+            """,
+        )
+
+        changed = fix_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
+
+        target_wrapper = os.path.join(target_dir, ".tf_wrapper")
+        self.assertIn(os.path.realpath(target_wrapper), [os.path.realpath(p) for p in changed])
+        self.assertEqual([], self._read_yaml(target_wrapper)["depends_on"])
+
+    def test_missing_target_outside_repo_root_is_not_created(self):
+        """--fix refuses to create a .tf_wrapper for a target that resolves outside repo_root.
+
+        Regression guard: a depends_on entry with enough '../' segments (or one that
+        coincidentally matches a directory elsewhere) must never cause a write outside the repo.
+        """
+        outside_dir = tempfile.mkdtemp(prefix="terrawrap_outside_")
+        self.addCleanup(shutil.rmtree, outside_dir, ignore_errors=True)
+        self._write_wrapper(
+            "consumer",
+            f"""
+            depends_on:
+              - {outside_dir}
+            """,
+        )
+
+        changed = fix_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
+
+        self.assertEqual([], changed)
+        self.assertFalse(os.path.isfile(os.path.join(outside_dir, ".tf_wrapper")))
+
+    def test_malformed_target_wrapper_is_left_untouched(self):
+        """--fix does not rewrite a target .tf_wrapper that isn't a valid YAML mapping."""
+        target_wrapper = self._write_wrapper("target", "# just a comment\n")
+        self._write_wrapper(
+            "consumer",
+            """
+            depends_on:
+              - config/target
+            """,
+        )
+
+        changed = fix_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
+
+        self.assertEqual([], changed)
+        with open(target_wrapper, encoding="utf-8") as handle:
+            self.assertEqual("# just a comment\n", handle.read())
+
     def test_comments_are_preserved_after_rewrite(self):
         """YAML comments in a .tf_wrapper survive a --fix rewrite (ruamel round-trip)."""
         self._make_dir("real_dep")
@@ -253,6 +337,133 @@ class TestFixDependsOn(TestCase):
             raw = handle.read()
         self.assertIn("# important: managed by team-X", raw)
         self.assertEqual([], self._read_yaml(consumer)["depends_on"])
+
+
+class TestValidateDependsOn(TestCase):
+    """validate_depends_on flags depends_on targets that don't declare depends_on themselves."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="terrawrap_depcheck_")
+        self.config_dir = os.path.join(self.tmpdir, "config")
+        os.makedirs(self.config_dir)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _make_dir(self, rel: str) -> str:
+        path = os.path.join(self.config_dir, rel)
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def _write_wrapper(self, rel: str, body: str) -> str:
+        directory = self._make_dir(rel)
+        path = os.path.join(directory, ".tf_wrapper")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(textwrap.dedent(body).lstrip())
+        return path
+
+    def test_target_missing_wrapper_is_an_error(self):
+        """A depends_on target with no .tf_wrapper at all is reported."""
+        self._make_dir("target")
+        self._write_wrapper(
+            "consumer",
+            """
+            depends_on:
+              - config/target
+            """,
+        )
+
+        errors = validate_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
+
+        self.assertEqual(1, len(errors))
+        self.assertIn("config/target", errors[0])
+
+    def test_target_without_depends_on_key_is_an_error(self):
+        """A depends_on target whose .tf_wrapper doesn't declare depends_on is reported."""
+        self._write_wrapper("target", "backend_check: true\n")
+        self._write_wrapper(
+            "consumer",
+            """
+            depends_on:
+              - config/target
+            """,
+        )
+
+        errors = validate_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
+
+        self.assertEqual(1, len(errors))
+        self.assertIn("depends_on", errors[0])
+
+    def test_malformed_target_wrapper_is_an_error(self):
+        """A depends_on target whose .tf_wrapper exists but isn't a valid YAML mapping is reported.
+
+        Regression guard: previously indistinguishable from "missing file" via _load_yaml's
+        overloaded None return, so this case was silently skipped by both branches.
+        """
+        self._write_wrapper("target", "# just a comment\n")
+        self._write_wrapper(
+            "consumer",
+            """
+            depends_on:
+              - config/target
+            """,
+        )
+
+        errors = validate_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
+
+        self.assertEqual(1, len(errors))
+        self.assertIn("valid YAML mapping", errors[0])
+
+    def test_compliant_target_produces_no_error(self):
+        """A target that declares depends_on (even empty) passes."""
+        self._write_wrapper("target", "depends_on: []\n")
+        self._write_wrapper(
+            "consumer",
+            """
+            depends_on:
+              - config/target
+            """,
+        )
+
+        errors = validate_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
+
+        self.assertEqual([], errors)
+
+    def test_dead_dependency_is_not_reported(self):
+        """A depends_on entry that doesn't resolve to any directory is out of scope for this check."""
+        self._write_wrapper(
+            "consumer",
+            """
+            depends_on:
+              - config/ghost
+            """,
+        )
+
+        errors = validate_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
+
+        self.assertEqual([], errors)
+
+    def test_broken_target_referenced_twice_reports_once(self):
+        """Multiple referrers to the same broken target produce a single deduplicated error."""
+        self._make_dir("target")
+        self._write_wrapper(
+            "consumer_a",
+            """
+            depends_on:
+              - config/target
+            """,
+        )
+        self._write_wrapper(
+            "consumer_b",
+            """
+            depends_on:
+              - config/target
+            """,
+        )
+
+        errors = validate_depends_on(find_tf_wrappers(self.tmpdir), self.tmpdir)
+
+        self.assertEqual(1, len(errors))
 
 
 class TestValidateAndFix(TestCase):
@@ -322,6 +533,39 @@ class TestValidateAndFix(TestCase):
         with open(consumer, encoding="utf-8") as handle:
             after = handle.read()
         self.assertEqual(before, after)
+
+    def test_missing_target_wrapper_is_an_error_without_fix(self):
+        """A depends_on target with no .tf_wrapper surfaces as an error when fix=False."""
+        self._make_dir("target")
+        self._write_wrapper(
+            "consumer",
+            """
+            depends_on:
+              - config/target
+            """,
+        )
+
+        errors, changed = validate_and_fix(self.tmpdir, fix=False)
+
+        self.assertEqual([], changed)
+        self.assertEqual(1, len(errors))
+        self.assertIn("config/target", errors[0])
+
+    def test_fix_true_resolves_the_missing_target_wrapper_case(self):
+        """--fix creates the missing target .tf_wrapper, leaving no depends_on errors behind."""
+        self._make_dir("target")
+        self._write_wrapper(
+            "consumer",
+            """
+            depends_on:
+              - config/target
+            """,
+        )
+
+        errors, changed = validate_and_fix(self.tmpdir, fix=True)
+
+        self.assertEqual([], errors)
+        self.assertEqual(1, len(changed))
 
 
 class TestTfValidateMain(TestCase):

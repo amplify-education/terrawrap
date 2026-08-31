@@ -2,13 +2,17 @@
 """tf_validate — validate (and optionally repair) .tf_wrapper files.
 
 Walks the given directory recursively, schema-checks every .tf_wrapper, and
-prints any errors. With --fix, also prunes dead `depends_on` entries and
-back-fills `depends_on: []` on referenced targets (matches the behavior of
-the legacy scripts/check_tf_wrapper.sh in terraform-config).
+prints any errors. Every depends_on target must itself declare a depends_on
+key in its own .tf_wrapper — graph_apply aborts the whole tree otherwise — so
+a missing file or missing key on a target is reported as an error. The fix
+flag also prunes dead `depends_on` entries and back-fills `depends_on: []`
+on referenced targets, creating their .tf_wrapper if it doesn't exist
+(matches the behavior of the legacy scripts/check_tf_wrapper.sh in
+terraform-config, plus the missing-file case).
 
 Exit codes:
-    0   No schema errors and (with --fix) no files were modified.
-    1   Schema errors found, or (with --fix) one or more files were rewritten.
+    0   No schema/depends_on errors and (with --fix) no files were modified.
+    1   Errors found, or (with --fix) one or more files were rewritten.
     2   --path is not a directory.
 
 Usage:
@@ -18,9 +22,9 @@ Usage:
 Options:
     -h, --help          Show this message and exit.
     -p, --path=PATH     Repo root to walk for .tf_wrapper files. Must be the
-                        repository root (not a subdirectory) when using --fix,
-                        because depends_on entries like 'config/...' are
-                        resolved relative to this path [default: .].
+                        repository root (not a subdirectory), because
+                        depends_on entries like 'config/...' are resolved
+                        relative to this path [default: .].
     --fix               Repair fixable issues (depends_on cleanup) before
                         validating. Exits 1 when files are rewritten so CI
                         dirty-tree checks fire.

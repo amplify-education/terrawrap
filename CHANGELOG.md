@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.6\] - 2026-08-31
+
+### Added
+
+- `tf_validate` now reports an error when a `depends_on` target's own
+  `.tf_wrapper` doesn't declare a `depends_on` key (missing file or missing
+  key). `graph_wrapper_dependencies` recurses into every `depends_on` target
+  and aborts the whole apply if that target lacks one. `tf_validate --fix`
+  now also creates the target's `.tf_wrapper` from scratch (with
+  `depends_on: []`) when it's missing entirely, previously it only
+  back-filled the key on an existing file.
+
+### Fixed
+
+- `tf_validate --fix`'s dependency resolution now tries a `depends_on` entry
+  relative to its own `.tf_wrapper`'s directory before falling back to the
+  repo root, instead of the reverse. A `../sibling`-style entry could
+  previously resolve to an unrelated directory outside the repo that
+  happened to share the sibling's name.
+
 ## \[0.11.5\] - 2026-08-27
 
 ### Fixed
