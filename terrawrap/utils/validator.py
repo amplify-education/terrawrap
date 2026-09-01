@@ -7,12 +7,20 @@ surfaces deserialization errors with their file path. The repair step ports
 targets that lack one.
 
 A missing ``depends_on`` and an explicit ``depends_on: []`` are not fully
-equivalent: as a *dependency target* (``graph_wrapper_dependencies``), both
-are a leaf with no further dependencies. But a directory walked directly
-with a missing ``depends_on`` is scheduled in the unordered post-graph batch
-instead of the ordered dependency graph (``walk_and_graph_directory``), so
-the back-fill still changes scheduling and inherited-dependency resolution
-for directories nobody else's ``depends_on`` references.
+equivalent: as a *dependency target* with Terraform config of its own
+(``graph_wrapper_dependencies``), both are a leaf with no further
+dependencies — this back-fill has no effect on a target's own dependency
+resolution. A target with no ``.tf`` files is a separate case the back-fill
+doesn't address: it's excluded from the graph regardless of ``depends_on``,
+though its own dependencies (if any) are still flattened onto whatever
+depends on it. But a directory walked directly with a missing ``depends_on``
+is scheduled in the unordered post-graph batch instead of the ordered
+dependency graph (``walk_and_graph_directory``), so the back-fill still
+changes scheduling and inherited-dependency resolution for directories
+nobody else's ``depends_on`` references. That scheduling effect is
+inherited from the back-fill's original purpose (graph_apply required the
+key to exist at all) rather than a scheduling knob chosen on its own
+merits — it isn't revisited here.
 """
 
 import logging

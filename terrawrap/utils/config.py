@@ -2,7 +2,7 @@
 
 import os
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import jsons
 import networkx
@@ -209,8 +209,22 @@ def _load_wrapper_config(config_dir: str, config_dict) -> WrapperConfig:
     return wrapper_config_obj
 
 
-def _graph_dependency(dependency: str, config_dir: str, config_dict, graph: networkx.DiGraph) -> bool:
-    """Add a dependency node/edge unless the target has no Terraform config.
+def _graph_dependency(
+    dependency: str,
+    config_dir: str,
+    config_dict,
+    graph: networkx.DiGraph,
+    seen: Optional[Set[str]] = None,
+) -> bool:
+    """Add a dependency edge, transparently flattening pass-through targets.
+
+    A target with no Terraform config of its own (e.g. a directory whose .tf_wrapper exists only
+    to declare its own depends_on) is never added as a node — there's nothing to apply — but its
+    dependents still need whatever *it* depends on, so its own depends_on entries are resolved
+    recursively and wired directly onto config_dir instead, skipping the pass-through target.
+    Only the pass-through target's own depends_on is followed this way; a dependency it would
+    otherwise inherit from an ancestor .tf_wrapper is not, since that climb only happens for
+    directories that reach graph_wrapper_dependencies as a real graphed node.
 
     A dependency with apply_automatically: false is a hard failure rather than a skip: excluding
     it from the graph would silently drop the ordering guarantee its dependents rely on, and a
@@ -218,12 +232,22 @@ def _graph_dependency(dependency: str, config_dir: str, config_dict, graph: netw
     predecessor as already satisfied) — so there is no way to honor the dependency short of
     stopping and making the author resolve it explicitly.
 
-    :return: True if the dependency was added.
+    :return: True if the dependency (or one of its own flattened dependencies) was added.
     """
+    if seen is None:
+        seen = set()
+    if dependency in seen:
+        return False
+    seen.add(dependency)
+
     dependency_wrapper_config_obj = _load_wrapper_config(dependency, config_dict)
     if not dependency_wrapper_config_obj.config:
         print(f"Skipping dependency {dependency}: not a Terraform config directory")
-        return False
+        added = False
+        for transitive_dependency in dependency_wrapper_config_obj.depends_on or []:
+            if _graph_dependency(transitive_dependency, config_dir, config_dict, graph, seen):
+                added = True
+        return added
     if not dependency_wrapper_config_obj.apply_automatically:
         print(
             f"Cannot depend on {dependency}: apply_automatically is set to False, so "

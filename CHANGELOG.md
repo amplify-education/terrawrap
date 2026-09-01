@@ -18,8 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   could land in both the ordered dependency graph and the unordered post-graph batch, causing
   it to apply twice.
 - A `depends_on` entry pointing at a directory with no Terraform config (no `.tf` files) is
-  now skipped, with a printed message naming it, instead of silently entering the graph and
-  having `terraform init`/`apply` run against it.
+  now excluded from the graph as a node, with a printed message naming it, instead of silently
+  entering the graph and having `terraform init`/`apply` run against it. Its own `depends_on`
+  entries, if any, are still resolved and wired directly onto the original dependent, so a
+  chain running through such a pass-through target keeps its ordering guarantee instead of
+  losing it.
 
 ### Changed
 

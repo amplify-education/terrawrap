@@ -66,8 +66,9 @@ class TestConfig(TestCase):
 
         self.assertTrue(networkx.is_isomorphic(actual_graph, expected_graph))
 
-    def test_graph_wrapper_dependencies_target_without_tf_wrapper(self):
-        """A depends_on target with no .tf_wrapper file at all is treated as a leaf, not an error"""
+    def test_dependency_target_without_wrapper(self):
+        """A depends_on target is treated as a leaf whether it has no .tf_wrapper at all (app_b),
+        a .tf_wrapper with no depends_on key (app_c), or is excluded for having no .tf files (app_e)."""
         actual_graph = networkx.DiGraph()
         visited = []
         current_dir = os.path.join(
@@ -97,7 +98,7 @@ class TestConfig(TestCase):
         self.assertTrue(actual_graph.has_edge(app_c, app_a))
         self.assertNotIn(app_e, actual_graph.nodes)
 
-    def test_graph_wrapper_dependencies_manual_target_fails_loudly(self):
+    def test_manual_target_fails_loudly(self):
         """Depending on an apply_automatically: false target cannot honor the dependent's
         ordering guarantee (a no-op node wouldn't gate anything, per ApplyGraph._can_be_applied),
         so this is a hard failure rather than a silent skip."""
@@ -111,7 +112,7 @@ class TestConfig(TestCase):
         with self.assertRaises(SystemExit):
             graph_wrapper_dependencies(current_dir, self.config_dict, actual_graph, visited)
 
-    def test_graph_wrapper_dependencies_closest_ancestor_stops_climb_even_if_not_automatic(self):
+    def test_closest_ancestor_stops_climb(self):
         """The closest ancestor's depends_on stops the inheritance climb even when every entry in
         it is excluded from the graph (here, no .tf files), so a more distant ancestor's
         dependency isn't pulled in."""
@@ -136,7 +137,7 @@ class TestConfig(TestCase):
         self.assertNotIn(near_dep, actual_graph.nodes)
         self.assertNotIn(far_dep, actual_graph.nodes)
 
-    def test_graph_wrapper_dependencies_config_dir_never_graphed(self):
+    def test_config_dir_never_graphed(self):
         """A config_dir with no .tf files and no depends_on is never added as a graph node;
         the predecessors lookup at the end must not crash (e.g. bin/visualize --singular <path>)."""
         actual_graph = networkx.DiGraph()
@@ -149,6 +150,32 @@ class TestConfig(TestCase):
         graph_wrapper_dependencies(current_dir, self.config_dict, actual_graph, visited)
 
         self.assertNotIn(current_dir, actual_graph.nodes)
+
+    def test_relay_target_flattens_through(self):
+        """A depends_on target with no .tf files but its own depends_on (a relay) is excluded
+        from the graph, but its dependency is flattened through onto the original dependent
+        instead of being dropped, which would otherwise invert apply order."""
+        actual_graph = networkx.DiGraph()
+        visited = []
+        current_dir = os.path.join(
+            os.getcwd(),
+            "mock_relay_dependency_directory/config/dependent",
+        )
+        graph_wrapper_dependencies(current_dir, self.config_dict, actual_graph, visited)
+
+        relay = os.path.join(
+            os.getcwd(),
+            "mock_relay_dependency_directory/config/relay",
+        )
+        leaf = os.path.join(
+            os.getcwd(),
+            "mock_relay_dependency_directory/config/leaf",
+        )
+
+        self.assertIn(current_dir, actual_graph.nodes)
+        self.assertIn(leaf, actual_graph.nodes)
+        self.assertNotIn(relay, actual_graph.nodes)
+        self.assertTrue(actual_graph.has_edge(leaf, current_dir))
 
     def test_walk_and_graph_directory(self):
         """Test dependency graph for a recursive dependency"""
@@ -192,7 +219,7 @@ class TestConfig(TestCase):
         self.assertTrue(app9 not in actual_graph.nodes)
         self.assertTrue(app9 not in actual_post_graph)
 
-    def test_walk_and_graph_directory_dependency_target_without_tf_wrapper(self):
+    def test_walk_dependency_without_wrapper(self):
         """A depends_on target with no .tf_wrapper (or none with a depends_on key) is graphed as a
         leaf and is not also scheduled a second time in the unordered post-graph batch."""
         starting_dir = os.path.join(os.getcwd(), "mock_missing_wrapper_directory/config")
@@ -213,7 +240,22 @@ class TestConfig(TestCase):
         self.assertNotIn(app_e, actual_graph.nodes)
         self.assertNotIn(app_e, actual_post_graph)
 
-    def test_graph_wrapper_dependencies_prints_when_excluding_a_dependency(self):
+    def test_walk_relay_target_flattens_through(self):
+        """Walking a relay chain (dependent -> relay, no .tf files -> leaf) keeps leaf in the
+        ordered graph, wired directly onto dependent, instead of dropping it into the unordered
+        post-graph batch where it could apply after dependent instead of before."""
+        starting_dir = os.path.join(os.getcwd(), "mock_relay_dependency_directory/config")
+        actual_graph, actual_post_graph = walk_and_graph_directory(starting_dir, self.config_dict)
+
+        dependent = os.path.join(os.getcwd(), "mock_relay_dependency_directory/config/dependent")
+        relay = os.path.join(os.getcwd(), "mock_relay_dependency_directory/config/relay")
+        leaf = os.path.join(os.getcwd(), "mock_relay_dependency_directory/config/leaf")
+
+        self.assertTrue(actual_graph.has_edge(leaf, dependent))
+        self.assertNotIn(relay, actual_graph.nodes)
+        self.assertNotIn(leaf, actual_post_graph)
+
+    def test_prints_when_excluding_dependency(self):
         """Excluding a depends_on target with no .tf files prints a message, so it's
         distinguishable from a dependency that was simply never declared."""
         actual_graph = networkx.DiGraph()

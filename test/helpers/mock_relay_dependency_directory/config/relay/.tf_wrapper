@@ -1,0 +1,2 @@
+depends_on:
+    - mock_relay_dependency_directory/config/leaf
