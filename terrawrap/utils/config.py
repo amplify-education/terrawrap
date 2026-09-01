@@ -9,7 +9,7 @@ import networkx
 import yaml
 from jsons import DeserializationError
 
-from terrawrap.exceptions import NoDependency, NotTerraformConfigDirectory
+from terrawrap.exceptions import ManualDependencyError, NoDependency, NotTerraformConfigDirectory
 from terrawrap.models.wrapper_config import (
     AbstractEnvVarConfig,
     BackendsConfig,
@@ -230,9 +230,12 @@ def _graph_dependency(
     it from the graph would silently drop the ordering guarantee its dependents rely on, and a
     no-op placeholder wouldn't gate anything either (ApplyGraph._can_be_applied treats a no-op
     predecessor as already satisfied) — so there is no way to honor the dependency short of
-    stopping and making the author resolve it explicitly.
+    raising and making the author resolve it explicitly. Raised rather than exited here so a
+    caller (bin/graph_apply, bin/visualize) can report it as a clean, expected failure instead
+    of an uncaught SystemExit or traceback.
 
     :return: True if the dependency (or one of its own flattened dependencies) was added.
+    :raises ManualDependencyError: if the dependency has apply_automatically: false.
     """
     if seen is None:
         seen = set()
@@ -242,19 +245,18 @@ def _graph_dependency(
 
     dependency_wrapper_config_obj = _load_wrapper_config(dependency, config_dict)
     if not dependency_wrapper_config_obj.config:
-        print(f"Skipping dependency {dependency}: not a Terraform config directory")
+        print(f"Skipping dependency {dependency}: not a Terraform config directory", file=sys.stderr)
         added = False
         for transitive_dependency in dependency_wrapper_config_obj.depends_on or []:
             if _graph_dependency(transitive_dependency, config_dir, config_dict, graph, seen):
                 added = True
         return added
     if not dependency_wrapper_config_obj.apply_automatically:
-        print(
+        raise ManualDependencyError(
             f"Cannot depend on {dependency}: apply_automatically is set to False, so "
             f"{config_dir} cannot wait on it in the graph. Either remove this dependency or "
             "set apply_automatically: true on the target."
         )
-        sys.exit(1)
     graph.add_node(dependency)
     if config_dir in graph:
         graph.add_edge(dependency, config_dir)

@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import networkx
 
+from terrawrap.exceptions import ManualDependencyError
 from terrawrap.models.wrapper_config import (
     BackendsConfig,
     S3BackendConfig,
@@ -101,16 +102,44 @@ class TestConfig(TestCase):
     def test_manual_target_fails_loudly(self):
         """Depending on an apply_automatically: false target cannot honor the dependent's
         ordering guarantee (a no-op node wouldn't gate anything, per ApplyGraph._can_be_applied),
-        so this is a hard failure rather than a silent skip."""
+        so this is a hard failure naming both the target and the dependent, rather than a
+        silent skip."""
         actual_graph = networkx.DiGraph()
         visited = []
         current_dir = os.path.join(
             os.getcwd(),
             "mock_manual_dependency_directory/config/dependent",
         )
+        manual_target = os.path.join(
+            os.getcwd(),
+            "mock_manual_dependency_directory/config/manual_target",
+        )
 
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(ManualDependencyError) as ctx:
             graph_wrapper_dependencies(current_dir, self.config_dict, actual_graph, visited)
+
+        self.assertIn(manual_target, str(ctx.exception))
+        self.assertIn(current_dir, str(ctx.exception))
+
+    def test_inherited_manual_target_fails_loudly(self):
+        """An apply_automatically: false target inherited from an ancestor's depends_on (the
+        climb at the closest-ancestor call site) fails just as loudly as one declared directly."""
+        actual_graph = networkx.DiGraph()
+        visited = []
+        current_dir = os.path.join(
+            os.getcwd(),
+            "mock_inherited_manual_dependency_directory/config/child",
+        )
+        manual_target = os.path.join(
+            os.getcwd(),
+            "mock_inherited_manual_dependency_directory/config/manual",
+        )
+
+        with self.assertRaises(ManualDependencyError) as ctx:
+            graph_wrapper_dependencies(current_dir, self.config_dict, actual_graph, visited)
+
+        self.assertIn(manual_target, str(ctx.exception))
+        self.assertIn(current_dir, str(ctx.exception))
 
     def test_closest_ancestor_stops_climb(self):
         """The closest ancestor's depends_on stops the inheritance climb even when every entry in
@@ -266,7 +295,7 @@ class TestConfig(TestCase):
         )
 
         out = io.StringIO()
-        with contextlib.redirect_stdout(out):
+        with contextlib.redirect_stderr(out):
             graph_wrapper_dependencies(current_dir, self.config_dict, actual_graph, visited)
 
         printed = out.getvalue()

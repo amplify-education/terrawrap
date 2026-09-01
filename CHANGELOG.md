@@ -27,13 +27,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - A `depends_on` entry pointing at a target with `apply_automatically: false` is now a hard
-  failure (`graph_wrapper_dependencies` prints an explanation and exits) instead of either
+  failure — `graph_wrapper_dependencies` raises `ManualDependencyError` — instead of either
   auto-applying the manually-managed target (the old bug) or silently excluding it from the
   graph. Excluding it can't actually preserve the dependent's ordering guarantee — a no-op
   placeholder wouldn't gate anything either, since `ApplyGraph._can_be_applied` treats a
   no-op predecessor as already satisfied — so there's no way to honor the dependency short of
   stopping and making the author resolve it explicitly: either drop the dependency, or set
-  `apply_automatically: true` on the target.
+  `apply_automatically: true` on the target. `graph_apply` and `visualize` catch the error and
+  print it to stderr with exit code 1, rather than a bare `sys.exit(1)` deep inside a `utils/`
+  helper (which `visualize` had no handler for at all) or leaking the message onto stdout.
 
 ## \[0.11.5\] - 2026-08-27
 
