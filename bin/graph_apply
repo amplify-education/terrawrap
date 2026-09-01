@@ -24,11 +24,12 @@ Options:
 """
 
 import os
+import sys
 
 import networkx
 from docopt import docopt
 
-from terrawrap.exceptions import NoDependency
+from terrawrap.exceptions import ManualDependencyError, NoDependency
 from terrawrap.models.graph import ApplyGraph
 from terrawrap.utils.config import (
     walk_and_graph_directory,
@@ -73,6 +74,9 @@ def main():
     print("Visualizing Dependencies for %s:" % config_dir)
     try:
         graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
+    except ManualDependencyError as error:
+        print(error, file=sys.stderr)
+        exit(1)
     except ValueError:
         print(
             "Terrawrap has detected no dependency information in this graph, attempting to apply all "

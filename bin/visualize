@@ -14,10 +14,12 @@ Options:
 """
 
 import os
+import sys
 
 import networkx
 from docopt import docopt
 
+from terrawrap.exceptions import ManualDependencyError
 from terrawrap.utils.config import graph_wrapper_dependencies, walk_and_graph_directory
 from terrawrap.utils.graph import (
     find_source_nodes,
@@ -49,12 +51,16 @@ def main():
     post_graph = []
     wrapper_config_dict = {}
     print("Visualizing Dependencies for %s:" % config_dir.replace(os.getcwd(), ""))
-    if singular_dependencies:
-        graph = networkx.DiGraph()
-        visited = []
-        graph_wrapper_dependencies(config_dir, wrapper_config_dict, graph, visited)
-    else:
-        graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
+    try:
+        if singular_dependencies:
+            graph = networkx.DiGraph()
+            visited = []
+            graph_wrapper_dependencies(config_dir, wrapper_config_dict, graph, visited)
+        else:
+            graph, post_graph = walk_and_graph_directory(config_dir, wrapper_config_dict)
+    except ManualDependencyError as error:
+        print(error, file=sys.stderr)
+        exit(1)
 
     if has_cycle(graph):
         print(
