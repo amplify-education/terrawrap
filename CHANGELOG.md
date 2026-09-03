@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.7\] - 2026-09-03
+
+### Added
+
+- Stream `terraform apply` output to the audit API as log chunks in real time,
+  enabling the tfaudit frontend to poll and display live apply output.
+  Chunks are flushed every 10 lines or 5 seconds (whichever comes first) via
+  a new `POST /log_chunk` IAM-authenticated endpoint on `audit_api_url`. Chunks
+  are posted to every URL in `audit_api_url`, matching the multi-URL behavior
+  added in `0.11.4`.
+
 ## \[0.11.6\] - 2026-08-31
 
 ### Fixed
