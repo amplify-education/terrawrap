@@ -1,5 +1,6 @@
 """Holds config utilities"""
 
+import functools
 import os
 import sys
 from typing import Dict, List, Optional, Set, Tuple
@@ -106,6 +107,27 @@ def is_config_directory(directory: str) -> bool:
     return config
 
 
+@functools.lru_cache(maxsize=None)
+def resolve_apply_automatically(config_dir: str) -> bool:
+    """
+    Resolve ``apply_automatically`` for a directory, honoring ancestor ``.tf_wrapper`` files.
+
+    Deliberately narrower than merging the whole WrapperConfig: ``create_wrapper_config_obj``
+    stays per-directory because ``depends_on`` inheritance is handled separately (and with
+    closest-ancestor-wins semantics) in ``graph_wrapper_dependencies``, and because a directory
+    with an inherited non-None ``depends_on`` would be rerouted out of the post-graph batch and
+    would trip ``walk_without_graph_directory``'s NoDependency guard. Only this one flag needs
+    to describe a subtree, so only this one flag is resolved up the tree.
+
+    A descendant may re-enable automatic applies with an explicit ``apply_automatically: True``,
+    since later files override earlier ones in ``parse_wrapper_configs``.
+
+    :param config_dir: Directory to resolve for. Converted to an absolute path internally.
+    :return: The effective apply_automatically value (default True when unset anywhere).
+    """
+    return parse_wrapper_configs(find_wrapper_config_files(os.path.abspath(config_dir))).apply_automatically
+
+
 def create_wrapper_config_obj(config_dir, wrapper_file=None):
     """
     Given a config dir containing a tf_wrapper.
@@ -144,6 +166,10 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
     graph_list = []
     post_graph_runs = []
     for root, _, files in os.walk(starting_dir):
+        # Resolved per-directory but inherited from ancestors, and evaluated before the
+        # has-its-own-.tf_wrapper branch below, so a parent can disable an entire subtree.
+        if not resolve_apply_automatically(root):
+            continue
         has_tf_wrapper = False
         for file in files:
             if file.endswith(TF_WRAP_FILE):
@@ -151,8 +177,6 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
                 wrapper_file = os.path.join(root, file)
                 wrapper_config_obj = create_wrapper_config_obj(root, wrapper_file)
                 if not wrapper_config_obj.config:
-                    continue
-                if not wrapper_config_obj.apply_automatically:
                     continue
                 if wrapper_config_obj.depends_on is None:
                     post_graph_runs.append(root)
@@ -181,6 +205,8 @@ def walk_without_graph_directory(starting_dir: str) -> List[str]:
     """
     post_graph_runs = []
     for root, _, files in os.walk(starting_dir):
+        if not resolve_apply_automatically(root):
+            continue
         has_tf_wrapper = False
         for file in files:
             if file.endswith(TF_WRAP_FILE):
@@ -190,8 +216,6 @@ def walk_without_graph_directory(starting_dir: str) -> List[str]:
                 if wrapper_config_obj.depends_on is not None:
                     raise NoDependency("Discovered dependency information")
                 if not wrapper_config_obj.config:
-                    continue
-                if not wrapper_config_obj.apply_automatically:
                     continue
                 post_graph_runs.append(root)
         if not has_tf_wrapper and is_config_directory(root):
