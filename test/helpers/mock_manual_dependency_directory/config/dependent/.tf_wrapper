@@ -1,0 +1,2 @@
+depends_on:
+    - mock_manual_dependency_directory/config/manual_target

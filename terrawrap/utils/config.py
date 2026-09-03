@@ -2,14 +2,14 @@
 
 import os
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import jsons
 import networkx
 import yaml
 from jsons import DeserializationError
 
-from terrawrap.exceptions import NoDependency, NotTerraformConfigDirectory
+from terrawrap.exceptions import ManualDependencyError, NoDependency, NotTerraformConfigDirectory
 from terrawrap.models.wrapper_config import (
     AbstractEnvVarConfig,
     BackendsConfig,
@@ -165,6 +165,11 @@ def walk_and_graph_directory(starting_dir: str, config_dict) -> Tuple[networkx.D
             post_graph_runs.append(root)
     directory_graph = networkx.compose_all(graph_list)
 
+    # A directory can be walked directly (and provisionally queued as a post-graph run)
+    # before being discovered as someone else's dependency target later in the walk.
+    # Once it's part of the graph it must only run there, in order, not a second time.
+    post_graph_runs = [directory for directory in post_graph_runs if directory not in directory_graph]
+
     return directory_graph, post_graph_runs
 
 
@@ -195,6 +200,69 @@ def walk_without_graph_directory(starting_dir: str) -> List[str]:
     return post_graph_runs
 
 
+def _load_wrapper_config(config_dir: str, config_dict) -> WrapperConfig:
+    """Fetch a directory's wrapper config, caching it in config_dict so each file is read once."""
+    if config_dict.get(config_dir):
+        return config_dict[config_dir]["wrapper_config"]
+    wrapper_config_obj = create_wrapper_config_obj(config_dir)
+    config_dict[config_dir] = {"wrapper_config": wrapper_config_obj}
+    return wrapper_config_obj
+
+
+def _graph_dependency(
+    dependency: str,
+    config_dir: str,
+    config_dict,
+    graph: networkx.DiGraph,
+    seen: Optional[Set[str]] = None,
+) -> bool:
+    """Add a dependency edge, transparently flattening pass-through targets.
+
+    A target with no Terraform config of its own (e.g. a directory whose .tf_wrapper exists only
+    to declare its own depends_on) is never added as a node — there's nothing to apply — but its
+    dependents still need whatever *it* depends on, so its own depends_on entries are resolved
+    recursively and wired directly onto config_dir instead, skipping the pass-through target.
+    Only the pass-through target's own depends_on is followed this way; a dependency it would
+    otherwise inherit from an ancestor .tf_wrapper is not, since that climb only happens for
+    directories that reach graph_wrapper_dependencies as a real graphed node.
+
+    A dependency with apply_automatically: false is a hard failure rather than a skip: excluding
+    it from the graph would silently drop the ordering guarantee its dependents rely on, and a
+    no-op placeholder wouldn't gate anything either (ApplyGraph._can_be_applied treats a no-op
+    predecessor as already satisfied) — so there is no way to honor the dependency short of
+    raising and making the author resolve it explicitly. Raised rather than exited here so a
+    caller (bin/graph_apply, bin/visualize) can report it as a clean, expected failure instead
+    of an uncaught SystemExit or traceback.
+
+    :return: True if the dependency (or one of its own flattened dependencies) was added.
+    :raises ManualDependencyError: if the dependency has apply_automatically: false.
+    """
+    if seen is None:
+        seen = set()
+    if dependency in seen:
+        return False
+    seen.add(dependency)
+
+    dependency_wrapper_config_obj = _load_wrapper_config(dependency, config_dict)
+    if not dependency_wrapper_config_obj.config:
+        print(f"Skipping dependency {dependency}: not a Terraform config directory", file=sys.stderr)
+        added = False
+        for transitive_dependency in dependency_wrapper_config_obj.depends_on or []:
+            if _graph_dependency(transitive_dependency, config_dir, config_dict, graph, seen):
+                added = True
+        return added
+    if not dependency_wrapper_config_obj.apply_automatically:
+        raise ManualDependencyError(
+            f"Cannot depend on {dependency}: apply_automatically is set to False, so "
+            f"{config_dir} cannot wait on it in the graph. Either remove this dependency or "
+            "set apply_automatically: true on the target."
+        )
+    graph.add_node(dependency)
+    if config_dir in graph:
+        graph.add_edge(dependency, config_dir)
+    return True
+
+
 # pylint: disable=R0912
 def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiGraph, visited: List[str]):
     """
@@ -208,38 +276,24 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
         return
     visited.append(config_dir)
 
-    if config_dict.get(config_dir):  # add to dictionary so we only read the file once
-        wrapper_config_obj = config_dict[config_dir].get("wrapper_config")
-    else:
-        wrapper_config_obj = create_wrapper_config_obj(config_dir)
-        config_dict[config_dir] = {"wrapper_config": wrapper_config_obj}
+    wrapper_config_obj = _load_wrapper_config(config_dir, config_dict)
 
     if wrapper_config_obj.config:
         graph.add_node(config_dir)
 
-    tf_dependencies = wrapper_config_obj.depends_on
-
-    if tf_dependencies is None:
-        print(
-            "Cannot list a dependency without tf_wrapper dependency configuration:",
-            config_dir,
-        )
-        sys.exit(1)
+    # A dependency target with no .tf_wrapper (or one without a depends_on key) has no
+    # further dependencies of its own; the burden of declaring the relationship is on the
+    # directory that depends on it, not on the target.
+    tf_dependencies = wrapper_config_obj.depends_on or []
 
     for dependency in tf_dependencies:
-        graph.add_node(dependency)
-        if config_dir in graph:
-            graph.add_edge(dependency, config_dir)
+        _graph_dependency(dependency, config_dir, config_dict, graph)
 
     wrappers = find_wrapper_config_files(config_dir)
     wrappers.reverse()  # we want the closest wrapper file that gives inherited dependencies
     for wrapper in wrappers:
         wrapper_dir = os.path.dirname(wrapper)
-        if config_dict.get(wrapper_dir):  # add to dictionary so we only read the file once
-            new_wrapper_config_obj = config_dict[wrapper_dir].get("wrapper_config")
-        else:
-            new_wrapper_config_obj = create_wrapper_config_obj(wrapper_dir)
-            config_dict[wrapper_dir] = {"wrapper_config": new_wrapper_config_obj}
+        new_wrapper_config_obj = _load_wrapper_config(wrapper_dir, config_dict)
 
         if wrapper_dir == config_dir:
             continue
@@ -250,14 +304,13 @@ def graph_wrapper_dependencies(config_dir: str, config_dict, graph: networkx.DiG
                 if dependency == config_dir:
                     continue
                 added = True
-                graph.add_node(dependency)
-                if config_dir in graph:
-                    graph.add_edge(dependency, config_dir)
+                _graph_dependency(dependency, config_dir, config_dict, graph)
             if added:
                 break  # we only need the closest, the recursion will handle anything higher
 
-    for predecessor in list(graph.predecessors(config_dir)):
-        graph_wrapper_dependencies(predecessor, config_dict, graph, visited)
+    if config_dir in graph:
+        for predecessor in list(graph.predecessors(config_dir)):
+            graph_wrapper_dependencies(predecessor, config_dict, graph, visited)
 
 
 def resolve_envvars(envvar_configs: Dict[str, AbstractEnvVarConfig]) -> Dict[str, Optional[str]]:

@@ -1,0 +1,4 @@
+depends_on:
+    - mock_missing_wrapper_directory/config/app_b_no_wrapper
+    - mock_missing_wrapper_directory/config/app_c_no_depends_on_key
+    - mock_missing_wrapper_directory/config/app_e_no_tf_files
