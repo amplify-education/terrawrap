@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.8\] - 2026-09-04
+
+### Fixed
+
+- `0.11.7`'s log-chunk shipper built a fresh AWS SigV4 signer (and therefore a fresh
+  credential fetch) on every chunk POST, and a fresh `get_git_root()` subprocess fork per
+  chunk. At fleet concurrency this saturated the ECS task's container credential metadata
+  endpoint, returning `HTTP 429` and starving every other credential consumer in the same
+  task -- consistent with the 2026-09-04 fleet-wide `apply` outage (`No valid credential sources found`, `unexpected end of JSON input` from `data.external` blocks). The signer
+  and git root are now built once per URL/path and reused for the rest of the run.
+- A log-chunk POST failure now trips a circuit breaker after 3 consecutive failures,
+  disabling streaming for the remainder of the run instead of retrying every flush with
+  no backoff (previously up to ~586 doomed POSTs per apply against a broken/unreachable
+  audit API).
+
+### Changed
+
+- `CHUNK_LINE_COUNT` 10 → 100 and `CHUNK_FLUSH_INTERVAL` 5.0s → 15.0s, cutting log-chunk
+  POST volume roughly 10x.
+
 ## \[0.11.7\] - 2026-09-03
 
 ### Added
