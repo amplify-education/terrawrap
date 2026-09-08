@@ -1,6 +1,8 @@
 """Test git utilities"""
 
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 from logging import Logger
 from unittest import TestCase
 from unittest.mock import ANY, call, patch
@@ -13,6 +15,7 @@ from terrawrap.utils.cli import (
     MAX_RETRIES,
     Status,
     _auth_cache,
+    _get_auth,
     _get_retriable_errors,
     _git_root_cache,
     _post_audit_info,
@@ -494,6 +497,42 @@ class TestChunkStreaming(TestCase):
         # of those).
         self.assertEqual(mock_post_chunk.call_count, CHUNK_FAILURE_CIRCUIT_BREAKER)
 
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_circuit_breaker_is_scoped_per_url(self, mock_post_chunk):
+        """One permanently-broken URL in a multi-URL audit_api_url must not hide
+        behind a healthy one. A single shared success flag would reset the
+        failure count every flush as long as *any* URL succeeds, so the broken
+        URL would never trip its breaker and would get a doomed POST every
+        flush for the whole run."""
+        broken_url = "https://broken.example.com"
+        healthy_url = "https://healthy.example.com"
+
+        def side_effect(audit_api_url, **_kwargs):
+            if audit_api_url == broken_url:
+                raise Exception("boom")
+
+        mock_post_chunk.side_effect = side_effect
+
+        total_lines = CHUNK_LINE_COUNT * (CHUNK_FAILURE_CIRCUIT_BREAKER + 3)
+        code = "\n".join(f"print({i})" for i in range(total_lines))
+
+        exit_code, _ = execute_command(
+            ["python3", "-c", code, "apply"],
+            audit_api_url=[broken_url, healthy_url],
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        self.assertEqual(exit_code, 0)
+        broken_calls = [c for c in mock_post_chunk.call_args_list if c.kwargs["audit_api_url"] == broken_url]
+        healthy_calls = [
+            c for c in mock_post_chunk.call_args_list if c.kwargs["audit_api_url"] == healthy_url
+        ]
+        # The broken URL trips its own breaker and stops being called...
+        self.assertEqual(len(broken_calls), CHUNK_FAILURE_CIRCUIT_BREAKER)
+        # ...independently of the healthy URL, which keeps receiving every flush.
+        self.assertEqual(len(healthy_calls), CHUNK_FAILURE_CIRCUIT_BREAKER + 3)
+
     @patch("requests.post")
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     def test_log_chunk_auth_constructed_once_across_many_chunks(self, mock_auth, _mock_requests_post):
@@ -516,4 +555,18 @@ class TestChunkStreaming(TestCase):
         # Real _post_log_chunk ran (not mocked here) and actually posted 3 chunks...
         self.assertEqual(_mock_requests_post.call_count, 3)
         # ...but only constructed the signer once.
+        mock_auth.assert_called_once()
+
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    def test_get_auth_is_thread_safe(self, mock_auth):
+        """graph_apply runs execute_command concurrently via ThreadPoolExecutor,
+        so an unsynchronized check-then-set on the cache would let many threads
+        all miss it before any write lands, each building its own signer. The
+        sleep widens that race window; without the lock this reliably
+        constructs more than once."""
+        mock_auth.side_effect = lambda **_kwargs: time.sleep(0.01) or object()
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            list(executor.map(lambda _: _get_auth("https://foo.bar"), range(16)))
+
         mock_auth.assert_called_once()

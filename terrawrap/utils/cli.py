@@ -9,6 +9,7 @@ import logging
 import os
 import subprocess
 import tempfile
+import threading
 import time
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -55,40 +56,44 @@ CHUNK_FLUSH_INTERVAL = 15.0
 # hundreds of doomed POSTs (one per flush) with zero backoff.
 CHUNK_FAILURE_CIRCUIT_BREAKER = 3
 
-# BotoAWSRequestsAuth wraps a boto3.Session, which caches and auto-refreshes
-# credentials. Constructing a fresh one per call (previously done on every
-# audit-info/log-chunk POST) defeats that caching: each construction
-# re-resolves credentials from scratch, and at high concurrency
-# (parallel_applies) that can saturate the container credential metadata
-# endpoint (429s), which in turn starves Terraform's own credential
-# resolution in the same task. Cached per audit_api_url (host) since the
-# signing host differs per URL; effectively "once per process" since this
-# module-level cache lives for the interpreter's lifetime.
+# boto3.Session (which BotoAWSRequestsAuth wraps) caches and auto-refreshes
+# credentials, so one signer per audit_api_url (host) is built and reused for
+# the life of the process instead of once per POST. graph_apply runs
+# execute_command calls concurrently via ThreadPoolExecutor, so construction
+# is guarded by a lock: an unsynchronized check-then-set would let concurrent
+# callers each build their own signer on first use, one per thread, before
+# any of them lands in the cache.
 _auth_cache: Dict[str, BotoAWSRequestsAuth] = {}
+_auth_cache_lock = threading.Lock()
 
 
 def _get_auth(audit_api_url: str) -> BotoAWSRequestsAuth:
     """Returns a cached BotoAWSRequestsAuth for the given audit API URL."""
     if audit_api_url not in _auth_cache:
-        _auth_cache[audit_api_url] = BotoAWSRequestsAuth(
-            aws_host=urlparse(audit_api_url).hostname,
-            aws_region="us-west-2",
-            aws_service="execute-api",
-        )
+        with _auth_cache_lock:
+            if audit_api_url not in _auth_cache:
+                _auth_cache[audit_api_url] = BotoAWSRequestsAuth(
+                    aws_host=urlparse(audit_api_url).hostname,
+                    aws_region="us-west-2",
+                    aws_service="execute-api",
+                )
     return _auth_cache[audit_api_url]
 
 
 # get_git_root shells out to `git rev-parse --show-toplevel` via GitPython --
-# a subprocess fork per call. _post_log_chunk previously called it on every
-# chunk POST for a path that never changes within a single execute_command
-# run (hundreds of forks per apply at CHUNK_LINE_COUNT's old cadence).
+# a subprocess fork per call -- for a path that never changes within a single
+# execute_command run, so it's cached per path instead. Lock rationale
+# matches _auth_cache above: execute_command calls run concurrently.
 _git_root_cache: Dict[str, str] = {}
+_git_root_cache_lock = threading.Lock()
 
 
 def _cached_git_root(path: str) -> str:
     """Returns a cached get_git_root(path) result."""
     if path not in _git_root_cache:
-        _git_root_cache[path] = get_git_root(path)
+        with _git_root_cache_lock:
+            if path not in _git_root_cache:
+                _git_root_cache[path] = get_git_root(path)
     return _git_root_cache[path]
 
 
@@ -154,17 +159,24 @@ def execute_command(
 
     should_stream = bool(audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args))
     chunk_seq = 0
-    consecutive_chunk_failures = 0
-    streaming_disabled = False
+    # Tracked per URL, not globally: with a multi-URL audit_api_url, a single
+    # global "any_succeeded" would let one permanently-broken URL hide behind
+    # a healthy one forever, resetting the counter every flush and taking a
+    # doomed POST every CHUNK_FLUSH_INTERVAL for the whole run -- the exact
+    # unbounded-retry behavior this breaker exists to stop, just scoped to
+    # the unlucky URL.
+    consecutive_chunk_failures = {url: 0 for url in audit_api_urls}
+    disabled_urls: set = set()
 
     def _chunk_callback(content: str) -> None:
-        nonlocal chunk_seq, consecutive_chunk_failures, streaming_disabled
-        if streaming_disabled:
+        nonlocal chunk_seq
+        if len(disabled_urls) == len(audit_api_urls):
             chunk_seq += 1
             return
 
-        any_succeeded = False
         for url in audit_api_urls:
+            if url in disabled_urls:
+                continue
             try:
                 _post_log_chunk(
                     audit_api_url=url,
@@ -173,22 +185,19 @@ def execute_command(
                     sequence=chunk_seq,
                     content=content,
                 )
-                any_succeeded = True
+                consecutive_chunk_failures[url] = 0
             except Exception as exc:  # pylint: disable=broad-except
                 logger.warning("Failed to post log chunk %d to %s: %s", chunk_seq, url, exc)
+                consecutive_chunk_failures[url] += 1
+                if consecutive_chunk_failures[url] >= CHUNK_FAILURE_CIRCUIT_BREAKER:
+                    disabled_urls.add(url)
+                    logger.warning(
+                        "Disabling log-chunk streaming to %s for the rest of this run "
+                        "after %d consecutive failures",
+                        url,
+                        consecutive_chunk_failures[url],
+                    )
         chunk_seq += 1
-
-        if any_succeeded:
-            consecutive_chunk_failures = 0
-            return
-
-        consecutive_chunk_failures += 1
-        if consecutive_chunk_failures >= CHUNK_FAILURE_CIRCUIT_BREAKER:
-            streaming_disabled = True
-            logger.warning(
-                "Disabling live log-chunk streaming for the rest of this run after %d consecutive failures",
-                consecutive_chunk_failures,
-            )
 
     jitter = Jitter()
     time_passed = 0
