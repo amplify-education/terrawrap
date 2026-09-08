@@ -82,18 +82,20 @@ def _get_auth(audit_api_url: str) -> BotoAWSRequestsAuth:
 
 # get_git_root shells out to `git rev-parse --show-toplevel` via GitPython --
 # a subprocess fork per call -- for a path that never changes within a single
-# execute_command run, so it's cached per path instead. Lock rationale
-# matches _auth_cache above: execute_command calls run concurrently.
+# execute_command run, so it's cached per path instead. Unlike _auth_cache,
+# deliberately unlocked: concurrent execute_command calls each pass a
+# *different* path (one per terraform directory), so a lock here serializes
+# every thread's first-miss subprocess fork behind one mutex for zero
+# cache-sharing benefit -- previously these ran fully in parallel. A race on
+# a cold cache costs at most one redundant (idempotent) fork, not a bad
+# value.
 _git_root_cache: Dict[str, str] = {}
-_git_root_cache_lock = threading.Lock()
 
 
 def _cached_git_root(path: str) -> str:
     """Returns a cached get_git_root(path) result."""
     if path not in _git_root_cache:
-        with _git_root_cache_lock:
-            if path not in _git_root_cache:
-                _git_root_cache[path] = get_git_root(path)
+        _git_root_cache[path] = get_git_root(path)
     return _git_root_cache[path]
 
 
@@ -187,15 +189,33 @@ def execute_command(
                 )
                 consecutive_chunk_failures[url] = 0
             except Exception as exc:  # pylint: disable=broad-except
-                logger.warning("Failed to post log chunk %d to %s: %s", chunk_seq, url, exc)
+                # Deliberately broad: a log-chunk POST is opt-in telemetry
+                # riding alongside the real apply, so it must never take the
+                # apply down regardless of failure cause. But that breadth
+                # means a bug in _get_auth/_cached_git_root above (e.g. a
+                # credentials error, a GitPython failure) looks identical to
+                # "the audit API is unreachable" -- logging the exception's
+                # class alongside its message is the cheap way to tell those
+                # apart after the fact, since the circuit breaker below will
+                # silence this warning after CHUNK_FAILURE_CIRCUIT_BREAKER
+                # occurrences either way.
+                logger.warning(
+                    "Failed to post log chunk %d to %s: %s: %s",
+                    chunk_seq,
+                    url,
+                    type(exc).__name__,
+                    exc,
+                )
                 consecutive_chunk_failures[url] += 1
                 if consecutive_chunk_failures[url] >= CHUNK_FAILURE_CIRCUIT_BREAKER:
                     disabled_urls.add(url)
                     logger.warning(
                         "Disabling log-chunk streaming to %s for the rest of this run "
-                        "after %d consecutive failures",
+                        "after %d consecutive failures (last: %s: %s)",
                         url,
                         consecutive_chunk_failures[url],
+                        type(exc).__name__,
+                        exc,
                     )
         chunk_seq += 1
 

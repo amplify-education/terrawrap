@@ -14,9 +14,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   chunk. At fleet concurrency this saturated the ECS task's container credential metadata
   endpoint, returning `HTTP 429` and starving every other credential consumer in the same
   task -- consistent with the 2026-09-04 fleet-wide `apply` outage (`No valid credential sources found`, `unexpected end of JSON input` from `data.external` blocks). The signer
-  and git root are now built once per URL/path and reused for the rest of the run, guarded
-  by a lock so concurrent `execute_command` calls under `graph_apply`'s
-  `ThreadPoolExecutor` can't each construct their own before either lands in the cache.
+  and git root are now built once per URL/path and reused for the rest of the run. The
+  signer cache is lock-guarded, since concurrent `execute_command` calls under
+  `graph_apply`'s `ThreadPoolExecutor` can share the same `audit_api_url` and serializing
+  that first construction is the fix; the git-root cache is deliberately unlocked, since
+  each call passes a different path and a lock there would only serialize unrelated
+  directories' subprocess forks for no cache-sharing benefit.
 - A log-chunk POST failure now trips a circuit breaker after 3 consecutive failures,
   disabling streaming for the remainder of the run instead of retrying every flush with
   no backoff (previously up to ~586 doomed POSTs per apply against a broken/unreachable

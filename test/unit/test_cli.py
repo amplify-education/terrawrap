@@ -533,6 +533,36 @@ class TestChunkStreaming(TestCase):
         # ...independently of the healthy URL, which keeps receiving every flush.
         self.assertEqual(len(healthy_calls), CHUNK_FAILURE_CIRCUIT_BREAKER + 3)
 
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_circuit_breaker_resets_on_success_between_failures(self, mock_post_chunk):
+        """The breaker counts *consecutive* failures, not a cumulative total --
+        an intermittently-flaky audit API (fail, fail, succeed, fail, fail, fail)
+        must not trip until three failures actually land in a row. If the
+        reset-on-success path were missing (a cumulative counter instead), this
+        would trip on the 4th flush and only 4 calls would happen."""
+        outcomes = [
+            Exception("boom"),
+            Exception("boom"),
+            None,
+            Exception("boom"),
+            Exception("boom"),
+            Exception("boom"),
+        ]
+        mock_post_chunk.side_effect = outcomes
+
+        total_lines = CHUNK_LINE_COUNT * len(outcomes)
+        code = "\n".join(f"print({i})" for i in range(total_lines))
+
+        exit_code, _ = execute_command(
+            ["python3", "-c", code, "apply"],
+            audit_api_url="https://foo.bar",
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(mock_post_chunk.call_count, len(outcomes))
+
     @patch("requests.post")
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     def test_log_chunk_auth_constructed_once_across_many_chunks(self, mock_auth, _mock_requests_post):
