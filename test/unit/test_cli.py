@@ -1,6 +1,8 @@
 """Test git utilities"""
 
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 from logging import Logger
 from unittest import TestCase
 from unittest.mock import ANY, call, patch
@@ -8,9 +10,14 @@ from unittest.mock import ANY, call, patch
 from requests.exceptions import HTTPError
 
 from terrawrap.utils.cli import (
+    CHUNK_FAILURE_CIRCUIT_BREAKER,
+    CHUNK_LINE_COUNT,
     MAX_RETRIES,
     Status,
+    _auth_cache,
+    _get_auth,
     _get_retriable_errors,
+    _git_root_cache,
     _post_audit_info,
     _post_log_chunk,
     execute_command,
@@ -30,6 +37,13 @@ class TestCli(TestCase):
         self.jitter_patcher = patch("terrawrap.utils.cli.Jitter")
         self.mock_jitter = self.jitter_patcher.start()
         self.mock_jitter.return_value.backoff.return_value = 3
+
+        # Both are process-lifetime caches keyed by URL/path; several tests
+        # below reuse the same fake URLs, so a prior test's cached (mocked)
+        # auth/root would otherwise silently short-circuit a later test's
+        # real call and its assertions on it.
+        _auth_cache.clear()
+        _git_root_cache.clear()
 
     def tearDown(self):
         self.popen_patcher.stop()
@@ -314,6 +328,10 @@ class TestCli(TestCase):
 class TestPostLogChunk(TestCase):
     """Test the log-chunk POST helper"""
 
+    def setUp(self):
+        _auth_cache.clear()
+        _git_root_cache.clear()
+
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
     @patch("requests.post")
     def test_post_log_chunk_payload(self, mock_post, _):
@@ -387,6 +405,8 @@ class TestChunkStreaming(TestCase):
     def setUp(self):
         self.audit_info_patcher = patch("terrawrap.utils.cli._post_audit_info")
         self.audit_info_patcher.start()
+        _auth_cache.clear()
+        _git_root_cache.clear()
 
     def tearDown(self):
         self.audit_info_patcher.stop()
@@ -394,7 +414,9 @@ class TestChunkStreaming(TestCase):
     @patch("terrawrap.utils.cli._post_log_chunk")
     def test_streams_chunks_when_applying(self, mock_post_chunk):
         """Output is flushed once at the CHUNK_LINE_COUNT threshold and once more at EOF"""
-        code = "\n".join(f"print({i})" for i in range(15))
+        extra_lines = 5
+        total_lines = CHUNK_LINE_COUNT + extra_lines
+        code = "\n".join(f"print({i})" for i in range(total_lines))
         exit_code, _ = execute_command(
             ["python3", "-c", code, "apply"],
             audit_api_url="https://foo.bar",
@@ -408,8 +430,9 @@ class TestChunkStreaming(TestCase):
         self.assertEqual(sequences, [0, 1])
 
         first_chunk, second_chunk = (c.kwargs["content"] for c in mock_post_chunk.call_args_list)
-        self.assertEqual(first_chunk.count("\n"), 10)
-        self.assertEqual(second_chunk, "10\n11\n12\n13\n14\n")
+        self.assertEqual(first_chunk.count("\n"), CHUNK_LINE_COUNT)
+        expected_second_chunk = "".join(f"{i}\n" for i in range(CHUNK_LINE_COUNT, total_lines))
+        self.assertEqual(second_chunk, expected_second_chunk)
 
     @patch("terrawrap.utils.cli._post_log_chunk")
     def test_no_streaming_without_audit_api_url(self, mock_post_chunk):
@@ -450,3 +473,130 @@ class TestChunkStreaming(TestCase):
         )
 
         self.assertEqual(exit_code, 0)
+
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_circuit_breaker_disables_streaming_after_consecutive_failures(self, mock_post_chunk):
+        """After CHUNK_FAILURE_CIRCUIT_BREAKER consecutive failures, streaming stops
+        for the rest of the run instead of hammering a broken/unreachable audit API
+        once per flush with zero backoff (the old behavior: ~586 failed POSTs/apply)."""
+        mock_post_chunk.side_effect = Exception("boom")
+
+        total_lines = CHUNK_LINE_COUNT * (CHUNK_FAILURE_CIRCUIT_BREAKER + 3)
+        code = "\n".join(f"print({i})" for i in range(total_lines))
+
+        exit_code, _ = execute_command(
+            ["python3", "-c", code, "apply"],
+            audit_api_url="https://foo.bar",
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        self.assertEqual(exit_code, 0)
+        # One attempt per flush until the breaker trips, then none -- not one
+        # per remaining flush (there would be CHUNK_FAILURE_CIRCUIT_BREAKER + 3
+        # of those).
+        self.assertEqual(mock_post_chunk.call_count, CHUNK_FAILURE_CIRCUIT_BREAKER)
+
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_circuit_breaker_is_scoped_per_url(self, mock_post_chunk):
+        """One permanently-broken URL in a multi-URL audit_api_url must not hide
+        behind a healthy one. A single shared success flag would reset the
+        failure count every flush as long as *any* URL succeeds, so the broken
+        URL would never trip its breaker and would get a doomed POST every
+        flush for the whole run."""
+        broken_url = "https://broken.example.com"
+        healthy_url = "https://healthy.example.com"
+
+        def side_effect(audit_api_url, **_kwargs):
+            if audit_api_url == broken_url:
+                raise Exception("boom")
+
+        mock_post_chunk.side_effect = side_effect
+
+        total_lines = CHUNK_LINE_COUNT * (CHUNK_FAILURE_CIRCUIT_BREAKER + 3)
+        code = "\n".join(f"print({i})" for i in range(total_lines))
+
+        exit_code, _ = execute_command(
+            ["python3", "-c", code, "apply"],
+            audit_api_url=[broken_url, healthy_url],
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        self.assertEqual(exit_code, 0)
+        broken_calls = [c for c in mock_post_chunk.call_args_list if c.kwargs["audit_api_url"] == broken_url]
+        healthy_calls = [
+            c for c in mock_post_chunk.call_args_list if c.kwargs["audit_api_url"] == healthy_url
+        ]
+        # The broken URL trips its own breaker and stops being called...
+        self.assertEqual(len(broken_calls), CHUNK_FAILURE_CIRCUIT_BREAKER)
+        # ...independently of the healthy URL, which keeps receiving every flush.
+        self.assertEqual(len(healthy_calls), CHUNK_FAILURE_CIRCUIT_BREAKER + 3)
+
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_circuit_breaker_resets_on_success_between_failures(self, mock_post_chunk):
+        """The breaker counts *consecutive* failures, not a cumulative total --
+        an intermittently-flaky audit API (fail, fail, succeed, fail, fail, fail)
+        must not trip until three failures actually land in a row. If the
+        reset-on-success path were missing (a cumulative counter instead), this
+        would trip on the 4th flush and only 4 calls would happen."""
+        outcomes = [
+            Exception("boom"),
+            Exception("boom"),
+            None,
+            Exception("boom"),
+            Exception("boom"),
+            Exception("boom"),
+        ]
+        mock_post_chunk.side_effect = outcomes
+
+        total_lines = CHUNK_LINE_COUNT * len(outcomes)
+        code = "\n".join(f"print({i})" for i in range(total_lines))
+
+        exit_code, _ = execute_command(
+            ["python3", "-c", code, "apply"],
+            audit_api_url="https://foo.bar",
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(mock_post_chunk.call_count, len(outcomes))
+
+    @patch("requests.post")
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    def test_log_chunk_auth_constructed_once_across_many_chunks(self, mock_auth, _mock_requests_post):
+        """Regression guard for the outage: the AWS credential signer must be built
+        once per URL and reused, not once per chunk -- a fresh signer per chunk
+        re-resolves credentials from scratch every time, which at fleet concurrency
+        saturates the container credential metadata endpoint and starves Terraform's
+        own credential resolution in the same task."""
+        total_lines = CHUNK_LINE_COUNT * 3
+        code = "\n".join(f"print({i})" for i in range(total_lines))
+
+        exit_code, _ = execute_command(
+            ["python3", "-c", code, "apply"],
+            audit_api_url="https://foo.bar",
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        self.assertEqual(exit_code, 0)
+        # Real _post_log_chunk ran (not mocked here) and actually posted 3 chunks...
+        self.assertEqual(_mock_requests_post.call_count, 3)
+        # ...but only constructed the signer once.
+        mock_auth.assert_called_once()
+
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    def test_get_auth_is_thread_safe(self, mock_auth):
+        """graph_apply runs execute_command concurrently via ThreadPoolExecutor,
+        so an unsynchronized check-then-set on the cache would let many threads
+        all miss it before any write lands, each building its own signer. The
+        sleep widens that race window; without the lock this reliably
+        constructs more than once."""
+        mock_auth.side_effect = lambda **_kwargs: time.sleep(0.01) or object()
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            list(executor.map(lambda _: _get_auth("https://foo.bar"), range(16)))
+
+        mock_auth.assert_called_once()
