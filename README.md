@@ -135,6 +135,7 @@ The following options are supported in `.tf_wrapper`:
 ```yaml
 configure_backend: True # If true, automatically configure Terraform backends.
 backend_check: True # If true, require this directory to have a terraform backend configured
+apply_automatically: True # If false, `graph_apply`/`tf_apply` skip this directory and everything under it.
 
 envvars:
   <NAME_OF_ENVVAR>:
@@ -146,6 +147,11 @@ envvars:
 plugins:
     <NAME_OF_PLUGIN>: <plugin url>
 ```
+
+`apply_automatically` describes a whole subtree: setting it to `False` also skips every
+nested config directory, including those with no `.tf_wrapper` of their own. A nested
+directory opts back in by setting `apply_automatically: True` in its own `.tf_wrapper`.
+Only automatic applies are affected — a manual `tf <dir> apply` never consults the flag.
 
 When `path` is a list, terrawrap tries each entry in order and uses the first
 one it can read. A path that returns `AccessDeniedException` or

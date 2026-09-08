@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## \[0.11.8\] - 2026-09-04
+## \[0.11.9\] - 2026-09-08
 
 ### Fixed
 
@@ -14,16 +14,41 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   chunk. At fleet concurrency this saturated the ECS task's container credential metadata
   endpoint, returning `HTTP 429` and starving every other credential consumer in the same
   task -- consistent with the 2026-09-04 fleet-wide `apply` outage (`No valid credential sources found`, `unexpected end of JSON input` from `data.external` blocks). The signer
-  and git root are now built once per URL/path and reused for the rest of the run.
+  and git root are now built once per URL/path and reused for the rest of the run, guarded
+  by a lock so concurrent `execute_command` calls under `graph_apply`'s
+  `ThreadPoolExecutor` can't each construct their own before either lands in the cache.
 - A log-chunk POST failure now trips a circuit breaker after 3 consecutive failures,
   disabling streaming for the remainder of the run instead of retrying every flush with
   no backoff (previously up to ~586 doomed POSTs per apply against a broken/unreachable
-  audit API).
+  audit API). Tracked per URL: a multi-URL `audit_api_url` no longer lets one
+  permanently-broken URL hide behind a healthy one and get retried forever.
 
 ### Changed
 
 - `CHUNK_LINE_COUNT` 10 → 100 and `CHUNK_FLUSH_INTERVAL` 5.0s → 15.0s, cutting log-chunk
   POST volume roughly 10x.
+
+## \[0.11.8\] - 2026-09-03
+
+### Fixed
+
+- `apply_automatically: False` now covers child directories that have no `.tf_wrapper`
+  of their own. The flag was only ever read from a directory's own `.tf_wrapper`, so a
+  parent that disabled automatic applies for a subtree was silently ignored: every child
+  without its own wrapper fell through to the `is_config_directory` branch and was queued
+  for apply. `walk_and_graph_directory` and `walk_without_graph_directory` now resolve the
+  flag through the ancestor chain via the new `resolve_apply_automatically`, before the
+  has-its-own-`.tf_wrapper` branch. Only this one flag is resolved hierarchically —
+  `depends_on` and `config` stay per-directory, since `depends_on` inheritance is handled
+  separately in `graph_wrapper_dependencies` with closest-ancestor-wins semantics.
+  A child can still opt back in with an explicit `apply_automatically: True`.
+  Affects `graph_apply` and `tf_apply` only; a manual `tf <dir> apply` never consulted
+  the flag and is unchanged.
+
+  Note for consumers: a config directory nested under one that sets
+  `apply_automatically: False` stops being applied automatically once this version is
+  picked up, even if it has its own `.tf_wrapper` — unless that `.tf_wrapper` sets
+  `apply_automatically: True`. Audit such directories before upgrading.
 
 ## \[0.11.7\] - 2026-09-03
 

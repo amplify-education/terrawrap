@@ -20,15 +20,19 @@ from terrawrap.models.wrapper_config import (
     UnsetEnvVarConfig,
 )
 from terrawrap.utils.config import (
+    create_wrapper_config_obj,
     find_wrapper_config_files,
     parse_wrapper_configs,
+    resolve_apply_automatically,
     resolve_envvars,
+    walk_without_graph_directory,
 )
 
 
 class _WrapperFixtureCase(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="terrawrap_compat_")
+        resolve_apply_automatically.cache_clear()
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
@@ -328,6 +332,61 @@ class TestApplyAutomaticallyFlag(_WrapperFixtureCase):
 
         self.assertFalse(parse_wrapper_configs([with_false]).apply_automatically)
         self.assertTrue(parse_wrapper_configs([without]).apply_automatically)
+
+    def test_parent_false_covers_child_without_own_wrapper(self):
+        """A parent's apply_automatically: False disables a child that has no .tf_wrapper.
+
+        Regression test for the sandbox-templates leak: the child directory holds the .tf files
+        and no .tf_wrapper of its own, so before the fix it was queued for automatic apply with
+        the ancestor's flag never consulted.
+        """
+        self._write("config/templates/.tf_wrapper", "apply_automatically: False\n")
+        self._write("config/templates/api-gateway/main.tf", 'variable "environment" {}\n')
+
+        child = os.path.join(self.tmpdir, "config/templates/api-gateway")
+
+        self.assertFalse(resolve_apply_automatically(child))
+        self.assertEqual([], walk_without_graph_directory(os.path.join(self.tmpdir, "config")))
+
+    def test_child_wrapper_silent_on_flag_still_inherits_false(self):
+        """A child .tf_wrapper that omits apply_automatically inherits the ancestor's False.
+
+        Shape of config/aws/litco-dev/us-east-1/ci/rds/option_groups, whose .tf_wrapper declares
+        only depends_on. Such a child used to resolve to the True default and be graphed for
+        automatic apply; it now needs an explicit True to opt back in.
+        """
+        self._write(
+            "config/ci/rds/.tf_wrapper",
+            "apply_automatically: False\n",
+        )
+        self._write("config/ci/rds/main.tf", "# rds\n")
+        self._write("config/ci/rds/option_groups/.tf_wrapper", "depends_on: []\n")
+        self._write("config/ci/rds/option_groups/option_groups.tf", "# option groups\n")
+
+        child = os.path.join(self.tmpdir, "config/ci/rds/option_groups")
+
+        self.assertTrue(create_wrapper_config_obj(child).apply_automatically)
+        self.assertFalse(resolve_apply_automatically(child))
+
+    def test_child_can_opt_back_in(self):
+        """An explicit True on the child overrides an ancestor's False."""
+        self._write("config/templates/.tf_wrapper", "apply_automatically: False\n")
+        self._write("config/templates/api-gateway/main.tf", 'variable "environment" {}\n')
+        self._write("config/templates/api-gateway/.tf_wrapper", "apply_automatically: True\n")
+
+        child = os.path.join(self.tmpdir, "config/templates/api-gateway")
+
+        self.assertTrue(resolve_apply_automatically(child))
+        self.assertIn(child, walk_without_graph_directory(os.path.join(self.tmpdir, "config")))
+
+    def test_unset_anywhere_defaults_to_true(self):
+        """With no apply_automatically declared in the tree, a config dir is still queued."""
+        self._write("config/plain/main.tf", 'variable "environment" {}\n')
+
+        child = os.path.join(self.tmpdir, "config/plain")
+
+        self.assertTrue(resolve_apply_automatically(child))
+        self.assertIn(child, walk_without_graph_directory(os.path.join(self.tmpdir, "config")))
 
 
 class TestPlanCheckBackendCheckFlags(_WrapperFixtureCase):
