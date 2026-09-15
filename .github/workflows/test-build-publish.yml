@@ -40,7 +40,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.10'
+          python-version: '3.14'
       - name: Install packaging
         run: pip install packaging
       - name: Check version updated
@@ -56,7 +56,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.10'
+          python-version: '3.14'
       - name: Update GIT_HASH
         run: sed --expression "s|GIT_HASH|$GITHUB_SHA|g" --in-place **/version.py
       - name: Build tarball
