@@ -1,9 +1,10 @@
 """Test git utilities"""
 
 import os
+import threading
 from logging import Logger
 from unittest import TestCase
-from unittest.mock import ANY, call, patch
+from unittest.mock import ANY, MagicMock, call, patch
 
 from requests.exceptions import HTTPError
 
@@ -315,10 +316,10 @@ class TestPostLogChunk(TestCase):
     """Test the log-chunk POST helper"""
 
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
-    @patch("requests.post")
-    def test_post_log_chunk_payload(self, mock_post, _):
+    def test_post_log_chunk_payload(self, _):
         """Posts directory/start_time/sequence/content to the log_chunk endpoint"""
         os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
+        session = MagicMock()
 
         _post_log_chunk(
             audit_api_url="https://foo.bar",
@@ -326,9 +327,10 @@ class TestPostLogChunk(TestCase):
             start_time=12345,
             sequence=2,
             content="hello\n",
+            session=session,
         )
 
-        mock_post.assert_called_once_with(
+        session.post.assert_called_once_with(
             url="https://foo.bar/log_chunk",
             auth=ANY,
             json={
@@ -341,8 +343,7 @@ class TestPostLogChunk(TestCase):
         )
 
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
-    @patch("requests.post")
-    def test_post_log_chunk_signs_for_url_host(self, _, mock_auth):
+    def test_post_log_chunk_signs_for_url_host(self, mock_auth):
         """SigV4 host must come from the audit_api_url, not a hardcoded value."""
         os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
 
@@ -352,6 +353,7 @@ class TestPostLogChunk(TestCase):
             start_time=12345,
             sequence=0,
             content="x",
+            session=MagicMock(),
         )
 
         mock_auth.assert_called_with(
@@ -361,10 +363,10 @@ class TestPostLogChunk(TestCase):
         )
 
     @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
-    @patch("requests.post")
-    def test_post_log_chunk_raises_on_http_error(self, mock_post, _):
+    def test_post_log_chunk_raises_on_http_error(self, _):
         """A non-2xx response raises, so the caller decides how to handle it."""
-        mock_post.return_value.raise_for_status.side_effect = MOCK_ERROR
+        session = MagicMock()
+        session.post.return_value.raise_for_status.side_effect = MOCK_ERROR
         os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
 
         with self.assertRaises(HTTPError):
@@ -374,6 +376,7 @@ class TestPostLogChunk(TestCase):
                 start_time=12345,
                 sequence=0,
                 content="x",
+                session=session,
             )
 
 
@@ -439,7 +442,7 @@ class TestChunkStreaming(TestCase):
         """A log-chunk POST failure is swallowed by design — this is opt-in telemetry
         riding alongside the real apply, so any failure here (network, git, auth) must
         never take down the apply itself. Raising a generic Exception (not just a
-        requests error) proves the broad except in _chunk_callback is intentional."""
+        requests error) proves the broad except in _post_queued_chunks is intentional."""
         mock_post_chunk.side_effect = Exception("boom")
 
         exit_code, _ = execute_command(
@@ -450,3 +453,56 @@ class TestChunkStreaming(TestCase):
         )
 
         self.assertEqual(exit_code, 0)
+
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_relay_does_not_wait_on_chunk_posts(self, mock_post_chunk):
+        """The loop relaying terraform's output to the terminal must not block on a
+        chunk POST. Each POST here parks until every byte has been printed, which can
+        only happen if the two run concurrently — posting inline parks the relay that
+        would have set the event, so nothing is printed until the wait times out."""
+        all_printed = threading.Event()
+        printed_before_post = []
+
+        def park_until_printed(**_kwargs):
+            all_printed.wait(timeout=5)
+            printed_before_post.append(all_printed.is_set())
+
+        mock_post_chunk.side_effect = park_until_printed
+
+        expected = "".join(f"{i}\n" for i in range(15))
+        printed = []
+
+        def record_print(text, **_kwargs):
+            printed.append(text)
+            if "".join(printed) == expected:
+                all_printed.set()
+
+        code = "\n".join(f"print({i})" for i in range(15))
+        with patch("builtins.print", side_effect=record_print):
+            exit_code, _ = execute_command(
+                ["python3", "-c", code, "apply"],
+                audit_api_url="https://foo.bar",
+                cwd=os.getcwd(),
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(all_printed.is_set())
+        self.assertEqual(printed_before_post, [True, True])
+
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    @patch("terrawrap.utils.cli.requests.Session")
+    def test_chunk_posts_share_one_session(self, mock_session, mock_post_chunk):
+        """Every chunk POST goes through a single Session, so requests pools the
+        connection instead of renegotiating TLS for each chunk."""
+        code = "\n".join(f"print({i})" for i in range(15))
+        execute_command(
+            ["python3", "-c", code, "apply"],
+            audit_api_url=["https://foo.bar", "https://baz.qux"],
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        self.assertEqual(mock_session.call_count, 1)
+        self.assertEqual(mock_post_chunk.call_count, 4)
+        sessions_used = {chunk_call.kwargs["session"] for chunk_call in mock_post_chunk.call_args_list}
+        self.assertEqual(sessions_used, {mock_session.return_value.__enter__.return_value})

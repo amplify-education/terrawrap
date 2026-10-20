@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.9\] - 2026-10-20
+
+### Fixed
+
+- Live log-chunk streaming no longer stalls the terminal during `apply`/`destroy`.
+  `_chunk_callback` POSTed each chunk synchronously, on the same loop that relays
+  terraform's output to the screen, and built a new connection every time — a fresh
+  DNS lookup, TCP connect and TLS handshake per chunk, per configured audit URL.
+  Measured against `terraform-audit-api`, one signed POST takes 2.0–3.2s, so a
+  directory configured with two audit URLs spent 4.1–5.3s per chunk with the relay
+  parked. Past the 5.0s `CHUNK_FLUSH_INTERVAL` that degenerated into one chunk POST
+  per output character: a 146 KB plan took ~40 minutes to reach the terminal, at
+  roughly five seconds per character, while terraform itself had already finished
+  and was waiting at the confirmation prompt.
+
+  Chunks are now handed to a single poster thread through a queue, so the relay loop
+  never waits on the network, and that thread reuses one `requests.Session` for the
+  whole run so connections are pooled instead of renegotiated. The thread is drained
+  before the final audit-status update and is bounded by `CHUNK_POST_JOIN_TIMEOUT`
+  (30s), after which remaining chunks are abandoned with a warning — the complete
+  output is posted by the closing `_post_audit_info` regardless. `_post_log_chunk`
+  now takes the `session` to post through.
+
+  `last_flush` is also stamped after the flush rather than before, so a slow flush
+  cannot leave the interval already expired on the next byte.
+
 ## \[0.11.8\] - 2026-09-03
 
 ### Fixed

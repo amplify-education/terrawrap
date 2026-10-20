@@ -7,8 +7,10 @@ import codecs
 import gzip
 import logging
 import os
+import queue
 import subprocess
 import tempfile
+import threading
 import time
 from enum import Enum
 from typing import Callable, List, Optional, Tuple, Union
@@ -50,6 +52,7 @@ LOG_CHUNK_POST_PATH = "/log_chunk"
 OUTPUT_COMPRESSION_THRESHOLD = 5 * 1024 * 1024
 CHUNK_LINE_COUNT = 10
 CHUNK_FLUSH_INTERVAL = 5.0
+CHUNK_POST_JOIN_TIMEOUT = 30.0
 
 
 class Status(str, Enum):
@@ -114,21 +117,45 @@ def execute_command(
 
     should_stream = bool(audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args))
     chunk_seq = 0
+    chunk_queue: queue.Queue[Optional[Tuple[int, str]]] = queue.Queue()
+
+    def _post_queued_chunks() -> None:
+        # One Session for the whole run: requests pools connections per host, so
+        # chunks after the first reuse an open TLS connection instead of paying a
+        # fresh DNS lookup, TCP connect and handshake (~2s per POST, per URL).
+        with requests.Session() as session:
+            while True:
+                item = chunk_queue.get()
+                if item is None:
+                    return
+                sequence, content = item
+                for url in audit_api_urls:
+                    try:
+                        _post_log_chunk(
+                            audit_api_url=url,
+                            path=kwargs["cwd"],
+                            start_time=start_time,
+                            sequence=sequence,
+                            content=content,
+                            session=session,
+                        )
+                    except Exception as exc:  # pylint: disable=broad-except
+                        logger.warning("Failed to post log chunk %d to %s: %s", sequence, url, exc)
 
     def _chunk_callback(content: str) -> None:
+        # Hand the chunk to the poster thread rather than POSTing inline: this runs
+        # on the loop relaying terraform's output to the terminal, so any blocking
+        # here stalls what the user sees.
         nonlocal chunk_seq
-        for url in audit_api_urls:
-            try:
-                _post_log_chunk(
-                    audit_api_url=url,
-                    path=kwargs["cwd"],
-                    start_time=start_time,
-                    sequence=chunk_seq,
-                    content=content,
-                )
-            except Exception as exc:  # pylint: disable=broad-except
-                logger.warning("Failed to post log chunk %d to %s: %s", chunk_seq, url, exc)
+        chunk_queue.put((chunk_seq, content))
         chunk_seq += 1
+
+    chunk_poster: Optional[threading.Thread] = None
+    if should_stream:
+        chunk_poster = threading.Thread(
+            target=_post_queued_chunks, name="terrawrap-log-chunk-poster", daemon=True
+        )
+        chunk_poster.start()
 
     jitter = Jitter()
     time_passed = 0
@@ -162,6 +189,18 @@ def execute_command(
             break
 
         time_passed = jitter.backoff()
+
+    if chunk_poster:
+        # Drain before the status update below, so the audit API never marks the run
+        # finished while chunks are still arriving.
+        chunk_queue.put(None)
+        chunk_poster.join(timeout=CHUNK_POST_JOIN_TIMEOUT)
+        if chunk_poster.is_alive():
+            logger.warning(
+                "Log-chunk poster did not finish within %ss; abandoning %d queued chunk(s)",
+                CHUNK_POST_JOIN_TIMEOUT,
+                chunk_queue.qsize(),
+            )
 
     if audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args):
         # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
@@ -246,7 +285,7 @@ def _execute_command(
                     on_chunk("".join(buf))
                     buf = []
                     line_count = 0
-                    last_flush = now
+                    last_flush = time.time()
 
             if is_eof:
                 break
@@ -344,6 +383,7 @@ def _post_log_chunk(
     start_time: int,
     sequence: int,
     content: str,
+    session: requests.Session,
 ) -> None:
     """POST a single log chunk to the audit API during an apply."""
     root = get_git_root(path)
@@ -355,7 +395,7 @@ def _post_log_chunk(
         aws_service="execute-api",
     )
 
-    response = requests.post(
+    response = session.post(
         url=audit_api_url + LOG_CHUNK_POST_PATH,
         auth=auth,
         json={
