@@ -489,6 +489,44 @@ class TestChunkStreaming(TestCase):
         self.assertTrue(all_printed.is_set())
         self.assertEqual(printed_before_post, [True, True])
 
+    @patch("terrawrap.utils.cli.CHUNK_POST_JOIN_TIMEOUT", 0.1)
+    @patch("terrawrap.utils.cli._post_log_chunk")
+    def test_queued_chunks_discarded_when_drain_times_out(self, mock_post_chunk):
+        """Whatever is still queued when the drain deadline passes must be discarded.
+        join() alone only stops waiting, so without an explicit stop the poster keeps
+        working through its backlog and can POST a chunk after the audit API has
+        already been told the run finished."""
+        first_post_started = threading.Event()
+        release_first_post = threading.Event()
+        self.addCleanup(release_first_post.set)
+
+        def park_on_first_chunk(**kwargs):
+            if kwargs["sequence"] == 0:
+                first_post_started.set()
+                release_first_post.wait(timeout=5)
+
+        mock_post_chunk.side_effect = park_on_first_chunk
+
+        code = "\n".join(f"print({i})" for i in range(15))
+        execute_command(
+            ["python3", "-c", code, "apply"],
+            audit_api_url="https://foo.bar",
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        # execute_command is past its drain deadline with the poster still parked in
+        # chunk 0, and chunk 1 queued behind it. Releasing it must not post chunk 1.
+        self.assertTrue(first_post_started.is_set())
+        poster = next(
+            thread for thread in threading.enumerate() if thread.name == "terrawrap-log-chunk-poster"
+        )
+        release_first_post.set()
+        poster.join(timeout=5)
+
+        self.assertFalse(poster.is_alive())
+        self.assertEqual([c.kwargs["sequence"] for c in mock_post_chunk.call_args_list], [0])
+
     @patch("terrawrap.utils.cli._post_log_chunk")
     @patch("terrawrap.utils.cli.requests.Session")
     def test_chunk_posts_share_one_session(self, mock_session, mock_post_chunk):

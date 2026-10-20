@@ -118,6 +118,7 @@ def execute_command(
     should_stream = bool(audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args))
     chunk_seq = 0
     chunk_queue: queue.Queue[Optional[Tuple[int, str]]] = queue.Queue()
+    stop_posting = threading.Event()
 
     def _post_queued_chunks() -> None:
         # One Session for the whole run: requests pools connections per host, so
@@ -126,10 +127,12 @@ def execute_command(
         with requests.Session() as session:
             while True:
                 item = chunk_queue.get()
-                if item is None:
+                if item is None or stop_posting.is_set():
                     return
                 sequence, content = item
                 for url in audit_api_urls:
+                    if stop_posting.is_set():
+                        return
                     try:
                         _post_log_chunk(
                             audit_api_url=url,
@@ -192,12 +195,15 @@ def execute_command(
 
     if chunk_poster:
         # Drain before the status update below, so the audit API never marks the run
-        # finished while chunks are still arriving.
+        # finished while chunks are still arriving. Past the deadline, stop_posting
+        # makes the poster discard the rest instead of racing that update — it still
+        # finishes the request in flight, which _post_log_chunk bounds at 10s.
         chunk_queue.put(None)
         chunk_poster.join(timeout=CHUNK_POST_JOIN_TIMEOUT)
         if chunk_poster.is_alive():
+            stop_posting.set()
             logger.warning(
-                "Log-chunk poster did not finish within %ss; abandoning %d queued chunk(s)",
+                "Log-chunk poster did not finish within %ss; discarding %d queued chunk(s)",
                 CHUNK_POST_JOIN_TIMEOUT,
                 chunk_queue.qsize(),
             )

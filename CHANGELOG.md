@@ -24,9 +24,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   never waits on the network, and that thread reuses one `requests.Session` for the
   whole run so connections are pooled instead of renegotiated. The thread is drained
   before the final audit-status update and is bounded by `CHUNK_POST_JOIN_TIMEOUT`
-  (30s), after which remaining chunks are abandoned with a warning — the complete
-  output is posted by the closing `_post_audit_info` regardless. `_post_log_chunk`
-  now takes the `session` to post through.
+  (30s), past which the poster discards whatever is still queued rather than racing
+  that update — the complete output is posted by the closing `_post_audit_info`
+  regardless. `_post_log_chunk` now takes the `session` to post through.
 
   `last_flush` is also stamped after the flush rather than before, so a slow flush
   cannot leave the interval already expired on the next byte.
