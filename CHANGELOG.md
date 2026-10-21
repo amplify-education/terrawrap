@@ -14,8 +14,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   terraform's output to the screen, and opened a new connection every time — a fresh
   DNS lookup, TCP connect and TLS handshake per chunk, per configured audit URL.
   Measured against `terraform-audit-api`, a POST on a new connection takes a median
-  of 2.1s against 0.15s on a pooled one, so a directory with two audit URLs parked
-  the relay for roughly 4s per flush, against a `CHUNK_FLUSH_INTERVAL` of 5.0s. Once
+  of 2.1s against 0.15s on a pooled one, so the three audit URLs configured for that
+  directory parked the relay for roughly 6s per flush, against a
+  `CHUNK_FLUSH_INTERVAL` of 5.0s. Once
   a flush ran past that interval the next decoded byte triggered another, so for
   stretches the output advanced about one character per flush: a 146 KB plan took
   ~40 minutes to reach the terminal while terraform itself had already finished and
