@@ -315,24 +315,24 @@ class TestCli(TestCase):
 class TestPostLogChunk(TestCase):
     """Test the log-chunk POST helper"""
 
-    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
-    def test_post_log_chunk_payload(self, _):
+    def test_post_log_chunk_payload(self):
         """Posts directory/start_time/sequence/content to the log_chunk endpoint"""
-        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
         session = MagicMock()
+        auth = MagicMock()
 
         _post_log_chunk(
             audit_api_url="https://foo.bar",
-            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+            directory="/test/helpers/mock_directory/config/.tf_wrapper",
             start_time=12345,
             sequence=2,
             content="hello\n",
             session=session,
+            auth=auth,
         )
 
         session.post.assert_called_once_with(
             url="https://foo.bar/log_chunk",
-            auth=ANY,
+            auth=auth,
             json={
                 "directory": "/test/helpers/mock_directory/config/.tf_wrapper",
                 "start_time": 12345,
@@ -342,41 +342,20 @@ class TestPostLogChunk(TestCase):
             timeout=10,
         )
 
-    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
-    def test_post_log_chunk_signs_for_url_host(self, mock_auth):
-        """SigV4 host must come from the audit_api_url, not a hardcoded value."""
-        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
-
-        _post_log_chunk(
-            audit_api_url="https://terraform-audit-api.devops-testing.amplify.com",
-            path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
-            start_time=12345,
-            sequence=0,
-            content="x",
-            session=MagicMock(),
-        )
-
-        mock_auth.assert_called_with(
-            aws_host="terraform-audit-api.devops-testing.amplify.com",
-            aws_region="us-west-2",
-            aws_service="execute-api",
-        )
-
-    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
-    def test_post_log_chunk_raises_on_http_error(self, _):
+    def test_post_log_chunk_raises_on_http_error(self):
         """A non-2xx response raises, so the caller decides how to handle it."""
         session = MagicMock()
         session.post.return_value.raise_for_status.side_effect = MOCK_ERROR
-        os.chdir(os.path.normpath(os.path.dirname(__file__) + "/../helpers"))
 
         with self.assertRaises(HTTPError):
             _post_log_chunk(
                 audit_api_url="https://foo.bar",
-                path=os.path.join(os.getcwd(), "mock_directory/config/.tf_wrapper"),
+                directory="/test/helpers/mock_directory/config/.tf_wrapper",
                 start_time=12345,
                 sequence=0,
                 content="x",
                 session=session,
+                auth=MagicMock(),
             )
 
 
@@ -508,12 +487,17 @@ class TestChunkStreaming(TestCase):
         mock_post_chunk.side_effect = park_on_first_chunk
 
         code = "\n".join(f"print({i})" for i in range(15))
-        execute_command(
-            ["python3", "-c", code, "apply"],
-            audit_api_url="https://foo.bar",
-            cwd=os.getcwd(),
-            print_output=False,
-        )
+        with self.assertLogs("terrawrap.utils.cli", level="WARNING") as logs:
+            execute_command(
+                ["python3", "-c", code, "apply"],
+                audit_api_url="https://foo.bar",
+                cwd=os.getcwd(),
+                print_output=False,
+            )
+
+        # Chunk 0 is in flight and the sentinel is not a chunk, so of the three items
+        # that passed through the queue exactly one is discarded.
+        self.assertIn("discarding 1 queued chunk(s)", "\n".join(logs.output))
 
         # execute_command is past its drain deadline with the poster still parked in
         # chunk 0, and chunk 1 queued behind it. Releasing it must not post chunk 1.
@@ -544,3 +528,35 @@ class TestChunkStreaming(TestCase):
         self.assertEqual(mock_post_chunk.call_count, 4)
         sessions_used = {chunk_call.kwargs["session"] for chunk_call in mock_post_chunk.call_args_list}
         self.assertEqual(sessions_used, {mock_session.return_value.__enter__.return_value})
+
+    @patch("terrawrap.utils.cli._post_audit_info")
+    @patch("terrawrap.utils.cli.requests.Session")
+    @patch("terrawrap.utils.cli.BotoAWSRequestsAuth")
+    def test_chunk_posts_build_one_signer_per_url(self, mock_auth, mock_session, _):
+        """Constructing BotoAWSRequestsAuth resolves credentials — under ECS that is a
+        call to the task's credential endpoint — so a run builds one signer per audit
+        URL and reuses it, rather than one per chunk. The SigV4 host comes from each
+        audit_api_url, not a hardcoded value. Building per chunk instead makes this
+        four constructions for the same two URLs."""
+        code = "\n".join(f"print({i})" for i in range(15))
+        execute_command(
+            ["python3", "-c", code, "apply"],
+            audit_api_url=[
+                "https://terraform-audit-api.devops-testing.amplify.com",
+                "https://terraform-audit-api.devops.amplify.com",
+            ],
+            cwd=os.getcwd(),
+            print_output=False,
+        )
+
+        self.assertEqual(mock_session.return_value.__enter__.return_value.post.call_count, 4)
+        self.assertEqual(
+            [auth_call.kwargs["aws_host"] for auth_call in mock_auth.call_args_list],
+            [
+                "terraform-audit-api.devops-testing.amplify.com",
+                "terraform-audit-api.devops.amplify.com",
+            ],
+        )
+        for auth_call in mock_auth.call_args_list:
+            self.assertEqual(auth_call.kwargs["aws_region"], "us-west-2")
+            self.assertEqual(auth_call.kwargs["aws_service"], "execute-api")

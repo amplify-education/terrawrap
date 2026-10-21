@@ -5,20 +5,21 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## \[0.11.9\] - 2026-10-20
+## \[0.11.9\] - 2026-10-21
 
 ### Fixed
 
 - Live log-chunk streaming no longer stalls the terminal during `apply`/`destroy`.
   `_chunk_callback` POSTed each chunk synchronously, on the same loop that relays
-  terraform's output to the screen, and built a new connection every time — a fresh
+  terraform's output to the screen, and opened a new connection every time — a fresh
   DNS lookup, TCP connect and TLS handshake per chunk, per configured audit URL.
-  Measured against `terraform-audit-api`, one signed POST takes 2.0–3.2s, so a
-  directory configured with two audit URLs spent 4.1–5.3s per chunk with the relay
-  parked. Past the 5.0s `CHUNK_FLUSH_INTERVAL` that degenerated into one chunk POST
-  per output character: a 146 KB plan took ~40 minutes to reach the terminal, at
-  roughly five seconds per character, while terraform itself had already finished
-  and was waiting at the confirmation prompt.
+  Measured against `terraform-audit-api`, a POST on a new connection takes a median
+  of 2.1s against 0.15s on a pooled one, so a directory with two audit URLs parked
+  the relay for roughly 4s per flush, against a `CHUNK_FLUSH_INTERVAL` of 5.0s. Once
+  a flush ran past that interval the next decoded byte triggered another, so for
+  stretches the output advanced about one character per flush: a 146 KB plan took
+  ~40 minutes to reach the terminal while terraform itself had already finished and
+  was waiting at the confirmation prompt.
 
   Chunks are now handed to a single poster thread through a queue, so the relay loop
   never waits on the network, and that thread reuses one `requests.Session` for the
@@ -26,10 +27,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   before the final audit-status update and is bounded by `CHUNK_POST_JOIN_TIMEOUT`
   (30s), past which the poster discards whatever is still queued rather than racing
   that update — the complete output is posted by the closing `_post_audit_info`
-  regardless. `_post_log_chunk` now takes the `session` to post through.
+  regardless.
 
   `last_flush` is also stamped after the flush rather than before, so a slow flush
   cannot leave the interval already expired on the next byte.
+
+- A run builds one `BotoAWSRequestsAuth` per audit URL and one git root, instead of
+  one of each per chunk. The signer's constructor resolves credentials, which under
+  ECS container credentials is a call to the task's credential endpoint, and
+  `get_git_root` forks a `git` process; an apply printing a few thousand lines to
+  three audit URLs paid both several hundred times, against a credential endpoint
+  shared with terraform's own AWS provider. The signer re-reads credentials per
+  request through `get_frozen_credentials`, so it still refreshes across a long run.
+  `_post_log_chunk` takes the `session`, `auth` and resolved `directory` to use.
 
 ## \[0.11.8\] - 2026-09-03
 

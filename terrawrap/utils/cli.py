@@ -13,7 +13,7 @@ import tempfile
 import threading
 import time
 from enum import Enum
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 import requests
@@ -124,6 +124,14 @@ def execute_command(
         # One Session for the whole run: requests pools connections per host, so
         # chunks after the first reuse an open TLS connection instead of paying a
         # fresh DNS lookup, TCP connect and handshake (~2s per POST, per URL).
+        # The git root and the per-URL signers are resolved once for the same reason:
+        # get_git_root forks a git process, and BotoAWSRequestsAuth's constructor
+        # resolves credentials — under ECS a call to the task's credential endpoint,
+        # shared with terraform's own provider. The signer re-reads credentials per
+        # request, so one per URL still refreshes across a long run.
+        root = get_git_root(kwargs["cwd"])
+        directory = kwargs["cwd"].replace(root, "")
+        signers: Dict[str, BotoAWSRequestsAuth] = {}
         with requests.Session() as session:
             while True:
                 item = chunk_queue.get()
@@ -132,15 +140,26 @@ def execute_command(
                 sequence, content = item
                 for url in audit_api_urls:
                     if stop_posting.is_set():
+                        # Past the deadline a chunk can reach some URLs and not the
+                        # rest. That is accepted: the closing _post_audit_info posts
+                        # the full output to every URL, and finishing this loop would
+                        # race that update.
                         return
                     try:
+                        if url not in signers:
+                            signers[url] = BotoAWSRequestsAuth(
+                                aws_host=urlparse(url).hostname,
+                                aws_region="us-west-2",
+                                aws_service="execute-api",
+                            )
                         _post_log_chunk(
                             audit_api_url=url,
-                            path=kwargs["cwd"],
+                            directory=directory,
                             start_time=start_time,
                             sequence=sequence,
                             content=content,
                             session=session,
+                            auth=signers[url],
                         )
                     except Exception as exc:  # pylint: disable=broad-except
                         logger.warning("Failed to post log chunk %d to %s: %s", sequence, url, exc)
@@ -205,7 +224,7 @@ def execute_command(
             logger.warning(
                 "Log-chunk poster did not finish within %ss; discarding %d queued chunk(s)",
                 CHUNK_POST_JOIN_TIMEOUT,
-                chunk_queue.qsize(),
+                max(chunk_queue.qsize() - 1, 0),
             )
 
     if audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args):
@@ -385,22 +404,14 @@ def _post_audit_info(
 
 def _post_log_chunk(
     audit_api_url: str,
-    path: str,
+    directory: str,
     start_time: int,
     sequence: int,
     content: str,
     session: requests.Session,
+    auth: BotoAWSRequestsAuth,
 ) -> None:
     """POST a single log chunk to the audit API during an apply."""
-    root = get_git_root(path)
-    directory = path.replace(root, "")
-
-    auth = BotoAWSRequestsAuth(
-        aws_host=urlparse(audit_api_url).hostname,
-        aws_region="us-west-2",
-        aws_service="execute-api",
-    )
-
     response = session.post(
         url=audit_api_url + LOG_CHUNK_POST_PATH,
         auth=auth,
