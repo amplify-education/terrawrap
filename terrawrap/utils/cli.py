@@ -294,8 +294,9 @@ def _execute_command(
         # terraform prompts (which don't end in a newline) rely on.
         decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         while True:
+            process_done = process.poll() is not None
             raw_byte = stdout_read.read(1)
-            is_eof = raw_byte == b"" and process.poll() is not None
+            is_eof = raw_byte == b"" and process_done
             output = decoder.decode(raw_byte, final=is_eof)
 
             if print_output and output:

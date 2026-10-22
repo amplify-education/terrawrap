@@ -42,6 +42,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   request through `get_frozen_credentials`, so it still refreshes across a long run.
   `_post_log_chunk` takes the `session`, `auth` and resolved `directory` to use.
 
+- `_execute_command` no longer loses output that a process flushes as it exits. EOF was
+  declared when a read returned no bytes and `process.poll()` then reported the exit, so
+  a process that flushed its last bytes and exited inside that window had them left
+  unread. Under CPU load a 15-line apply reached the terminal as 0 bytes in 12 of 60
+  runs. The returned output is re-read from the temp file and was always complete, so
+  the loss was confined to the terminal and the streamed chunks. `poll()` is now sampled
+  before the read: an empty read after an observed exit is a real end of file, because
+  everything the process wrote is already on disk by then. Present since `90b6177`
+  (0.11.7) and independent of log-chunk streaming.
+
 ## \[0.11.8\] - 2026-09-03
 
 ### Fixed
