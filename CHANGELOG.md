@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.9\] - 2026-10-21
+
+### Fixed
+
+- Live log-chunk streaming no longer stalls the terminal during `apply`/`destroy`.
+  `_chunk_callback` POSTed each chunk synchronously, on the same loop that relays
+  terraform's output to the screen, and opened a new connection every time — a fresh
+  DNS lookup, TCP connect and TLS handshake per chunk, per configured audit URL.
+  Measured against `terraform-audit-api`, a POST on a new connection takes a median
+  of 2.1s against 0.15s on a pooled one, so the three audit URLs configured for that
+  directory parked the relay for roughly 6s per flush, against a
+  `CHUNK_FLUSH_INTERVAL` of 5.0s. Once
+  a flush ran past that interval the next decoded byte triggered another, so for
+  stretches the output advanced about one character per flush: a 146 KB plan took
+  ~40 minutes to reach the terminal while terraform itself had already finished and
+  was waiting at the confirmation prompt.
+
+  Chunks are now handed to a single poster thread through a queue, so the relay loop
+  never waits on the network, and that thread reuses one `requests.Session` for the
+  whole run so connections are pooled instead of renegotiated. The thread is drained
+  before the final audit-status update and is bounded by `CHUNK_POST_JOIN_TIMEOUT`
+  (30s), past which the poster discards whatever is still queued rather than racing
+  that update — the complete output is posted by the closing `_post_audit_info`
+  regardless.
+
+  `last_flush` is also stamped after the flush rather than before, so a slow flush
+  cannot leave the interval already expired on the next byte.
+
+- A run builds one `BotoAWSRequestsAuth` per audit URL and one git root, instead of
+  one of each per chunk. The signer's constructor resolves credentials, which under
+  ECS container credentials is a call to the task's credential endpoint, and
+  `get_git_root` forks a `git` process; an apply printing a few thousand lines to
+  three audit URLs paid both several hundred times, against a credential endpoint
+  shared with terraform's own AWS provider. The signer re-reads credentials per
+  request through `get_frozen_credentials`, so it still refreshes across a long run.
+  `_post_log_chunk` takes the `session`, `auth` and resolved `directory` to use.
+
+- `_execute_command` no longer loses output that a process flushes as it exits. EOF was
+  declared when a read returned no bytes and `process.poll()` then reported the exit, so
+  a process that flushed its last bytes and exited inside that window had them left
+  unread. Under CPU load a 15-line apply reached the terminal as 0 bytes in 12 of 60
+  runs. The returned output is re-read from the temp file and was always complete, so
+  the loss was confined to the terminal and the streamed chunks. `poll()` is now sampled
+  before the read: an empty read after an observed exit is a real end of file, because
+  everything the process wrote is already on disk by then. Present since `90b6177`
+  (0.11.7) and independent of log-chunk streaming.
+
 ## \[0.11.8\] - 2026-09-03
 
 ### Fixed
