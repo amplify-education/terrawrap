@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.10\] - 2026-11-02
+
+### Security
+
+- The version-check cache now depends on `diskcache-community` instead of
+  `diskcache`, and reads its entries through `SafeDisk`. diskcache 5.6.3 is
+  unmaintained and has an unpatched advisory (CVE-2025-69872): it unpickles
+  whatever is stored in the cache, and this cache lives at a fixed path in the
+  shared temp directory. An entry that isn't plain data is now treated as a miss
+  and the latest version is looked up again.
+
 ## \[0.11.9\] - 2026-10-21
 
 ### Fixed
