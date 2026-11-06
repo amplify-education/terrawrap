@@ -10,7 +10,7 @@ ruamel.yaml>=0.18,<1
 jsons>=1.6.3,<2.0.0
 python-hcl2~=8.1
 # Packaging does not obey semver
-packaging==26
+packaging==26.3
 diskcache>=5.0.0,<6
 networkx>=2.4
 python-dateutil>=2.8.2,<3
