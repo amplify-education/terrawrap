@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.10\] - 2026-11-06
+
+### Fixed
+
+- `plan_check --modified-only` no longer silently skips directories whose only change
+  is a module they use. python-hcl2 8.1.3+ is not thread-safe: the 50-thread pools in
+  `get_module_usage_graph` and `get_auto_var_usage_graph` intermittently got strings back
+  with their quotes intact (`strip_string_quotes` ignored), and every later load in the
+  process stayed corrupted. Module `source` paths came out mangled, so edges from a changed
+  module to the directories that call it were missing and plan_check selected nothing.
+  `hcl2_load`/`hcl2_loads` now serialize parsing behind a lock.
+
 ## \[0.11.9\] - 2026-10-21
 
 ### Fixed
