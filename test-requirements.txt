@@ -1,7 +1,7 @@
 -r requirements.txt
 
 # Testing tools
-pytest>=7.4.0,<8
+pytest>=9.1.1,<10
 pytest-cov>=4.1.0,<5
 requests-mock>=1.8.0,<2
 # Additional libraries
