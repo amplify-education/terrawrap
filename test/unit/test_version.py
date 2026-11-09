@@ -1,5 +1,10 @@
 """Test version utils"""
 
+import os
+import pickle
+import shutil
+import sqlite3
+import tempfile
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -127,3 +132,42 @@ class TestVersion(TestCase):
 
         self.assertEqual(stable, "1.0.1")
         self.assertIsNone(rc)
+
+    @patch("requests.get")
+    def test_get_latest_version_cache_refuses_pickled_entries(self, mock_get):
+        """VersionUtils treats a cache entry rewritten to hold a pickle as a miss"""
+        mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": []}}
+        marker_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, marker_dir)
+        self.addCleanup(cache.clear)
+        marker = os.path.join(marker_dir, "marker")
+
+        self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
+        self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
+        self.assertEqual(mock_get.call_count, 1)
+
+        connection = sqlite3.connect(os.path.join(cache.directory, "cache.db"))
+        connection.execute(
+            "UPDATE Cache SET mode = 4, value = ?",
+            (pickle.dumps(_Planted(marker), protocol=2),),
+        )
+        connection.commit()
+        connection.close()
+
+        self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertFalse(os.path.exists(marker))
+
+
+def _write_marker(path):
+    with open(path, "w", encoding="utf-8") as marker:
+        marker.write("ran")
+    return ("9.9.9", None)
+
+
+class _Planted:
+    def __init__(self, path):
+        self.path = path
+
+    def __reduce__(self):
+        return (_write_marker, (self.path,))
