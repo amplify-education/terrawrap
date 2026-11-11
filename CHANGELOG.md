@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   attempt; other commands (except `init`, `console` and `import`) initialize after terraform reports
   `Initial configuration of the requested backend`. A changed backend is never initialized automatically.
   Opt out with `--no-auto-init` or `auto_init: false` in `.tf_wrapper`. When Terrawrap manages the backend, the
-  init uses the same arguments as `tf <directory> init`, including `-upgrade`.
+  init uses the same arguments as `tf <directory> init` except `-upgrade`, so the lock file is honored.
 
 ### Changed
 

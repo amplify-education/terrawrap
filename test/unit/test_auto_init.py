@@ -1,5 +1,7 @@
 """Tests for terrawrap.utils.auto_init"""
 
+import contextlib
+import io
 import os
 import shutil
 import tempfile
@@ -25,20 +27,41 @@ WRAPPED_REASON_ERROR = [
 
 
 class TestIsBackendInitError(TestCase):
+    def setUp(self):
+        self.path = tempfile.mkdtemp(prefix="71564ffd-")
+        self.addCleanup(shutil.rmtree, self.path, ignore_errors=True)
+
+    def _write_backend_state(self, data_dir=".terraform"):
+        os.makedirs(os.path.join(self.path, data_dir), exist_ok=True)
+        with open(os.path.join(self.path, data_dir, "terraform.tfstate"), "w", encoding="utf-8") as state:
+            state.write("{}")
+
     def test_initial_configuration_matches(self):
         """The initial-configuration error from a fresh checkout triggers auto-init"""
-        self.assertTrue(is_backend_init_error(INITIAL_CONFIG_ERROR))
+        self.assertTrue(is_backend_init_error(INITIAL_CONFIG_ERROR, self.path, {}))
 
     def test_reason_wrapped_across_lines_matches(self):
         """Terraform hard-wraps diagnostics, so matching ignores line breaks"""
-        self.assertTrue(is_backend_init_error(WRAPPED_REASON_ERROR))
+        self.assertTrue(is_backend_init_error(WRAPPED_REASON_ERROR, self.path, {}))
 
     def test_changed_backend_config_does_not_match(self):
         """-reconfigure on a changed backend could orphan state, so it must not auto-init"""
-        self.assertFalse(is_backend_init_error(CHANGED_CONFIG_ERROR))
+        self.assertFalse(is_backend_init_error(CHANGED_CONFIG_ERROR, self.path, {}))
 
     def test_unrelated_output_does_not_match(self):
-        self.assertFalse(is_backend_init_error(["Error: Invalid provider configuration\n"]))
+        self.assertFalse(is_backend_init_error(["Error: Invalid provider configuration\n"], self.path, {}))
+
+    def test_quoted_message_with_initialized_backend_does_not_match(self):
+        """Output that merely quotes the message must not wipe an initialized .terraform"""
+        self._write_backend_state()
+        self.assertFalse(is_backend_init_error(INITIAL_CONFIG_ERROR, self.path, {}))
+
+    def test_tf_data_dir_is_honored(self):
+        self._write_backend_state(data_dir="custom-data")
+        self.assertFalse(
+            is_backend_init_error(INITIAL_CONFIG_ERROR, self.path, {"TF_DATA_DIR": "custom-data"})
+        )
+        self.assertTrue(is_backend_init_error(INITIAL_CONFIG_ERROR, self.path, {}))
 
 
 class TestIsAutoInitEligible(TestCase):
@@ -67,31 +90,47 @@ class TestIsBackendUninitialized(TestCase):
 
     def test_backend_without_dot_terraform_is_uninitialized(self):
         self._write_backend()
-        self.assertTrue(is_backend_uninitialized(self.path))
+        self.assertTrue(is_backend_uninitialized(self.path, {}))
 
     def test_backend_with_backend_state_is_initialized(self):
         self._write_backend()
         os.makedirs(os.path.join(self.path, ".terraform"))
         with open(os.path.join(self.path, ".terraform", "terraform.tfstate"), "w", encoding="utf-8") as state:
             state.write("{}")
-        self.assertFalse(is_backend_uninitialized(self.path))
+        self.assertFalse(is_backend_uninitialized(self.path, {}))
+
+    def test_tf_data_dir_is_honored(self):
+        self._write_backend()
+        os.makedirs(os.path.join(self.path, "custom-data"))
+        with open(
+            os.path.join(self.path, "custom-data", "terraform.tfstate"), "w", encoding="utf-8"
+        ) as state:
+            state.write("{}")
+        self.assertFalse(is_backend_uninitialized(self.path, {"TF_DATA_DIR": "custom-data"}))
+        self.assertTrue(is_backend_uninitialized(self.path, {}))
 
     def test_unsupported_backend_type_is_not_uninitialized(self):
         """A backend type terrawrap can't parse must not make apply/destroy crash"""
         with open(os.path.join(self.path, "backend.tf"), "w", encoding="utf-8") as backend_file:
             backend_file.write('terraform {\n  backend "local" {\n    path = "a.tfstate"\n  }\n}\n')
-        self.assertFalse(is_backend_uninitialized(self.path))
+        self.assertFalse(is_backend_uninitialized(self.path, {}))
 
     def test_unparseable_config_is_not_uninitialized(self):
-        """Any parse failure must not break apply/destroy; the reactive retry covers it"""
-        with patch(
-            "terrawrap.utils.auto_init.parse_backend_config_for_dir", side_effect=ValueError("bad hcl")
+        """Any parse failure must not break apply/destroy, but the skipped pre-flight is reported"""
+        stderr = io.StringIO()
+        with (
+            patch(
+                "terrawrap.utils.auto_init.parse_backend_config_for_dir", side_effect=ValueError("bad hcl")
+            ),
+            contextlib.redirect_stderr(stderr),
         ):
-            self.assertFalse(is_backend_uninitialized(self.path))
+            self.assertFalse(is_backend_uninitialized(self.path, {}))
+        self.assertIn(self.path, stderr.getvalue())
+        self.assertIn("bad hcl", stderr.getvalue())
 
     def test_no_backend_block_is_not_uninitialized(self):
         """Directories without a backend block never hit the backend-init error"""
-        self.assertFalse(is_backend_uninitialized(self.path))
+        self.assertFalse(is_backend_uninitialized(self.path, {}))
 
 
 class TestCalcInitBackendArguments(TestCase):
@@ -112,6 +151,17 @@ class TestCalcInitBackendArguments(TestCase):
             existing_backend_config={"s3": {}},
         )
 
+    @patch("terrawrap.utils.auto_init.calc_backend_config")
+    @patch("terrawrap.utils.auto_init.parse_backend_config_for_dir")
+    def test_upgrade_false_drops_upgrade_flag(self, parse_backend, calc_backend):
+        """Auto-init keeps providers pinned to the lock file by omitting -upgrade"""
+        parse_backend.return_value = {"s3": {}}
+        calc_backend.return_value = ["-reconfigure", "-upgrade", "-backend-config=key=value"]
+
+        result = calc_init_backend_arguments("/dir", {}, WrapperConfig(), upgrade=False)
+
+        self.assertEqual(result, ["-reconfigure", "-backend-config=key=value"])
+
     @patch("terrawrap.utils.auto_init.parse_backend_config_for_dir")
     def test_returns_empty_when_configure_backend_disabled(self, parse_backend):
         self.assertEqual(calc_init_backend_arguments("/dir", {}, WrapperConfig(configure_backend=False)), [])
@@ -127,7 +177,7 @@ class TestAutoInitBackend(TestCase):
     @patch("terrawrap.utils.auto_init.shutil.rmtree")
     @patch("terrawrap.utils.auto_init.download_plugins")
     @patch("terrawrap.utils.auto_init.execute_command", return_value=(0, []))
-    @patch("terrawrap.utils.auto_init.calc_init_backend_arguments", return_value=["-reconfigure", "-upgrade"])
+    @patch("terrawrap.utils.auto_init.calc_init_backend_arguments", return_value=["-reconfigure"])
     @patch("terrawrap.utils.auto_init.parse_variable_files", return_value={"v": "1"})
     @patch("terrawrap.utils.auto_init.find_variable_files", return_value=["vars.tfvars"])
     def test_loads_variables_and_runs_init_like_explicit_init(
@@ -141,11 +191,11 @@ class TestAutoInitBackend(TestCase):
         self.assertEqual(exit_code, 0)
         find_vars.assert_called_once_with(path="/abs")
         parse_vars.assert_called_once_with(variable_files=["vars.tfvars"])
-        init_args.assert_called_once_with("/abs", {"v": "1"}, wrapper_config)
+        init_args.assert_called_once_with("/abs", {"v": "1"}, wrapper_config, upgrade=False)
         plugins.assert_called_once_with(wrapper_config)
         rmtree.assert_called_once()
         called = execute.call_args
-        self.assertEqual(called.args[0], ["terraform", "init", "-reconfigure", "-upgrade"])
+        self.assertEqual(called.args[0], ["terraform", "init", "-reconfigure"])
         self.assertEqual(called.kwargs["cwd"], "/abs")
         self.assertEqual(called.kwargs["env"]["TF_VAR_v"], "1")
         self.assertEqual(called.kwargs["env"]["EXTRA"], "x")
@@ -199,3 +249,38 @@ class TestResolveAutoInit(TestCase):
 
 def unittest_any():
     return ANY
+
+
+@patch("terrawrap.utils.auto_init.auto_init_backend", return_value=0)
+class TestResolveAutoInitDetection(TestCase):
+    """resolve_auto_init with the real backend detector against a directory on disk"""
+
+    def setUp(self):
+        self.path = tempfile.mkdtemp(prefix="71564ffd-")
+        self.addCleanup(shutil.rmtree, self.path, ignore_errors=True)
+
+    def _write_backend(self):
+        with open(os.path.join(self.path, "backend.tf"), "w", encoding="utf-8") as backend_file:
+            backend_file.write('terraform {\n  backend "s3" {}\n}\n')
+
+    def test_apply_with_uninitialized_backend_inits_up_front(self, auto_init_backend_mock):
+        self._write_backend()
+
+        self.assertIsNone(resolve_auto_init("apply", [], self.path, WrapperConfig(), {}, False))
+
+        auto_init_backend_mock.assert_called_once()
+
+    def test_apply_with_initialized_backend_does_not_init(self, auto_init_backend_mock):
+        self._write_backend()
+        os.makedirs(os.path.join(self.path, ".terraform"))
+        with open(os.path.join(self.path, ".terraform", "terraform.tfstate"), "w", encoding="utf-8") as state:
+            state.write("{}")
+
+        self.assertIsNotNone(resolve_auto_init("apply", [], self.path, WrapperConfig(), {}, False))
+
+        auto_init_backend_mock.assert_not_called()
+
+    def test_apply_without_backend_block_does_not_init(self, auto_init_backend_mock):
+        self.assertIsNotNone(resolve_auto_init("apply", [], self.path, WrapperConfig(), {}, False))
+
+        auto_init_backend_mock.assert_not_called()

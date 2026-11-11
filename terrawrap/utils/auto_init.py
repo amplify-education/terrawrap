@@ -9,6 +9,7 @@ from typing import Callable, Dict, List, Optional
 
 import boto3
 
+from terrawrap.exceptions import NotTerraformConfigDirectory
 from terrawrap.models.wrapper_config import WrapperConfig
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
@@ -61,11 +62,24 @@ def prepare_init(path: str, command_env: Dict[str, str]):
     command_env.setdefault("TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE", "true")
 
 
-def is_backend_init_error(output: List[str]) -> bool:
-    """True if terraform output reports a backend that has never been initialized."""
+def backend_state_file(path: str, env: Dict[str, str]) -> str:
+    """Where terraform records the initialized backend, honoring TF_DATA_DIR."""
+    return os.path.join(path, env.get("TF_DATA_DIR", ".terraform"), "terraform.tfstate")
+
+
+def is_backend_init_error(output: List[str], path: str, env: Dict[str, str]) -> bool:
+    """True if terraform output reports a backend that has never been initialized.
+
+    Terraform prints this reason only when the backend state file is missing, so requiring that too keeps
+    unrelated output that merely quotes the message from triggering a destructive init.
+    """
     # Terraform hard-wraps its diagnostics, so compare with whitespace collapsed.
     text = " ".join("".join(output).split())
-    return _INIT_REQUIRED in text and _INITIAL_CONFIGURATION_REASON in text
+    return (
+        _INIT_REQUIRED in text
+        and _INITIAL_CONFIGURATION_REASON in text
+        and not os.path.isfile(backend_state_file(path, env))
+    )
 
 
 def is_auto_init_eligible(command: str, arguments: List[str]) -> bool:
@@ -73,21 +87,31 @@ def is_auto_init_eligible(command: str, arguments: List[str]) -> bool:
     return command not in _COMMANDS_WITHOUT_AUTO_INIT and not has_help_flag(arguments)
 
 
-def is_backend_uninitialized(path: str) -> bool:
-    """True if `path` declares a backend but terraform has not recorded one in `.terraform`."""
+def is_backend_uninitialized(path: str, env: Dict[str, str]) -> bool:
+    """True if `path` declares a backend but terraform has not recorded one."""
     try:
         has_backend = bool(parse_backend_config_for_dir(path))
-    except Exception:  # pylint: disable=broad-exception-caught
-        # Best effort: a backend type or HCL terrawrap can't parse must not break apply/destroy;
-        # the reactive retry still covers it.
+    except NotTerraformConfigDirectory:
         return False
-    return has_backend and not os.path.isfile(os.path.join(path, ".terraform", "terraform.tfstate"))
+    except Exception as exception:  # pylint: disable=broad-exception-caught
+        # Best effort: a backend type or HCL terrawrap can't parse must not break apply/destroy;
+        # the retry after a failed attempt still initializes.
+        print(
+            f"WARNING: Could not check whether the backend in {path} is initialized ({exception!r}); "
+            "skipping the pre-apply init.",
+            file=sys.stderr,
+        )
+        return False
+    return has_backend and not os.path.isfile(backend_state_file(path, env))
 
 
 def calc_init_backend_arguments(
-    path: str, variables: Dict[str, str], wrapper_config: WrapperConfig
+    path: str, variables: Dict[str, str], wrapper_config: WrapperConfig, upgrade: bool = True
 ) -> List[str]:
-    """Backend arguments for `terraform init`; empty when the wrapper config doesn't manage the backend."""
+    """Backend arguments for `terraform init`; empty when the wrapper config doesn't manage the backend.
+
+    `upgrade=False` drops `-upgrade`, so init keeps the providers pinned in `.terraform.lock.hcl`.
+    """
     if not wrapper_config.configure_backend:
         return []
 
@@ -95,12 +119,13 @@ def calc_init_backend_arguments(
     if not existing_backend_config:
         return []
 
-    return calc_backend_config(
+    arguments = calc_backend_config(
         path=path,
         variables=variables,
         wrapper_config=wrapper_config,
         existing_backend_config=existing_backend_config,
     )
+    return arguments if upgrade else [argument for argument in arguments if argument != "-upgrade"]
 
 
 def download_plugins(wrapper_config: WrapperConfig):
@@ -129,7 +154,7 @@ def auto_init_backend(path: str, wrapper_config: WrapperConfig, additional_envva
     this, because they select the backend's bucket and key."""
     print("Backend is not initialized; running `terraform init` first.")
     variables = parse_variable_files(variable_files=find_variable_files(path=path))
-    arguments = calc_init_backend_arguments(path, variables, wrapper_config)
+    arguments = calc_init_backend_arguments(path, variables, wrapper_config, upgrade=False)
     download_plugins(wrapper_config)
     return run_init(path, variables, arguments, additional_envvars)
 
@@ -155,7 +180,9 @@ def resolve_auto_init(
         return None
 
     auto_init = partial(auto_init_backend, path, wrapper_config, additional_envvars)
-    if command in _PREFLIGHT_COMMANDS and is_backend_uninitialized(path):
+    if command in _PREFLIGHT_COMMANDS and is_backend_uninitialized(
+        path, {**os.environ, **additional_envvars}
+    ):
         run_auto_init_or_exit(auto_init)
         return None
 

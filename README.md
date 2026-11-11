@@ -136,6 +136,7 @@ The following options are supported in `.tf_wrapper`:
 configure_backend: True # If true, automatically configure Terraform backends.
 backend_check: True # If true, require this directory to have a terraform backend configured
 apply_automatically: True # If false, `graph_apply`/`tf_apply` skip this directory and everything under it.
+auto_init: True # If false, `tf` does not run `init` automatically when the backend was never initialized.
 
 envvars:
   <NAME_OF_ENVVAR>:
@@ -286,9 +287,9 @@ command is supported
 
 If a directory has a backend that was never initialized (for example a fresh checkout), `tf` runs
 `tf <directory> init` for you and then runs the requested command. When Terrawrap manages the backend (see
-Backend Configuration), the init uses the same backend arguments as an explicit `tf <directory> init`, including
-`-reconfigure -upgrade`, which can update `.terraform.lock.hcl`. Extra arguments passed to the original command are
-not forwarded to the init.
+Backend Configuration), the init uses the same backend arguments as an explicit `tf <directory> init`, except
+`-upgrade`, so providers stay pinned to `.terraform.lock.hcl`. Extra arguments passed to the original command are
+not forwarded to the init. `TF_DATA_DIR` is honored when checking whether the backend is initialized.
 
 - `apply` and `destroy` check for `.terraform/terraform.tfstate` and initialize before running, so the audit API
   never records an apply that could not start. Other commands, except `init`, `console` and `import`, initialize

@@ -144,7 +144,7 @@ def exec_tf_command(
 
         if exit_code != 0 and try_count <= MAX_COUNT:
             error = "".join([line for line in stdout])
-            if auto_init and is_backend_init_error(stdout):
+            if auto_init and is_backend_init_error(stdout, path, command_env):
                 run_auto_init_or_exit(auto_init)
                 auto_init = None
                 continue

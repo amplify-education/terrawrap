@@ -220,3 +220,36 @@ class TestHandlerAutoInit(TestCase):
 
         mock_resolve.assert_called_once_with("plan", [], "/abs", wrapper_config, {}, True)
         self.assertIs(mock_exec.call_args.kwargs["auto_init"], resolved)
+
+
+class TestHandlerInit(TestCase):
+    """`tf <dir> init` prepends the backend arguments and downloads plugins"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_tf_module()
+
+    def test_init_passes_backend_arguments_and_downloads_plugins(self):
+        wrapper_config = WrapperConfig()
+        with (
+            patch.object(self.mod.sys, "argv", ["tf", "--no-version-check", "dir", "init", "-input=false"]),
+            patch.object(self.mod, "get_absolute_path", return_value="/abs"),
+            patch.object(self.mod.os.path, "isdir", return_value=True),
+            patch.object(self.mod, "find_wrapper_config_files", return_value=[]),
+            patch.object(self.mod, "parse_wrapper_configs", return_value=wrapper_config),
+            patch.object(self.mod, "find_variable_files", return_value=[]),
+            patch.object(self.mod, "parse_variable_files", return_value={"v": "1"}),
+            patch.object(
+                self.mod, "calc_init_backend_arguments", return_value=["-reconfigure", "-upgrade"]
+            ) as mock_args,
+            patch.object(self.mod, "download_plugins") as mock_plugins,
+            patch.object(self.mod, "resolve_auto_init", return_value=None),
+            patch.object(self.mod, "exec_tf_command") as mock_exec,
+        ):
+            self.mod.handler()
+
+        mock_args.assert_called_once_with("/abs", {"v": "1"}, wrapper_config)
+        mock_plugins.assert_called_once_with(wrapper_config)
+        self.assertEqual(
+            mock_exec.call_args.kwargs["arguments"], ["-reconfigure", "-upgrade", "-input=false"]
+        )
