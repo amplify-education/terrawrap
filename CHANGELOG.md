@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `test_version.py` no longer fails intermittently when test processes run concurrently (e.g. `tox -p`). The
   `get_latest_version` tests read and wrote the on-disk version cache shared by every process; they now call the
   unmemoized function.
+- `tox -p` no longer fails intermittently with `sqlite3.OperationalError: unable to open database file`. Every
+  env wrote the same coverage data file; each env now has its own.
 
 ## \[0.11.9\] - 2026-10-21
 
