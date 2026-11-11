@@ -3,14 +3,11 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from terrawrap.utils.version import cache, get_latest_version, version_check
+from terrawrap.utils.version import get_latest_version, version_check
 
 
 class TestVersion(TestCase):
     """Test version utils"""
-
-    def setUp(self) -> None:
-        cache.clear()
 
     @patch("terrawrap.utils.version.sleep", MagicMock())
     @patch("terrawrap.utils.version.get_latest_version")
@@ -104,26 +101,24 @@ class TestVersion(TestCase):
         self.assertFalse(response)
 
     @patch("requests.get")
-    @patch("terrawrap.utils.version.Cache", MagicMock())
     def test_get_latest_version_happy(self, mock_get):
         """VersionUtils get latest version returns stable and rc"""
         current_version = "1.0.0"
         mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": [], "1.0.2rc1": []}}
 
         # pylint:disable=C0103
-        stable, rc = get_latest_version(current_version=current_version)
+        stable, rc = get_latest_version.__wrapped__(current_version=current_version)
 
         self.assertEqual(stable, "1.0.1")
         self.assertEqual(rc, "1.0.2rc1")
 
     @patch("requests.get")
-    @patch("terrawrap.utils.version.Cache", MagicMock())
     def test_get_latest_version_no_rc(self, mock_get):
         """VersionUtils get latest version returns None for rc when no RCs exist"""
         current_version = "1.0.0"
         mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": []}}
         # pylint:disable=C0103
-        stable, rc = get_latest_version(current_version=current_version)
+        stable, rc = get_latest_version.__wrapped__(current_version=current_version)
 
         self.assertEqual(stable, "1.0.1")
         self.assertIsNone(rc)

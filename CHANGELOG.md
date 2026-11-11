@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `process_arguments` in `bin/tf` returns a sixth value, `skip_auto_init`.
 
+### Fixed
+
+- `test_version.py` no longer fails intermittently when test processes run concurrently (e.g. `tox -p`). The
+  `get_latest_version` tests read and wrote the on-disk version cache shared by every process; they now call the
+  unmemoized function.
+
 ## \[0.11.9\] - 2026-10-21
 
 ### Fixed
