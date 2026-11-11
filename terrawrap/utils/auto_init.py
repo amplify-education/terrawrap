@@ -89,6 +89,10 @@ def is_auto_init_eligible(command: str, arguments: List[str]) -> bool:
 
 def is_backend_uninitialized(path: str, env: Dict[str, str]) -> bool:
     """True if `path` declares a backend but terraform has not recorded one."""
+    # Parsing HCL takes up to ~1s in large directories, so only pay for it when the backend is missing.
+    if os.path.isfile(backend_state_file(path, env)):
+        return False
+
     try:
         has_backend = bool(parse_backend_config_for_dir(path))
     except NotTerraformConfigDirectory:
@@ -102,7 +106,7 @@ def is_backend_uninitialized(path: str, env: Dict[str, str]) -> bool:
             file=sys.stderr,
         )
         return False
-    return has_backend and not os.path.isfile(backend_state_file(path, env))
+    return has_backend
 
 
 def calc_init_backend_arguments(

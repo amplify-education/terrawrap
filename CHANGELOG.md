@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Auto-init is on by default: a never-initialized backend that used to fail now initializes and continues.
+  Opt out per run with `--no-auto-init` or per directory with `auto_init: false`.
 - `process_arguments` in `bin/tf` returns a sixth value, `skip_auto_init`.
 
 ### Fixed

@@ -99,6 +99,15 @@ class TestIsBackendUninitialized(TestCase):
             state.write("{}")
         self.assertFalse(is_backend_uninitialized(self.path, {}))
 
+    def test_initialized_backend_skips_hcl_parsing(self):
+        """Parsing takes up to ~1s in large directories, so an initialized backend must not pay for it"""
+        os.makedirs(os.path.join(self.path, ".terraform"))
+        with open(os.path.join(self.path, ".terraform", "terraform.tfstate"), "w", encoding="utf-8") as state:
+            state.write("{}")
+        with patch("terrawrap.utils.auto_init.parse_backend_config_for_dir") as parse_backend:
+            self.assertFalse(is_backend_uninitialized(self.path, {}))
+        parse_backend.assert_not_called()
+
     def test_tf_data_dir_is_honored(self):
         self._write_backend()
         os.makedirs(os.path.join(self.path, "custom-data"))
@@ -232,7 +241,7 @@ class TestResolveAutoInit(TestCase):
 
     def test_callable_runs_auto_init_backend(self, auto_init_backend_mock):
         self._resolve("plan")()
-        auto_init_backend_mock.assert_called_once_with("/abs", unittest_any(), {})
+        auto_init_backend_mock.assert_called_once_with("/abs", ANY, {})
 
     def test_disabled_by_flag(self, auto_init_backend_mock):
         self.assertIsNone(self._resolve("apply", disabled=True))
@@ -245,10 +254,6 @@ class TestResolveAutoInit(TestCase):
     def test_init_is_never_auto_initialized(self, auto_init_backend_mock):
         self.assertIsNone(self._resolve("init"))
         auto_init_backend_mock.assert_not_called()
-
-
-def unittest_any():
-    return ANY
 
 
 @patch("terrawrap.utils.auto_init.auto_init_backend", return_value=0)
