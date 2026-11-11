@@ -282,6 +282,24 @@ backends:
 Terrawrap automatically includes autovars as described above when running the given command. Any Terraform
 command is supported
 
+#### Automatic init
+
+If a directory has a backend that was never initialized (for example a fresh checkout), `tf` runs
+`tf <directory> init` for you and then runs the requested command. When Terrawrap manages the backend (see
+Backend Configuration), the init uses the same backend arguments as an explicit `tf <directory> init`, including
+`-reconfigure -upgrade`, which can update `.terraform.lock.hcl`. Extra arguments passed to the original command are
+not forwarded to the init.
+
+- `apply` and `destroy` check for `.terraform/terraform.tfstate` and initialize before running, so the audit API
+  never records an apply that could not start. Other commands, except `init`, `console` and `import`, initialize
+  after terraform reports `Backend initialization required` with the reason
+  `Initial configuration of the requested backend`.
+- A changed backend (`Backend configuration block has changed`) is never initialized automatically, because
+  `-reconfigure` would discard the old backend without migrating its state. Run `tf <directory> init` yourself,
+  or `terraform init -migrate-state` if the state needs to move.
+- Disable it for one run with `tf --no-auto-init <directory> <command>`, or for a directory with
+  `auto_init: false` in a `.tf_wrapper` file.
+
 ### plan_check
 
 `plan_check <directory>` runs `terraform plan` recursively for all child directories starting at the given directory.

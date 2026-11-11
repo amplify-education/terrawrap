@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.12.0\] - 2026-11-11
+
+### Added
+
+- `tf` now runs `init` automatically when a directory's backend has never been initialized, then runs the
+  requested command. `apply` and `destroy` initialize up front so the audit API never records the failed first
+  attempt; other commands (except `init`, `console` and `import`) initialize after terraform reports
+  `Initial configuration of the requested backend`. A changed backend is never initialized automatically.
+  Opt out with `--no-auto-init` or `auto_init: false` in `.tf_wrapper`. When Terrawrap manages the backend, the
+  init uses the same arguments as `tf <directory> init`, including `-upgrade`.
+
+### Changed
+
+- `process_arguments` in `bin/tf` returns a sixth value, `skip_auto_init`.
+
 ## \[0.11.9\] - 2026-10-21
 
 ### Fixed

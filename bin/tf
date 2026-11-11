@@ -2,7 +2,8 @@
 """Terraform Wrapper
 
 Usage:
-    tf [--no-resolve-envvars] [--no-version-check] (<tf_path> <tf_command>) [<additional_arguments>...]
+    tf [--no-resolve-envvars] [--no-version-check] [--no-auto-init]
+       (<tf_path> <tf_command>) [<additional_arguments>...]
     tf -h,--help
 
 Options:
@@ -14,6 +15,9 @@ Options:
     --no-version-check      Skip the PyPI staleness check for this invocation. Intended for callers
                             (e.g. plan_check) that invoke `tf` many times per run and already perform
                             their own version_check once.
+    --no-auto-init          Do not run `terraform init` automatically when the backend has never been
+                            initialized. Can also be disabled per directory with `auto_init: false`
+                            in a .tf_wrapper file.
 
 Examples:
     tf some/path/to/tf_files plan
@@ -22,32 +26,36 @@ Examples:
 
 from __future__ import print_function
 
-import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import boto3
 from dateutil.parser import parse
 from pytz import timezone
 
+from terrawrap.utils.auto_init import (
+    build_command_env,
+    calc_init_backend_arguments,
+    download_plugins,
+    has_help_flag,
+    is_backend_init_error,
+    prepare_init,
+    resolve_auto_init,
+    run_auto_init_or_exit,
+)
 from terrawrap.utils.cli import execute_command
 from terrawrap.utils.config import (
-    calc_backend_config,
     find_variable_files,
     find_wrapper_config_files,
-    parse_backend_config_for_dir,
     parse_variable_files,
     parse_wrapper_configs,
     resolve_envvars,
 )
 from terrawrap.utils.dynamodb import DynamoDB
 from terrawrap.utils.path import calc_repo_path, get_absolute_path
-from terrawrap.utils.plugin_download import PluginDownload
 from terrawrap.utils.version import version_check
 from terrawrap.version import __version__
 
@@ -77,19 +85,6 @@ def does_command_get_variables(command: str, path: str, arguments: List[str]) ->
     return command in commands_with_variables
 
 
-def convert_variables_to_envvars(variables: Dict[str, str]) -> Dict[str, str]:
-    envvars = {}
-
-    for key, value in variables.items():
-        new_key = "TF_VAR_%s" % key
-        if not isinstance(value, str):
-            envvars[new_key] = json.dumps(value)
-        else:
-            envvars[new_key] = value
-
-    return envvars
-
-
 def exec_tf_command(
     command: str,
     path: str,
@@ -97,19 +92,14 @@ def exec_tf_command(
     arguments: List[str],
     additional_envvars: Dict[str, str],
     audit_api_url: Optional[Union[str, List[str]]],
+    auto_init: Optional[Callable[[], int]] = None,
 ):
-    variable_envvars = convert_variables_to_envvars(variables=variables)
+    command_env = build_command_env(variables, additional_envvars)
 
-    command_env = os.environ.copy()
-    command_env.update(variable_envvars)
-    command_env.update(additional_envvars)
+    if command == "init" and not has_help_flag(arguments):
+        prepare_init(path, command_env)
 
-    if command == "init" and not any("-help" in argument for argument in arguments):
-        shutil.rmtree(os.path.join(path, ".terraform"), ignore_errors=True)
-        # Respect whatever is set, but default to true if it isn't set
-        command_env.setdefault("TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE", "true")
-
-    if command == "import" and not any("-help" in argument for argument in arguments):
+    if command == "import" and not has_help_flag(arguments):
         response = input(
             "WARNING: Running 'import' inside of an existing Terraform directory/state file can result in "
             "resources being deleted when apply is run.\nPlease make sure to merge your changes or disable "
@@ -154,6 +144,10 @@ def exec_tf_command(
 
         if exit_code != 0 and try_count <= MAX_COUNT:
             error = "".join([line for line in stdout])
+            if auto_init and is_backend_init_error(stdout):
+                run_auto_init_or_exit(auto_init)
+                auto_init = None
+                continue
             if "Error acquiring the state lock" in error:
                 if tf_unlock(error, path, LOCK_TIMEOUT):
                     continue
@@ -259,10 +253,11 @@ def repush_state(path: str) -> bool:
     return False
 
 
-def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool, bool]:
+def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool, bool, bool]:
     try:
         resolve_envvars = True
         skip_version_check = False
+        skip_auto_init = False
 
         if args[1] in ["-h", "--help"]:
             print(__doc__)
@@ -276,28 +271,35 @@ def process_arguments(args: List[str]) -> Tuple[str, str, List[str], bool, bool]
         # <tf_path> <tf_command> positionals. This is the single place that
         # recognizes these flags; callers (e.g. handler() below) act on the
         # returned booleans rather than re-parsing argv themselves, so adding
-        # a third leading flag only means updating this loop.
-        while len(args) > 1 and args[1] in ("--no-resolve-envvars", "--no-version-check"):
+        # another leading flag only means updating this loop.
+        while len(args) > 1 and args[1] in ("--no-resolve-envvars", "--no-version-check", "--no-auto-init"):
             if args[1] == "--no-resolve-envvars":
                 resolve_envvars = False
-            else:
+            elif args[1] == "--no-version-check":
                 skip_version_check = True
+            else:
+                skip_auto_init = True
             args.pop(1)
 
         path = args[1]
         command = args[2]
         additional_arguments = args[3:]
 
-        return path, command, additional_arguments, resolve_envvars, skip_version_check
+        return path, command, additional_arguments, resolve_envvars, skip_version_check, skip_auto_init
     except IndexError:
         print(__doc__)
         sys.exit(0)
 
 
 def handler():
-    path, command, additional_arguments, should_resolve_envvars, skip_version_check = process_arguments(
-        sys.argv
-    )
+    (
+        path,
+        command,
+        additional_arguments,
+        should_resolve_envvars,
+        skip_version_check,
+        skip_auto_init,
+    ) = process_arguments(sys.argv)
     if not skip_version_check:
         version_check(current_version=__version__)
 
@@ -326,21 +328,15 @@ def handler():
 
     variables = parse_variable_files(variable_files=variable_files)
 
-    if command == "init" and wrapper_config.configure_backend:
-        # insert extra backend specific arguments to the command if a backend has been defined in the config
-        existing_backend_config = parse_backend_config_for_dir(tf_config_path)
-        if existing_backend_config:
-            backend_config = calc_backend_config(
-                path=tf_config_path,
-                variables=variables,
-                wrapper_config=wrapper_config,
-                existing_backend_config=existing_backend_config,
-            )
-            additional_arguments = backend_config + additional_arguments
-
     if command == "init":
-        plugin_download = PluginDownload(boto3.client("s3"))
-        plugin_download.download_plugins(wrapper_config.plugins)
+        additional_arguments = (
+            calc_init_backend_arguments(tf_config_path, variables, wrapper_config) + additional_arguments
+        )
+        download_plugins(wrapper_config)
+
+    auto_init = resolve_auto_init(
+        command, additional_arguments, tf_config_path, wrapper_config, additional_envvars, skip_auto_init
+    )
 
     exec_tf_command(
         command=command,
@@ -349,6 +345,7 @@ def handler():
         arguments=additional_arguments,
         additional_envvars=additional_envvars,
         audit_api_url=wrapper_config.audit_api_url,
+        auto_init=auto_init,
     )
 
 
