@@ -169,6 +169,7 @@ class WrapperConfig:
         audit_api_url: Optional[AuditApiUrls] = None,
         apply_automatically: bool = True,
         plugins: Optional[Dict[str, str]] = None,
+        auto_init: bool = True,
     ):
         self.configure_backend = configure_backend
         self.pipeline_check = pipeline_check
@@ -186,3 +187,4 @@ class WrapperConfig:
         self.audit_api_url = audit_api_url
         self.apply_automatically = apply_automatically
         self.plugins = plugins or {}
+        self.auto_init = auto_init
