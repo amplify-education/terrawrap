@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.11.10\] - 2026-11-16
+
+### Changed
+
+- Runtime dependency ranges in `requirements.txt` now use the compatible-release `~=` form.
+  Floors are raised for `gitpython` (3.2), `networkx` (3.4) and `amplify-aws-utils` (0.5),
+  and patch-level floors are dropped. `networkx` and `amplify-aws-utils` stay below the
+  releases that require Python 3.11+, since 3.10 is still supported.
+
 ## \[0.11.9\] - 2026-10-21
 
 ### Fixed
