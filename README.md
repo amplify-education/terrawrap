@@ -303,8 +303,9 @@ not forwarded to the init. `TF_DATA_DIR` is honored when checking whether the ba
   `-reconfigure` would discard the old backend without migrating its state. Run `tf <directory> init` yourself,
   or `terraform init -migrate-state` if the state needs to move.
 - The init runs with `-input=false`, so a backend that still needs values fails instead of prompting. Its banner
-  and output go to stderr, leaving stdout clean for commands such as `output -json`. `TF_DATA_DIR` is honored
-  for the directory that is cleared before the init, which is never the configuration directory itself.
+  and output go to stderr, leaving stdout clean for commands such as `output -json`. The data directory is
+  cleared before the init, honoring `TF_DATA_DIR`, but only when it is a real directory inside the configuration
+  directory; any other `TF_DATA_DIR` is left alone with a warning.
 - Disable it for one run with `tf --no-auto-init <directory> <command>`, or for a directory with
   `auto_init: false` in a `.tf_wrapper` file.
 

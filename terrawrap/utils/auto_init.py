@@ -82,10 +82,21 @@ def terraform_data_dir(path: str, env: Dict[str, str]) -> str:
 
 
 def prepare_init(path: str, command_env: Dict[str, str]):
-    data_dir = os.path.realpath(terraform_data_dir(path, command_env))
-    # TF_DATA_DIR may name the configuration directory or an ancestor; wiping that deletes the config.
-    if os.path.commonpath([data_dir, os.path.realpath(path)]) != data_dir:
+    data_dir = os.path.abspath(terraform_data_dir(path, command_env))
+    config_dir = os.path.abspath(path)
+    # TF_DATA_DIR can come from a checked-in .tf_wrapper, so only a real directory strictly inside the
+    # configuration directory is ever deleted; a symlink is never followed.
+    if (
+        data_dir != config_dir
+        and os.path.commonpath([data_dir, config_dir]) == config_dir
+        and not os.path.islink(data_dir)
+    ):
         shutil.rmtree(data_dir, ignore_errors=True)
+    elif os.path.lexists(data_dir) and data_dir != os.path.join(config_dir, ".terraform"):
+        print(
+            f"WARNING: Not clearing TF_DATA_DIR {data_dir}; it is not a directory inside {config_dir}.",
+            file=sys.stderr,
+        )
     # Respect whatever is set, but default to true if it isn't set
     command_env.setdefault("TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE", "true")
 

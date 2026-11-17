@@ -344,6 +344,33 @@ class TestPrepareInit(TestCase):
 
         self.assertTrue(os.path.exists(config_file))
 
+    def test_never_removes_a_directory_outside_the_configuration_directory(self):
+        """TF_DATA_DIR can come from a checked-in .tf_wrapper, so it must not name arbitrary directories"""
+        outside = tempfile.mkdtemp(prefix="c41e7d02-")
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        victim = os.path.join(outside, "precious")
+        with open(victim, "w", encoding="utf-8") as precious:
+            precious.write("x")
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            prepare_init(self.path, {"TF_DATA_DIR": outside})
+
+        self.assertTrue(os.path.exists(victim))
+        self.assertIn("Not clearing TF_DATA_DIR", stderr.getvalue())
+
+    def test_does_not_follow_a_symlinked_data_dir(self):
+        outside = tempfile.mkdtemp(prefix="c41e7d02-")
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        victim = os.path.join(outside, "precious")
+        with open(victim, "w", encoding="utf-8") as precious:
+            precious.write("x")
+        os.symlink(outside, os.path.join(self.path, ".terraform"))
+
+        prepare_init(self.path, {})
+
+        self.assertTrue(os.path.exists(victim))
+
 
 @patch("terrawrap.utils.auto_init.auto_init_backend", return_value=0)
 class TestResolveAutoInit(TestCase):
