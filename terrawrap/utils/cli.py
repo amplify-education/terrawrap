@@ -7,13 +7,11 @@ import codecs
 import gzip
 import logging
 import os
-import queue
 import subprocess
 import tempfile
-import threading
 import time
 from enum import Enum
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 import requests
@@ -48,11 +46,7 @@ RETRIABLE_ERRORS = [
 ]
 AUDIT_POST_PATH = "/audit_info"
 AUDIT_UPDATE_PATH = "/update_audit_info"
-LOG_CHUNK_POST_PATH = "/log_chunk"
 OUTPUT_COMPRESSION_THRESHOLD = 5 * 1024 * 1024
-CHUNK_LINE_COUNT = 10
-CHUNK_FLUSH_INTERVAL = 5.0
-CHUNK_POST_JOIN_TIMEOUT = 30.0
 
 
 class Status(str, Enum):
@@ -115,70 +109,6 @@ def execute_command(
     else:
         logger.info("No audit_api_url provided")
 
-    should_stream = bool(audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args))
-    chunk_seq = 0
-    chunk_queue: queue.Queue[Optional[Tuple[int, str]]] = queue.Queue()
-    stop_posting = threading.Event()
-
-    def _post_queued_chunks() -> None:
-        # One Session for the whole run: requests pools connections per host, so
-        # chunks after the first reuse an open TLS connection instead of paying a
-        # fresh DNS lookup, TCP connect and handshake (~2s per POST, per URL).
-        # The git root and the per-URL signers are resolved once for the same reason:
-        # get_git_root forks a git process, and BotoAWSRequestsAuth's constructor
-        # resolves credentials — under ECS a call to the task's credential endpoint,
-        # shared with terraform's own provider. The signer re-reads credentials per
-        # request, so one per URL still refreshes across a long run.
-        root = get_git_root(kwargs["cwd"])
-        directory = kwargs["cwd"].replace(root, "")
-        signers: Dict[str, BotoAWSRequestsAuth] = {}
-        with requests.Session() as session:
-            while True:
-                item = chunk_queue.get()
-                if item is None or stop_posting.is_set():
-                    return
-                sequence, content = item
-                for url in audit_api_urls:
-                    if stop_posting.is_set():
-                        # Past the deadline a chunk can reach some URLs and not the
-                        # rest. That is accepted: the closing _post_audit_info posts
-                        # the full output to every URL, and finishing this loop would
-                        # race that update.
-                        return
-                    try:
-                        if url not in signers:
-                            signers[url] = BotoAWSRequestsAuth(
-                                aws_host=urlparse(url).hostname,
-                                aws_region="us-west-2",
-                                aws_service="execute-api",
-                            )
-                        _post_log_chunk(
-                            audit_api_url=url,
-                            directory=directory,
-                            start_time=start_time,
-                            sequence=sequence,
-                            content=content,
-                            session=session,
-                            auth=signers[url],
-                        )
-                    except Exception as exc:  # pylint: disable=broad-except
-                        logger.warning("Failed to post log chunk %d to %s: %s", sequence, url, exc)
-
-    def _chunk_callback(content: str) -> None:
-        # Hand the chunk to the poster thread rather than POSTing inline: this runs
-        # on the loop relaying terraform's output to the terminal, so any blocking
-        # here stalls what the user sees.
-        nonlocal chunk_seq
-        chunk_queue.put((chunk_seq, content))
-        chunk_seq += 1
-
-    chunk_poster: Optional[threading.Thread] = None
-    if should_stream:
-        chunk_poster = threading.Thread(
-            target=_post_queued_chunks, name="terrawrap-log-chunk-poster", daemon=True
-        )
-        chunk_poster.start()
-
     jitter = Jitter()
     time_passed = 0
     exit_code = 0
@@ -190,7 +120,6 @@ def execute_command(
             capture_stderr,
             print_command,
             *pargs,
-            on_chunk=_chunk_callback if should_stream else None,
             **kwargs,
         )
 
@@ -211,21 +140,6 @@ def execute_command(
             break
 
         time_passed = jitter.backoff()
-
-    if chunk_poster:
-        # Drain before the status update below, so the audit API never marks the run
-        # finished while chunks are still arriving. Past the deadline, stop_posting
-        # makes the poster discard the rest instead of racing that update — it still
-        # finishes the request in flight, which _post_log_chunk bounds at 10s.
-        chunk_queue.put(None)
-        chunk_poster.join(timeout=CHUNK_POST_JOIN_TIMEOUT)
-        if chunk_poster.is_alive():
-            stop_posting.set()
-            logger.warning(
-                "Log-chunk poster did not finish within %ss; discarding %d queued chunk(s)",
-                CHUNK_POST_JOIN_TIMEOUT,
-                max(chunk_queue.qsize() - 1, 0),
-            )
 
     if audit_api_urls and kwargs["cwd"] and ("apply" in args or "destroy" in args):
         # Call _post_audit_info again, this time to update the 'in progress' entry with new status and output
@@ -256,7 +170,6 @@ def _execute_command(
     capture_stderr: bool,
     print_command: bool,
     *pargs,
-    on_chunk: Optional[Callable[[str], None]] = None,
     **kwargs,
 ) -> Tuple[int, List[str]]:
     """
@@ -266,7 +179,6 @@ def _execute_command(
     :param capture_stderr: True if stderr should be captured. Defaults to True.
     :param print_command: True if the command should be printed before executing. Defaults to False.
     :param pargs: Any additional positional arguments to Popen.
-    :param on_chunk: Optional callback invoked with buffered output chunks for live streaming.
     :param kwargs: Any additional keyword arguments to Popen.
     :return: A tuple of the exit code and output of the command.
     """
@@ -280,10 +192,6 @@ def _execute_command(
 
         # pylint: disable=consider-using-with
         process = subprocess.Popen(args, *pargs, **kwargs)
-
-        buf: List[str] = []
-        line_count = 0
-        last_flush = time.time()
 
         # Terraform's output (e.g. the box-drawing characters in its error
         # formatting) contains multi-byte UTF-8 sequences. Decoding one raw
@@ -302,22 +210,8 @@ def _execute_command(
             if print_output and output:
                 print(output, end="", flush=True)
 
-            if on_chunk and output:
-                buf.append(output)
-                if output == "\n":
-                    line_count += 1
-                now = time.time()
-                if line_count >= CHUNK_LINE_COUNT or now - last_flush >= CHUNK_FLUSH_INTERVAL:
-                    on_chunk("".join(buf))
-                    buf = []
-                    line_count = 0
-                    last_flush = time.time()
-
             if is_eof:
                 break
-
-        if on_chunk and buf:
-            on_chunk("".join(buf))
 
         exit_code = process.poll()
 
@@ -401,27 +295,3 @@ def _post_audit_info(
         logger.info("Successfully posted data to provided url: %s", audit_api_url)
     except requests.exceptions.RequestException:
         logger.error("Unable to post data to provided url: %s", audit_api_url)
-
-
-def _post_log_chunk(
-    audit_api_url: str,
-    directory: str,
-    start_time: int,
-    sequence: int,
-    content: str,
-    session: requests.Session,
-    auth: BotoAWSRequestsAuth,
-) -> None:
-    """POST a single log chunk to the audit API during an apply."""
-    response = session.post(
-        url=audit_api_url + LOG_CHUNK_POST_PATH,
-        auth=auth,
-        json={
-            "directory": directory,
-            "start_time": start_time,
-            "sequence": sequence,
-            "content": content,
-        },
-        timeout=10,
-    )
-    response.raise_for_status()
