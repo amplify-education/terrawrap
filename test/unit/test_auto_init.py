@@ -79,7 +79,9 @@ class TestIsAutoInitEligible(TestCase):
                 self.assertFalse(is_auto_init_eligible(command, []))
 
     def test_help_is_excluded(self):
-        self.assertFalse(is_auto_init_eligible("apply", ["-help"]))
+        for flag in ("-help", "--help", "-h"):
+            with self.subTest(flag=flag):
+                self.assertFalse(is_auto_init_eligible("plan", [flag]))
 
 
 class TestFindUninitializedBackend(TestCase):
@@ -308,6 +310,21 @@ class TestAutoInitBackend(TestCase):
 
         parse_backend.assert_not_called()
 
+    @patch("terrawrap.utils.auto_init.download_plugins")
+    @patch("terrawrap.utils.auto_init.find_variable_files", return_value=["bad.tfvars"])
+    @patch("terrawrap.utils.auto_init.parse_variable_files", side_effect=ValueError("bad tfvars"))
+    @patch("terrawrap.utils.auto_init.execute_command")
+    def test_unreadable_variable_file_fails_with_guidance_instead_of_a_traceback(self, execute, *_):
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            exit_code = auto_init_backend("/abs", WrapperConfig(), {})
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("bad tfvars", stderr.getvalue())
+        self.assertIn("--no-auto-init", stderr.getvalue())
+        execute.assert_not_called()
+
     @patch("terrawrap.utils.auto_init.shutil.rmtree")
     @patch("terrawrap.utils.auto_init.download_plugins", side_effect=ClientError({"Error": {}}, "GetObject"))
     @patch("terrawrap.utils.auto_init.calc_init_backend_arguments", return_value=[])
@@ -338,95 +355,25 @@ class TestPrepareInit(TestCase):
             touched.write("x")
         return file_path
 
-    def test_removes_default_data_dir(self):
+    def test_removes_dot_terraform(self):
         data_file = self._touch(".terraform", "terraform.tfstate")
 
         prepare_init(self.path, {})
 
         self.assertFalse(os.path.exists(data_file))
 
-    def test_removes_the_data_dir_named_by_tf_data_dir_and_leaves_dot_terraform(self):
-        custom = self._touch("custom-data", "terraform.tfstate")
-        default = self._touch(".terraform", "keep")
+    def test_never_deletes_the_directory_named_by_tf_data_dir(self):
+        """TF_DATA_DIR can come from a checked-in .tf_wrapper, so it must never select what gets deleted"""
+        checked_in = self._touch("modules", "main.tf")
 
-        prepare_init(self.path, {"TF_DATA_DIR": "custom-data"})
+        prepare_init(self.path, {"TF_DATA_DIR": "modules"})
 
-        self.assertFalse(os.path.exists(custom))
-        self.assertTrue(os.path.exists(default))
+        self.assertTrue(os.path.exists(checked_in))
 
-    def test_never_removes_the_configuration_directory(self):
-        """TF_DATA_DIR=. (or a parent) would otherwise delete the configuration being initialized"""
-        config_file = self._touch("main.tf")
-
-        prepare_init(self.path, {"TF_DATA_DIR": "."})
-        prepare_init(self.path, {"TF_DATA_DIR": ".."})
-
-        self.assertTrue(os.path.exists(config_file))
-
-    def test_never_removes_a_directory_outside_the_configuration_directory(self):
-        """TF_DATA_DIR can come from a checked-in .tf_wrapper, so it must not name arbitrary directories"""
-        outside = tempfile.mkdtemp(prefix="c41e7d02-")
-        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
-        victim = os.path.join(outside, "precious")
-        with open(victim, "w", encoding="utf-8") as precious:
-            precious.write("x")
-        stderr = io.StringIO()
-
-        with contextlib.redirect_stderr(stderr):
-            prepare_init(self.path, {"TF_DATA_DIR": outside})
-
-        self.assertTrue(os.path.exists(victim))
-        self.assertIn("not a directory inside", stderr.getvalue())
-
-    def test_does_not_follow_a_symlinked_parent_of_the_data_dir(self):
-        """link/sub passes a lexical inside-the-config-directory check but resolves outside it"""
-        outside = tempfile.mkdtemp(prefix="c41e7d02-")
-        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
-        victim = os.path.join(outside, "sub", "precious")
-        os.makedirs(os.path.dirname(victim))
-        with open(victim, "w", encoding="utf-8") as precious:
-            precious.write("x")
-        os.symlink(outside, os.path.join(self.path, "link"))
-
-        prepare_init(self.path, {"TF_DATA_DIR": "link/sub"})
-
-        self.assertTrue(os.path.exists(victim))
-
-    def test_removes_the_data_dir_when_the_configuration_path_is_itself_a_symlink(self):
-        """A symlinked configuration directory (e.g. macOS /tmp) must not disable the cleanup"""
-        link = os.path.join(tempfile.mkdtemp(prefix="c41e7d02-"), "config-link")
-        self.addCleanup(shutil.rmtree, os.path.dirname(link), ignore_errors=True)
-        os.symlink(self.path, link)
-        data_file = self._touch(".terraform", "terraform.tfstate")
-
-        prepare_init(link, {})
-
-        self.assertFalse(os.path.exists(data_file))
-
-    def test_warns_that_a_symlinked_data_dir_inside_the_config_is_a_symlink(self):
-        """The default .terraform skipped for being a symlink must be reported, accurately"""
-        outside = tempfile.mkdtemp(prefix="c41e7d02-")
-        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
-        os.symlink(outside, os.path.join(self.path, ".terraform"))
-        stderr = io.StringIO()
-
-        with contextlib.redirect_stderr(stderr):
-            prepare_init(self.path, {})
-
-        self.assertIn("symlink", stderr.getvalue())
-        self.assertNotIn("not a directory inside", stderr.getvalue())
-
-    def test_does_not_follow_a_symlinked_data_dir(self):
-        outside = tempfile.mkdtemp(prefix="c41e7d02-")
-        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
-        victim = os.path.join(outside, "precious")
-        with open(victim, "w", encoding="utf-8") as precious:
-            precious.write("x")
-        os.symlink(outside, os.path.join(self.path, ".terraform"))
-
-        prepare_init(self.path, {})
-
-        self.assertTrue(os.path.exists(victim))
+    def test_defaults_the_lock_file_cache_variable(self):
+        env = {}
+        prepare_init(self.path, env)
+        self.assertEqual(env["TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE"], "true")
 
 
 @patch("terrawrap.utils.auto_init.auto_init_backend", return_value=0)
@@ -553,4 +500,17 @@ class TestResolveAutoInitDetection(TestCase):
                 )
             )
 
+        auto_init_backend_mock.assert_not_called()
+
+    def test_unparseable_backend_skips_the_pre_flight_but_keeps_the_retry_callable(
+        self, auto_init_backend_mock
+    ):
+        """A backend terrawrap can't parse (here: local) must still be initialized after the failed attempt"""
+        with open(os.path.join(self.path, "backend.tf"), "w", encoding="utf-8") as backend_file:
+            backend_file.write('terraform {\n  backend "local" {\n    path = "a.tfstate"\n  }\n}\n')
+
+        with contextlib.redirect_stderr(io.StringIO()):
+            resolved = resolve_auto_init("apply", [], self.path, WrapperConfig(), {}, False)
+
+        self.assertIsNotNone(resolved)
         auto_init_backend_mock.assert_not_called()

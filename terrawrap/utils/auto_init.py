@@ -58,7 +58,7 @@ _PLUGIN_DOWNLOAD_ERRORS = (FileDownloadFailed, ClientError, BotoCoreError, reque
 
 
 def has_help_flag(arguments: List[str]) -> bool:
-    return any("-help" in argument for argument in arguments)
+    return any(argument == "-h" or "-help" in argument for argument in arguments)
 
 
 def convert_variables_to_envvars(variables: Dict[str, str]) -> Dict[str, str]:
@@ -86,18 +86,7 @@ def terraform_data_dir(path: str, env: Dict[str, str]) -> str:
 
 
 def prepare_init(path: str, command_env: Dict[str, str]):
-    data_dir = os.path.abspath(terraform_data_dir(path, command_env))
-    config_dir = os.path.abspath(path)
-    # TF_DATA_DIR can come from a checked-in .tf_wrapper, so only a directory strictly inside the config
-    # directory is ever deleted, and only if no component below the config directory is a symlink.
-    inside = data_dir != config_dir and os.path.commonpath([data_dir, config_dir]) == config_dir
-    if inside and os.path.realpath(data_dir) == os.path.join(
-        os.path.realpath(config_dir), os.path.relpath(data_dir, config_dir)
-    ):
-        shutil.rmtree(data_dir, ignore_errors=True)
-    elif os.path.lexists(data_dir):
-        reason = "is or passes through a symlink" if inside else f"is not a directory inside {config_dir}"
-        print(f"WARNING: Not clearing the Terraform data directory {data_dir}; it {reason}.", file=sys.stderr)
+    shutil.rmtree(os.path.join(path, ".terraform"), ignore_errors=True)
     # Respect whatever is set, but default to true if it isn't set
     command_env.setdefault("TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE", "true")
 
@@ -210,14 +199,14 @@ def auto_init_backend(
     # Init output goes to stderr so the requested command's stdout (e.g. `output -json`) stays parseable.
     with contextlib.redirect_stdout(sys.stderr):
         print("Backend is not initialized; running `terraform init` first.")
-        variables = parse_variable_files(variable_files=find_variable_files(path=path))
         try:
+            variables = parse_variable_files(variable_files=find_variable_files(path=path))
             arguments = calc_init_backend_arguments(
                 path, variables, wrapper_config, upgrade=False, existing_backend_config=backend_config
             )
         except _BACKEND_PARSE_ERRORS as exception:
             print(
-                f"ERROR: Could not read the backend configuration in {path} ({exception!r}), so "
+                f"ERROR: Could not read the Terraform configuration in {path} ({exception!r}), so "
                 "`terraform init` was not run. Run `terraform init` there yourself, or pass --no-auto-init.",
                 file=sys.stderr,
             )

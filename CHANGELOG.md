@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   up front, when Terrawrap can parse the backend block, so the audit API never records the failed first attempt
   and stdout holds only the command's own output; other commands (except `init`, `console` and `import`)
   initialize after terraform reports `Initial configuration of the requested backend`, and commands that never
-  need a backend (`fmt`, `validate`, `version`, `get`, `test`) are never initialized. A changed backend is never
+  need a backend (`fmt`, `validate`, `version`, `get`, `test`) are not initialized up front. A changed backend is never
   initialized automatically. Opt out with `--no-auto-init` or `auto_init: false` in `.tf_wrapper`; the
   `auto_init` key needs terrawrap 0.12.0+, and older releases reject a `.tf_wrapper` that sets it. When Terrawrap
   manages the backend, the init uses the same arguments as `tf <directory> init` except `-upgrade`, so the lock
@@ -26,10 +26,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Auto-init is on by default: a never-initialized backend that used to fail now initializes and continues.
   Opt out per run with `--no-auto-init` or per directory with `auto_init: false`.
 - `process_arguments` in `bin/tf` returns a sixth value, `skip_auto_init`.
-- `tf <directory> init` now clears the Terraform data directory only when it is a real directory inside the
-  configuration directory, honoring `TF_DATA_DIR`; a data directory outside it, or one reached through a
-  symlink, is left alone with a warning instead of being deleted (`TF_DATA_DIR` can come from a checked-in
-  `.tf_wrapper`). Previously `<directory>/.terraform` was always removed.
 
 ### Fixed
 
