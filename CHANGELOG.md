@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.12.1\] - 2026-11-17
+
+### Removed
+
+- Live log-chunk streaming of `apply`/`destroy` output to the audit API (`POST /log_chunk`), added in
+  `0.11.7`. The audit API still receives the full output in the final `update_audit_info` call; it just no
+  longer sees it while the run is in progress.
+
 ## \[0.12.0\] - 2026-11-11
 
 ### Added
