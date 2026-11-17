@@ -3,8 +3,13 @@
 import importlib.machinery
 import importlib.util
 import os
+import shutil
+import tempfile
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import ANY, Mock, patch
+
+from terrawrap.models.wrapper_config import WrapperConfig
+from test.helpers.backend_errors import CHANGED_CONFIG_ERROR, INITIAL_CONFIG_ERROR
 
 _BIN_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "bin", "tf"))
 
@@ -28,24 +33,35 @@ class TestProcessArguments(TestCase):
     def test_no_flags(self):
         """Parses path/command/arguments with no optional flags present"""
         result = self.mod.process_arguments(["tf", "dir", "plan", "-lock=false"])
-        self.assertEqual(result, ("dir", "plan", ["-lock=false"], True, False))
+        self.assertEqual(result, ("dir", "plan", ["-lock=false"], True, False, False))
 
     def test_no_version_check_flag_alone(self):
         """--no-version-check is stripped, reported, and does not disable envvar resolution"""
         result = self.mod.process_arguments(["tf", "--no-version-check", "dir", "plan"])
-        self.assertEqual(result, ("dir", "plan", [], True, True))
+        self.assertEqual(result, ("dir", "plan", [], True, True, False))
 
     def test_no_resolve_envvars_flag_alone(self):
         """--no-resolve-envvars is stripped and reported without affecting the version check"""
         result = self.mod.process_arguments(["tf", "--no-resolve-envvars", "dir", "plan"])
-        self.assertEqual(result, ("dir", "plan", [], False, False))
+        self.assertEqual(result, ("dir", "plan", [], False, False, False))
 
     def test_both_flags_together(self):
         """Both leading flags are stripped and both booleans reflect the flags passed"""
         result = self.mod.process_arguments(
             ["tf", "--no-resolve-envvars", "--no-version-check", "dir", "init", "-upgrade"]
         )
-        self.assertEqual(result, ("dir", "init", ["-upgrade"], False, True))
+        self.assertEqual(result, ("dir", "init", ["-upgrade"], False, True, False))
+
+    def test_no_auto_init_flag_alone(self):
+        """--no-auto-init is stripped and reported without affecting the other flags"""
+        result = self.mod.process_arguments(["tf", "--no-auto-init", "dir", "apply"])
+        self.assertEqual(result, ("dir", "apply", [], True, False, True))
+
+    def test_all_flags_together(self):
+        result = self.mod.process_arguments(
+            ["tf", "--no-auto-init", "--no-resolve-envvars", "--no-version-check", "dir", "plan"]
+        )
+        self.assertEqual(result, ("dir", "plan", [], False, True, True))
 
 
 class TestExecTfCommandConsole(TestCase):
@@ -106,3 +122,229 @@ class TestExecTfCommandConsole(TestCase):
                 )
 
         self.assertEqual(raised.exception.code, 1)
+
+
+class TestExecTfCommandAutoInit(TestCase):
+    """exec_tf_command runs auto_init once on a never-initialized backend, then retries the command."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_tf_module()
+
+    def _exec(self, auto_init, command="apply", path="/some/path"):
+        return self.mod.exec_tf_command(
+            command=command,
+            path=path,
+            variables={},
+            arguments=[],
+            additional_envvars={},
+            audit_api_url=None,
+            auto_init=auto_init,
+        )
+
+    def test_retries_command_after_successful_auto_init(self):
+        auto_init = Mock(return_value=0)
+        with patch.object(self.mod, "execute_command") as mock_execute:
+            mock_execute.side_effect = [(1, INITIAL_CONFIG_ERROR), (0, ["ok"])]
+            with self.assertRaises(SystemExit) as raised:
+                self._exec(auto_init)
+
+        self.assertEqual(raised.exception.code, 0)
+        auto_init.assert_called_once_with()
+        self.assertEqual(mock_execute.call_count, 2)
+        self.assertEqual(mock_execute.call_args_list[1].args[0], ["terraform", "apply"])
+
+    def test_auto_init_runs_at_most_once(self):
+        """A persistent init-required error after init fails instead of looping"""
+        auto_init = Mock(return_value=0)
+        with patch.object(self.mod, "execute_command") as mock_execute:
+            mock_execute.return_value = (1, INITIAL_CONFIG_ERROR)
+            with self.assertRaises(SystemExit) as raised:
+                self._exec(auto_init)
+
+        self.assertEqual(raised.exception.code, 1)
+        auto_init.assert_called_once_with()
+        self.assertEqual(mock_execute.call_count, 2)
+
+    def test_failed_auto_init_exits_with_its_code_without_retrying(self):
+        auto_init = Mock(return_value=3)
+        with patch.object(self.mod, "execute_command") as mock_execute:
+            mock_execute.return_value = (1, INITIAL_CONFIG_ERROR)
+            with self.assertRaises(SystemExit) as raised:
+                self._exec(auto_init)
+
+        self.assertEqual(raised.exception.code, 3)
+        self.assertEqual(mock_execute.call_count, 1)
+
+    def test_changed_backend_config_does_not_auto_init(self):
+        auto_init = Mock(return_value=0)
+        with patch.object(self.mod, "execute_command") as mock_execute:
+            mock_execute.return_value = (1, CHANGED_CONFIG_ERROR)
+            with self.assertRaises(SystemExit) as raised:
+                self._exec(auto_init)
+
+        self.assertEqual(raised.exception.code, 1)
+        auto_init.assert_not_called()
+
+    def test_init_pass_does_not_consume_a_retry(self):
+        """A first run that needs init still gets the full retry budget for transient errors"""
+        auto_init = Mock(return_value=0)
+        lock_error = ["Error acquiring the state lock\n"]
+        with (
+            patch.object(self.mod, "execute_command") as mock_execute,
+            patch.object(self.mod, "tf_unlock", return_value=True),
+        ):
+            mock_execute.side_effect = [(1, INITIAL_CONFIG_ERROR)] + [(1, lock_error)] * 50
+            with self.assertRaises(SystemExit):
+                self._exec(auto_init)
+
+        with (
+            patch.object(self.mod, "execute_command") as baseline_execute,
+            patch.object(self.mod, "tf_unlock", return_value=True),
+        ):
+            baseline_execute.return_value = (1, lock_error)
+            with self.assertRaises(SystemExit):
+                self._exec(None)
+
+        self.assertEqual(mock_execute.call_count, baseline_execute.call_count + 1)
+
+    def test_initialized_backend_is_never_auto_initialized_even_if_output_quotes_the_error(self):
+        """Output that merely quotes the message must not wipe an initialized data directory"""
+        path = tempfile.mkdtemp(prefix="5e0a7b31-")
+        self.addCleanup(shutil.rmtree, path, ignore_errors=True)
+        os.makedirs(os.path.join(path, ".terraform"))
+        with open(os.path.join(path, ".terraform", "terraform.tfstate"), "w", encoding="utf-8") as state:
+            state.write("{}")
+        auto_init = Mock(return_value=0)
+
+        with patch.object(self.mod, "execute_command") as mock_execute:
+            mock_execute.return_value = (1, INITIAL_CONFIG_ERROR)
+            with self.assertRaises(SystemExit) as raised:
+                self._exec(auto_init, path=path)
+
+        self.assertEqual(raised.exception.code, 1)
+        auto_init.assert_not_called()
+        self.assertEqual(mock_execute.call_count, 1)
+
+    def test_disabled_auto_init_preserves_failure(self):
+        with patch.object(self.mod, "execute_command") as mock_execute:
+            mock_execute.return_value = (1, INITIAL_CONFIG_ERROR)
+            with self.assertRaises(SystemExit) as raised:
+                self._exec(None)
+
+        self.assertEqual(raised.exception.code, 1)
+        self.assertEqual(mock_execute.call_count, 1)
+
+
+class TestExecTfCommandExplicitInit(TestCase):
+    """`tf <dir> init` clears the data directory first; `-help` must not"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_tf_module()
+
+    def _exec_init(self, arguments):
+        with (
+            patch.object(self.mod, "prepare_init") as mock_prepare,
+            patch.object(self.mod, "execute_command", return_value=(0, [])),
+        ):
+            with self.assertRaises(SystemExit):
+                self.mod.exec_tf_command(
+                    command="init",
+                    path="/some/path",
+                    variables={},
+                    arguments=arguments,
+                    additional_envvars={},
+                    audit_api_url=None,
+                )
+        return mock_prepare
+
+    def test_init_prepares_the_data_directory(self):
+        self._exec_init([]).assert_called_once_with("/some/path", ANY)
+
+    def test_init_help_does_not_touch_the_data_directory(self):
+        self._exec_init(["-help"]).assert_not_called()
+
+
+class TestHandlerAutoInit(TestCase):
+    """handler() hands the resolved auto-init callable to exec_tf_command"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_tf_module()
+
+    def test_passes_resolved_callable_and_flag(self):
+        wrapper_config = WrapperConfig()
+        resolved = Mock()
+        with (
+            patch.object(self.mod.sys, "argv", ["tf", "--no-auto-init", "dir", "plan"]),
+            patch.object(self.mod, "version_check"),
+            patch.object(self.mod, "get_absolute_path", return_value="/abs"),
+            patch.object(self.mod.os.path, "isdir", return_value=True),
+            patch.object(self.mod, "find_wrapper_config_files", return_value=[]),
+            patch.object(self.mod, "parse_wrapper_configs", return_value=wrapper_config),
+            patch.object(self.mod, "find_variable_files", return_value=[]),
+            patch.object(self.mod, "parse_variable_files", return_value={}),
+            patch.object(self.mod, "resolve_auto_init", return_value=resolved) as mock_resolve,
+            patch.object(self.mod, "exec_tf_command") as mock_exec,
+        ):
+            self.mod.handler()
+
+        mock_resolve.assert_called_once_with("plan", [], "/abs", wrapper_config, {}, True)
+        self.assertIs(mock_exec.call_args.kwargs["auto_init"], resolved)
+
+    def test_resolved_wrapper_envvars_reach_the_auto_init_decision(self):
+        """TF_DATA_DIR from .tf_wrapper envvars decides where the backend state file is looked up"""
+        wrapper_config = WrapperConfig()
+        with (
+            patch.object(self.mod.sys, "argv", ["tf", "dir", "output"]),
+            patch.object(self.mod, "version_check"),
+            patch.object(self.mod, "get_absolute_path", return_value="/abs"),
+            patch.object(self.mod.os.path, "isdir", return_value=True),
+            patch.object(self.mod, "find_wrapper_config_files", return_value=[]),
+            patch.object(self.mod, "parse_wrapper_configs", return_value=wrapper_config),
+            patch.object(self.mod, "resolve_envvars", return_value={"TF_DATA_DIR": "custom-data"}),
+            patch.object(self.mod, "find_variable_files", return_value=[]),
+            patch.object(self.mod, "parse_variable_files", return_value={}),
+            patch.object(self.mod, "resolve_auto_init", return_value=None) as mock_resolve,
+            patch.object(self.mod, "exec_tf_command") as mock_exec,
+        ):
+            self.mod.handler()
+
+        mock_resolve.assert_called_once_with(
+            "output", [], "/abs", wrapper_config, {"TF_DATA_DIR": "custom-data"}, False
+        )
+        self.assertEqual(mock_exec.call_args.kwargs["additional_envvars"], {"TF_DATA_DIR": "custom-data"})
+
+
+class TestHandlerInit(TestCase):
+    """`tf <dir> init` prepends the backend arguments and downloads plugins"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_tf_module()
+
+    def test_init_passes_backend_arguments_and_downloads_plugins(self):
+        wrapper_config = WrapperConfig()
+        with (
+            patch.object(self.mod.sys, "argv", ["tf", "--no-version-check", "dir", "init", "-input=false"]),
+            patch.object(self.mod, "get_absolute_path", return_value="/abs"),
+            patch.object(self.mod.os.path, "isdir", return_value=True),
+            patch.object(self.mod, "find_wrapper_config_files", return_value=[]),
+            patch.object(self.mod, "parse_wrapper_configs", return_value=wrapper_config),
+            patch.object(self.mod, "find_variable_files", return_value=[]),
+            patch.object(self.mod, "parse_variable_files", return_value={"v": "1"}),
+            patch.object(
+                self.mod, "calc_init_backend_arguments", return_value=["-reconfigure", "-upgrade"]
+            ) as mock_args,
+            patch.object(self.mod, "download_plugins") as mock_plugins,
+            patch.object(self.mod, "resolve_auto_init", return_value=None),
+            patch.object(self.mod, "exec_tf_command") as mock_exec,
+        ):
+            self.mod.handler()
+
+        mock_args.assert_called_once_with("/abs", {"v": "1"}, wrapper_config)
+        mock_plugins.assert_called_once_with(wrapper_config)
+        self.assertEqual(
+            mock_exec.call_args.kwargs["arguments"], ["-reconfigure", "-upgrade", "-input=false"]
+        )

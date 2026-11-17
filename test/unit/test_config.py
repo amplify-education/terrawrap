@@ -711,3 +711,34 @@ class TestSiblingIsolation(TestCase):
         enterprise_wrapper = os.path.join(self.tmpdir, "github", "amplify-enterprise", ".tf_wrapper")
         self.assertIn(github_wrapper, files)
         self.assertNotIn(enterprise_wrapper, files)
+
+
+class TestAutoInitParsing(TestCase):
+    """`auto_init` in .tf_wrapper files deserializes and merges like the other boolean options."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="terrawrap_auto_init_")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write(self, rel_path: str, body: str) -> str:
+        abs_path = os.path.join(self.tmpdir, rel_path)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        with open(abs_path, "w", encoding="utf-8") as handle:
+            handle.write(textwrap.dedent(body).lstrip())
+        return abs_path
+
+    def test_defaults_to_enabled(self):
+        self.assertTrue(parse_wrapper_configs([]).auto_init)
+
+    def test_disabled_in_yaml(self):
+        wrapper = self._write("dir/.tf_wrapper", "auto_init: false\n")
+
+        self.assertFalse(parse_wrapper_configs([wrapper]).auto_init)
+
+    def test_child_overrides_parent(self):
+        parent = self._write("parent/.tf_wrapper", "auto_init: false\n")
+        child = self._write("parent/child/.tf_wrapper", "auto_init: true\n")
+
+        self.assertTrue(parse_wrapper_configs([parent, child]).auto_init)

@@ -136,6 +136,7 @@ The following options are supported in `.tf_wrapper`:
 configure_backend: True # If true, automatically configure Terraform backends.
 backend_check: True # If true, require this directory to have a terraform backend configured
 apply_automatically: True # If false, `graph_apply`/`tf_apply` skip this directory and everything under it.
+auto_init: True # If false, `tf` does not run `init` automatically when the backend was never initialized. Needs terrawrap 0.12.0+.
 
 envvars:
   <NAME_OF_ENVVAR>:
@@ -281,6 +282,31 @@ backends:
 `tf <directory> <terraform command>` runs a terraform command for a given directory that contains `*.tf` files.
 Terrawrap automatically includes autovars as described above when running the given command. Any Terraform
 command is supported
+
+#### Automatic init
+
+If a directory has a backend that was never initialized (for example a fresh checkout), `tf` runs
+`tf <directory> init` for you and then runs the requested command. When Terrawrap manages the backend (see
+Backend Configuration), the init uses the same backend arguments as an explicit `tf <directory> init`, except
+`-upgrade`, so providers stay pinned to `.terraform.lock.hcl`. Extra arguments passed to the original command are
+not forwarded to the init. `TF_DATA_DIR` is honored when checking whether the backend is initialized.
+
+- Commands that read the backend (`apply`, `destroy`, `plan`, `refresh`, `output`, `show`, `state`, `workspace`,
+  `taint`, `untaint`, `force-unlock`, `providers` and `graph`) check for `.terraform/terraform.tfstate` and
+  initialize before running, so the audit API never records an apply that could not start and stdout holds only
+  the command's own output. This check needs Terrawrap to be able to parse the backend block; if it can't, it
+  warns on stderr, skips the check, and the command runs and fails first (an `apply` is then audited as failed)
+  before the init-and-retry below. Other commands, except `init`, `console` and `import`, initialize only after
+  terraform reports `Backend initialization required` with the reason
+  `Initial configuration of the requested backend`. Commands that never need a backend, such as `fmt`, `validate`,
+  `version`, `get` and `test`, are not initialized up front.
+- A changed backend (`Backend configuration block has changed`) is never initialized automatically, because
+  `-reconfigure` would discard the old backend without migrating its state. Run `tf <directory> init` yourself,
+  or `terraform init -migrate-state` if the state needs to move.
+- The init runs with `-input=false`, so a backend that still needs values fails instead of prompting. Its banner
+  and output go to stderr, leaving stdout clean for commands such as `output -json`.
+- Disable it for one run with `tf --no-auto-init <directory> <command>`, or for a directory with
+  `auto_init: false` in a `.tf_wrapper` file.
 
 ### plan_check
 
