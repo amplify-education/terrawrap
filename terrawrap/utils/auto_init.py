@@ -1,5 +1,6 @@
 """Running `terraform init` ahead of, or in response to, a command that needs an initialized backend."""
 
+import contextlib
 import json
 import os
 import shutil
@@ -143,7 +144,8 @@ def run_init(
     command_env = build_command_env(variables, additional_envvars)
     prepare_init(path, command_env)
     exit_code, _ = execute_command(
-        ["terraform", "init"] + arguments,
+        # -input=false: a partially configured backend must fail here, not wait on stdin in CI.
+        ["terraform", "init", "-input=false"] + arguments,
         cwd=path,
         capture_stderr=True,
         print_command=True,
@@ -156,11 +158,13 @@ def run_init(
 def auto_init_backend(path: str, wrapper_config: WrapperConfig, additional_envvars: Dict[str, str]) -> int:
     """Initialize a never-initialized backend. Variables are always loaded, whatever command triggered
     this, because they select the backend's bucket and key."""
-    print("Backend is not initialized; running `terraform init` first.")
-    variables = parse_variable_files(variable_files=find_variable_files(path=path))
-    arguments = calc_init_backend_arguments(path, variables, wrapper_config, upgrade=False)
-    download_plugins(wrapper_config)
-    return run_init(path, variables, arguments, additional_envvars)
+    # Init output goes to stderr so the requested command's stdout (e.g. `output -json`) stays parseable.
+    with contextlib.redirect_stdout(sys.stderr):
+        print("Backend is not initialized; running `terraform init` first.")
+        variables = parse_variable_files(variable_files=find_variable_files(path=path))
+        arguments = calc_init_backend_arguments(path, variables, wrapper_config, upgrade=False)
+        download_plugins(wrapper_config)
+        return run_init(path, variables, arguments, additional_envvars)
 
 
 def run_auto_init_or_exit(auto_init: Callable[[], int]):

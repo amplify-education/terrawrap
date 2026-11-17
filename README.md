@@ -298,6 +298,8 @@ not forwarded to the init. `TF_DATA_DIR` is honored when checking whether the ba
 - A changed backend (`Backend configuration block has changed`) is never initialized automatically, because
   `-reconfigure` would discard the old backend without migrating its state. Run `tf <directory> init` yourself,
   or `terraform init -migrate-state` if the state needs to move.
+- The init runs with `-input=false`, so a backend that still needs values fails instead of prompting. Its banner
+  and output go to stderr, leaving stdout clean for commands such as `output -json`.
 - Disable it for one run with `tf --no-auto-init <directory> <command>`, or for a directory with
   `auto_init: false` in a `.tf_wrapper` file.
 

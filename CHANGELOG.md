@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `Initial configuration of the requested backend`. A changed backend is never initialized automatically.
   Opt out with `--no-auto-init` or `auto_init: false` in `.tf_wrapper`. When Terrawrap manages the backend, the
   init uses the same arguments as `tf <directory> init` except `-upgrade`, so the lock file is honored.
+  The init runs with `-input=false` and writes its banner and output to stderr, so stdout stays parseable for
+  commands such as `output -json`.
 
 ### Changed
 

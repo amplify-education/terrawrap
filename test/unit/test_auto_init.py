@@ -171,6 +171,21 @@ class TestCalcInitBackendArguments(TestCase):
 
         self.assertEqual(result, ["-reconfigure", "-backend-config=key=value"])
 
+    @patch("terrawrap.utils.config.calc_repo_path", return_value="repo/dir")
+    def test_real_backend_config_flag_is_dropped_by_upgrade_false(self, _repo_path):
+        """The filter must match the literal calc_backend_config emits, not a hand-written stand-in"""
+        path = tempfile.mkdtemp(prefix="3f1c9a7e-")
+        self.addCleanup(shutil.rmtree, path, ignore_errors=True)
+        with open(os.path.join(path, "backend.tf"), "w", encoding="utf-8") as backend_file:
+            backend_file.write('terraform {\n  backend "s3" {}\n}\n')
+
+        with_upgrade = calc_init_backend_arguments(path, {}, WrapperConfig())
+        without_upgrade = calc_init_backend_arguments(path, {}, WrapperConfig(), upgrade=False)
+
+        self.assertIn("-upgrade", with_upgrade)
+        self.assertNotIn("-upgrade", without_upgrade)
+        self.assertEqual([a for a in with_upgrade if a != "-upgrade"], without_upgrade)
+
     @patch("terrawrap.utils.auto_init.parse_backend_config_for_dir")
     def test_returns_empty_when_configure_backend_disabled(self, parse_backend):
         self.assertEqual(calc_init_backend_arguments("/dir", {}, WrapperConfig(configure_backend=False)), [])
@@ -204,11 +219,35 @@ class TestAutoInitBackend(TestCase):
         plugins.assert_called_once_with(wrapper_config)
         rmtree.assert_called_once()
         called = execute.call_args
-        self.assertEqual(called.args[0], ["terraform", "init", "-reconfigure"])
+        self.assertEqual(called.args[0], ["terraform", "init", "-input=false", "-reconfigure"])
         self.assertEqual(called.kwargs["cwd"], "/abs")
         self.assertEqual(called.kwargs["env"]["TF_VAR_v"], "1")
         self.assertEqual(called.kwargs["env"]["EXTRA"], "x")
         self.assertEqual(called.kwargs["env"]["TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE"], "true")
+
+    @patch("terrawrap.utils.auto_init.shutil.rmtree")
+    @patch("terrawrap.utils.auto_init.download_plugins")
+    @patch("terrawrap.utils.auto_init.calc_init_backend_arguments", return_value=[])
+    @patch("terrawrap.utils.auto_init.parse_variable_files", return_value={})
+    @patch("terrawrap.utils.auto_init.find_variable_files", return_value=[])
+    @patch("terrawrap.utils.auto_init.execute_command")
+    def test_keeps_stdout_clean_for_machine_readable_output(self, execute, *_):
+        """`tf <dir> output -json` must see only its own output on stdout after a first-run init"""
+
+        def noisy_init(*_args, **_kwargs):
+            print("Executing: terraform init")
+            print("Terraform has been successfully initialized!")
+            return 0, []
+
+        execute.side_effect = noisy_init
+        stdout, stderr = io.StringIO(), io.StringIO()
+
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            auto_init_backend("/abs", WrapperConfig(), {})
+
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("Backend is not initialized", stderr.getvalue())
+        self.assertIn("successfully initialized", stderr.getvalue())
 
 
 @patch("terrawrap.utils.auto_init.auto_init_backend", return_value=0)
@@ -287,5 +326,36 @@ class TestResolveAutoInitDetection(TestCase):
 
     def test_apply_without_backend_block_does_not_init(self, auto_init_backend_mock):
         self.assertIsNotNone(resolve_auto_init("apply", [], self.path, WrapperConfig(), {}, False))
+
+        auto_init_backend_mock.assert_not_called()
+
+    def test_apply_honors_process_environment_tf_data_dir(self, auto_init_backend_mock):
+        """An exported TF_DATA_DIR relocates the state file; ignoring it would re-init every apply"""
+        self._write_backend()
+        os.makedirs(os.path.join(self.path, "custom-data"))
+        with open(
+            os.path.join(self.path, "custom-data", "terraform.tfstate"), "w", encoding="utf-8"
+        ) as state:
+            state.write("{}")
+
+        with patch.dict(os.environ, {"TF_DATA_DIR": "custom-data"}):
+            self.assertIsNotNone(resolve_auto_init("apply", [], self.path, WrapperConfig(), {}, False))
+
+        auto_init_backend_mock.assert_not_called()
+
+    def test_wrapper_envvars_override_process_tf_data_dir(self, auto_init_backend_mock):
+        self._write_backend()
+        os.makedirs(os.path.join(self.path, "custom-data"))
+        with open(
+            os.path.join(self.path, "custom-data", "terraform.tfstate"), "w", encoding="utf-8"
+        ) as state:
+            state.write("{}")
+
+        with patch.dict(os.environ, {"TF_DATA_DIR": "elsewhere"}):
+            self.assertIsNotNone(
+                resolve_auto_init(
+                    "apply", [], self.path, WrapperConfig(), {"TF_DATA_DIR": "custom-data"}, False
+                )
+            )
 
         auto_init_backend_mock.assert_not_called()
