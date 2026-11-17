@@ -3,8 +3,10 @@
 import importlib.machinery
 import importlib.util
 import os
+import shutil
+import tempfile
 from unittest import TestCase
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 from terrawrap.models.wrapper_config import WrapperConfig
 from test.helpers.backend_errors import CHANGED_CONFIG_ERROR, INITIAL_CONFIG_ERROR
@@ -129,10 +131,10 @@ class TestExecTfCommandAutoInit(TestCase):
     def setUpClass(cls):
         cls.mod = _load_tf_module()
 
-    def _exec(self, auto_init, command="apply"):
+    def _exec(self, auto_init, command="apply", path="/some/path"):
         return self.mod.exec_tf_command(
             command=command,
-            path="/some/path",
+            path=path,
             variables={},
             arguments=[],
             additional_envvars={},
@@ -206,6 +208,24 @@ class TestExecTfCommandAutoInit(TestCase):
 
         self.assertEqual(mock_execute.call_count, baseline_execute.call_count + 1)
 
+    def test_initialized_backend_is_never_auto_initialized_even_if_output_quotes_the_error(self):
+        """Output that merely quotes the message must not wipe an initialized data directory"""
+        path = tempfile.mkdtemp(prefix="5e0a7b31-")
+        self.addCleanup(shutil.rmtree, path, ignore_errors=True)
+        os.makedirs(os.path.join(path, ".terraform"))
+        with open(os.path.join(path, ".terraform", "terraform.tfstate"), "w", encoding="utf-8") as state:
+            state.write("{}")
+        auto_init = Mock(return_value=0)
+
+        with patch.object(self.mod, "execute_command") as mock_execute:
+            mock_execute.return_value = (1, INITIAL_CONFIG_ERROR)
+            with self.assertRaises(SystemExit) as raised:
+                self._exec(auto_init, path=path)
+
+        self.assertEqual(raised.exception.code, 1)
+        auto_init.assert_not_called()
+        self.assertEqual(mock_execute.call_count, 1)
+
     def test_disabled_auto_init_preserves_failure(self):
         with patch.object(self.mod, "execute_command") as mock_execute:
             mock_execute.return_value = (1, INITIAL_CONFIG_ERROR)
@@ -214,6 +234,36 @@ class TestExecTfCommandAutoInit(TestCase):
 
         self.assertEqual(raised.exception.code, 1)
         self.assertEqual(mock_execute.call_count, 1)
+
+
+class TestExecTfCommandExplicitInit(TestCase):
+    """`tf <dir> init` clears the data directory first; `-help` must not"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_tf_module()
+
+    def _exec_init(self, arguments):
+        with (
+            patch.object(self.mod, "prepare_init") as mock_prepare,
+            patch.object(self.mod, "execute_command", return_value=(0, [])),
+        ):
+            with self.assertRaises(SystemExit):
+                self.mod.exec_tf_command(
+                    command="init",
+                    path="/some/path",
+                    variables={},
+                    arguments=arguments,
+                    additional_envvars={},
+                    audit_api_url=None,
+                )
+        return mock_prepare
+
+    def test_init_prepares_the_data_directory(self):
+        self._exec_init([]).assert_called_once_with("/some/path", ANY)
+
+    def test_init_help_does_not_touch_the_data_directory(self):
+        self._exec_init(["-help"]).assert_not_called()
 
 
 class TestHandlerAutoInit(TestCase):

@@ -13,17 +13,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   requested command. Commands that read the backend (`apply`, `destroy`, `plan`, `output`, `state`, …) initialize
   up front, when Terrawrap can parse the backend block, so the audit API never records the failed first attempt
   and stdout holds only the command's own output; other commands (except `init`, `console` and `import`)
-  initialize after terraform reports `Initial configuration of the requested backend`. A changed backend is never initialized automatically.
-  Opt out with `--no-auto-init` or `auto_init: false` in `.tf_wrapper`. When Terrawrap manages the backend, the
-  init uses the same arguments as `tf <directory> init` except `-upgrade`, so the lock file is honored.
-  The init runs with `-input=false` and writes its banner and output to stderr, so stdout stays parseable for
-  commands such as `output -json`.
+  initialize after terraform reports `Initial configuration of the requested backend`, and commands that never
+  need a backend (`fmt`, `validate`, `version`, `get`, `test`) are never initialized. A changed backend is never
+  initialized automatically. Opt out with `--no-auto-init` or `auto_init: false` in `.tf_wrapper`; the
+  `auto_init` key needs terrawrap 0.12.0+, and older releases reject a `.tf_wrapper` that sets it. When Terrawrap
+  manages the backend, the init uses the same arguments as `tf <directory> init` except `-upgrade`, so the lock
+  file is honored. The init runs with `-input=false` and writes its banner and output to stderr, so stdout stays
+  parseable for commands such as `output -json`.
 
 ### Changed
 
 - Auto-init is on by default: a never-initialized backend that used to fail now initializes and continues.
   Opt out per run with `--no-auto-init` or per directory with `auto_init: false`.
 - `process_arguments` in `bin/tf` returns a sixth value, `skip_auto_init`.
+- `tf <directory> init` now clears the Terraform data directory only when it is a real directory inside the
+  configuration directory, honoring `TF_DATA_DIR`; a data directory outside it, or one reached through a
+  symlink, is left alone with a warning instead of being deleted (`TF_DATA_DIR` can come from a checked-in
+  `.tf_wrapper`). Previously `<directory>/.terraform` was always removed.
 
 ### Fixed
 

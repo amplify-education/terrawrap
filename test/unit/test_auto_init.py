@@ -8,6 +8,8 @@ import tempfile
 from unittest import TestCase
 from unittest.mock import ANY, patch
 
+from botocore.exceptions import ClientError
+
 from terrawrap.models.wrapper_config import WrapperConfig
 from terrawrap.utils.auto_init import (
     auto_init_backend,
@@ -306,6 +308,23 @@ class TestAutoInitBackend(TestCase):
 
         parse_backend.assert_not_called()
 
+    @patch("terrawrap.utils.auto_init.shutil.rmtree")
+    @patch("terrawrap.utils.auto_init.download_plugins", side_effect=ClientError({"Error": {}}, "GetObject"))
+    @patch("terrawrap.utils.auto_init.calc_init_backend_arguments", return_value=[])
+    @patch("terrawrap.utils.auto_init.parse_variable_files", return_value={})
+    @patch("terrawrap.utils.auto_init.find_variable_files", return_value=[])
+    @patch("terrawrap.utils.auto_init.execute_command")
+    def test_plugin_download_failure_fails_with_guidance_instead_of_a_traceback(self, execute, *_):
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            exit_code = auto_init_backend("/abs", WrapperConfig(), {})
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("plugins", stderr.getvalue())
+        self.assertIn("--no-auto-init", stderr.getvalue())
+        execute.assert_not_called()
+
 
 class TestPrepareInit(TestCase):
     def setUp(self):
@@ -357,7 +376,7 @@ class TestPrepareInit(TestCase):
             prepare_init(self.path, {"TF_DATA_DIR": outside})
 
         self.assertTrue(os.path.exists(victim))
-        self.assertIn("Not clearing TF_DATA_DIR", stderr.getvalue())
+        self.assertIn("not a directory inside", stderr.getvalue())
 
     def test_does_not_follow_a_symlinked_parent_of_the_data_dir(self):
         """link/sub passes a lexical inside-the-config-directory check but resolves outside it"""
@@ -383,6 +402,19 @@ class TestPrepareInit(TestCase):
         prepare_init(link, {})
 
         self.assertFalse(os.path.exists(data_file))
+
+    def test_warns_that_a_symlinked_data_dir_inside_the_config_is_a_symlink(self):
+        """The default .terraform skipped for being a symlink must be reported, accurately"""
+        outside = tempfile.mkdtemp(prefix="c41e7d02-")
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        os.symlink(outside, os.path.join(self.path, ".terraform"))
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            prepare_init(self.path, {})
+
+        self.assertIn("symlink", stderr.getvalue())
+        self.assertNotIn("not a directory inside", stderr.getvalue())
 
     def test_does_not_follow_a_symlinked_data_dir(self):
         outside = tempfile.mkdtemp(prefix="c41e7d02-")

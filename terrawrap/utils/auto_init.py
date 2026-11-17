@@ -9,6 +9,8 @@ from functools import partial
 from typing import Callable, Dict, List, Optional
 
 import boto3
+import requests
+from botocore.exceptions import BotoCoreError, ClientError
 from jsons.exceptions import JsonsError
 from lark.exceptions import LarkError
 
@@ -21,7 +23,7 @@ from terrawrap.utils.config import (
     parse_backend_config_for_dir,
     parse_variable_files,
 )
-from terrawrap.utils.plugin_download import PluginDownload
+from terrawrap.utils.plugin_download import FileDownloadFailed, PluginDownload
 
 # Only a never-initialized backend is safe to auto-init: `-reconfigure` on a changed backend
 # discards the old backend config without copying state.
@@ -51,6 +53,8 @@ _PREFLIGHT_COMMANDS = (
 
 # What the HCL/backend parser raises on input it can't handle; anything else is a bug and propagates.
 _BACKEND_PARSE_ERRORS = (OSError, ValueError, LarkError, JsonsError)
+
+_PLUGIN_DOWNLOAD_ERRORS = (FileDownloadFailed, ClientError, BotoCoreError, requests.RequestException, OSError)
 
 
 def has_help_flag(arguments: List[str]) -> bool:
@@ -91,11 +95,9 @@ def prepare_init(path: str, command_env: Dict[str, str]):
         os.path.realpath(config_dir), os.path.relpath(data_dir, config_dir)
     ):
         shutil.rmtree(data_dir, ignore_errors=True)
-    elif os.path.lexists(data_dir) and data_dir != os.path.join(config_dir, ".terraform"):
-        print(
-            f"WARNING: Not clearing TF_DATA_DIR {data_dir}; it is not a directory inside {config_dir}.",
-            file=sys.stderr,
-        )
+    elif os.path.lexists(data_dir):
+        reason = "is or passes through a symlink" if inside else f"is not a directory inside {config_dir}"
+        print(f"WARNING: Not clearing the Terraform data directory {data_dir}; it {reason}.", file=sys.stderr)
     # Respect whatever is set, but default to true if it isn't set
     command_env.setdefault("TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE", "true")
 
@@ -220,7 +222,15 @@ def auto_init_backend(
                 file=sys.stderr,
             )
             return 1
-        download_plugins(wrapper_config)
+        try:
+            download_plugins(wrapper_config)
+        except _PLUGIN_DOWNLOAD_ERRORS as exception:
+            print(
+                f"ERROR: Could not download the configured plugins ({exception!r}), so `terraform init` was "
+                "not run. Fix the error, or pass --no-auto-init to skip the init.",
+                file=sys.stderr,
+            )
+            return 1
         exit_code = run_init(path, variables, arguments, additional_envvars)
 
     if exit_code != 0:

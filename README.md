@@ -136,7 +136,7 @@ The following options are supported in `.tf_wrapper`:
 configure_backend: True # If true, automatically configure Terraform backends.
 backend_check: True # If true, require this directory to have a terraform backend configured
 apply_automatically: True # If false, `graph_apply`/`tf_apply` skip this directory and everything under it.
-auto_init: True # If false, `tf` does not run `init` automatically when the backend was never initialized.
+auto_init: True # If false, `tf` does not run `init` automatically when the backend was never initialized. Needs terrawrap 0.12.0+.
 
 envvars:
   <NAME_OF_ENVVAR>:
@@ -296,9 +296,10 @@ not forwarded to the init. `TF_DATA_DIR` is honored when checking whether the ba
   initialize before running, so the audit API never records an apply that could not start and stdout holds only
   the command's own output. This check needs Terrawrap to be able to parse the backend block; if it can't, it
   warns on stderr, skips the check, and the command runs and fails first (an `apply` is then audited as failed)
-  before the init-and-retry below. Other commands, except `init`, `console` and `import`, such as `fmt` and
-  `validate`, initialize only after terraform reports `Backend initialization required` with the reason
-  `Initial configuration of the requested backend`.
+  before the init-and-retry below. Other commands, except `init`, `console` and `import`, initialize only after
+  terraform reports `Backend initialization required` with the reason
+  `Initial configuration of the requested backend`. Commands that never need a backend, such as `fmt`, `validate`,
+  `version`, `get` and `test`, are never initialized.
 - A changed backend (`Backend configuration block has changed`) is never initialized automatically, because
   `-reconfigure` would discard the old backend without migrating its state. Run `tf <directory> init` yourself,
   or `terraform init -migrate-state` if the state needs to move.
