@@ -10,9 +10,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `tf` now runs `init` automatically when a directory's backend has never been initialized, then runs the
-  requested command. `apply` and `destroy` initialize up front so the audit API never records the failed first
-  attempt; other commands (except `init`, `console` and `import`) initialize after terraform reports
-  `Initial configuration of the requested backend`. A changed backend is never initialized automatically.
+  requested command. Commands that read the backend (`apply`, `destroy`, `plan`, `output`, `state`, …) initialize
+  up front, when Terrawrap can parse the backend block, so the audit API never records the failed first attempt
+  and stdout holds only the command's own output; other commands (except `init`, `console` and `import`)
+  initialize after terraform reports `Initial configuration of the requested backend`. A changed backend is never initialized automatically.
   Opt out with `--no-auto-init` or `auto_init: false` in `.tf_wrapper`. When Terrawrap manages the backend, the
   init uses the same arguments as `tf <directory> init` except `-upgrade`, so the lock file is honored.
   The init runs with `-input=false` and writes its banner and output to stderr, so stdout stays parseable for

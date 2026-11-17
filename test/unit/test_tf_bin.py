@@ -184,6 +184,28 @@ class TestExecTfCommandAutoInit(TestCase):
         self.assertEqual(raised.exception.code, 1)
         auto_init.assert_not_called()
 
+    def test_init_pass_does_not_consume_a_retry(self):
+        """A first run that needs init still gets the full retry budget for transient errors"""
+        auto_init = Mock(return_value=0)
+        lock_error = ["Error acquiring the state lock\n"]
+        with (
+            patch.object(self.mod, "execute_command") as mock_execute,
+            patch.object(self.mod, "tf_unlock", return_value=True),
+        ):
+            mock_execute.side_effect = [(1, INITIAL_CONFIG_ERROR)] + [(1, lock_error)] * 50
+            with self.assertRaises(SystemExit):
+                self._exec(auto_init)
+
+        with (
+            patch.object(self.mod, "execute_command") as baseline_execute,
+            patch.object(self.mod, "tf_unlock", return_value=True),
+        ):
+            baseline_execute.return_value = (1, lock_error)
+            with self.assertRaises(SystemExit):
+                self._exec(None)
+
+        self.assertEqual(mock_execute.call_count, baseline_execute.call_count + 1)
+
     def test_disabled_auto_init_preserves_failure(self):
         with patch.object(self.mod, "execute_command") as mock_execute:
             mock_execute.return_value = (1, INITIAL_CONFIG_ERROR)
@@ -220,6 +242,29 @@ class TestHandlerAutoInit(TestCase):
 
         mock_resolve.assert_called_once_with("plan", [], "/abs", wrapper_config, {}, True)
         self.assertIs(mock_exec.call_args.kwargs["auto_init"], resolved)
+
+    def test_resolved_wrapper_envvars_reach_the_auto_init_decision(self):
+        """TF_DATA_DIR from .tf_wrapper envvars decides where the backend state file is looked up"""
+        wrapper_config = WrapperConfig()
+        with (
+            patch.object(self.mod.sys, "argv", ["tf", "dir", "output"]),
+            patch.object(self.mod, "version_check"),
+            patch.object(self.mod, "get_absolute_path", return_value="/abs"),
+            patch.object(self.mod.os.path, "isdir", return_value=True),
+            patch.object(self.mod, "find_wrapper_config_files", return_value=[]),
+            patch.object(self.mod, "parse_wrapper_configs", return_value=wrapper_config),
+            patch.object(self.mod, "resolve_envvars", return_value={"TF_DATA_DIR": "custom-data"}),
+            patch.object(self.mod, "find_variable_files", return_value=[]),
+            patch.object(self.mod, "parse_variable_files", return_value={}),
+            patch.object(self.mod, "resolve_auto_init", return_value=None) as mock_resolve,
+            patch.object(self.mod, "exec_tf_command") as mock_exec,
+        ):
+            self.mod.handler()
+
+        mock_resolve.assert_called_once_with(
+            "output", [], "/abs", wrapper_config, {"TF_DATA_DIR": "custom-data"}, False
+        )
+        self.assertEqual(mock_exec.call_args.kwargs["additional_envvars"], {"TF_DATA_DIR": "custom-data"})
 
 
 class TestHandlerInit(TestCase):

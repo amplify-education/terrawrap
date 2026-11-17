@@ -291,15 +291,20 @@ Backend Configuration), the init uses the same backend arguments as an explicit 
 `-upgrade`, so providers stay pinned to `.terraform.lock.hcl`. Extra arguments passed to the original command are
 not forwarded to the init. `TF_DATA_DIR` is honored when checking whether the backend is initialized.
 
-- `apply` and `destroy` check for `.terraform/terraform.tfstate` and initialize before running, so the audit API
-  never records an apply that could not start. Other commands, except `init`, `console` and `import`, initialize
-  after terraform reports `Backend initialization required` with the reason
+- Commands that read the backend (`apply`, `destroy`, `plan`, `refresh`, `output`, `show`, `state`, `workspace`,
+  `taint`, `untaint`, `force-unlock`, `providers` and `graph`) check for `.terraform/terraform.tfstate` and
+  initialize before running, so the audit API never records an apply that could not start and stdout holds only
+  the command's own output. This check needs Terrawrap to be able to parse the backend block; if it can't, it
+  warns on stderr, skips the check, and the command runs and fails first (an `apply` is then audited as failed)
+  before the init-and-retry below. Other commands, except `init`, `console` and `import`, such as `fmt` and
+  `validate`, initialize only after terraform reports `Backend initialization required` with the reason
   `Initial configuration of the requested backend`.
 - A changed backend (`Backend configuration block has changed`) is never initialized automatically, because
   `-reconfigure` would discard the old backend without migrating its state. Run `tf <directory> init` yourself,
   or `terraform init -migrate-state` if the state needs to move.
 - The init runs with `-input=false`, so a backend that still needs values fails instead of prompting. Its banner
-  and output go to stderr, leaving stdout clean for commands such as `output -json`.
+  and output go to stderr, leaving stdout clean for commands such as `output -json`. `TF_DATA_DIR` is honored
+  for the directory that is cleared before the init, which is never the configuration directory itself.
 - Disable it for one run with `tf --no-auto-init <directory> <command>`, or for a directory with
   `auto_init: false` in a `.tf_wrapper` file.
 
