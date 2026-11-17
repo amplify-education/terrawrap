@@ -359,6 +359,31 @@ class TestPrepareInit(TestCase):
         self.assertTrue(os.path.exists(victim))
         self.assertIn("Not clearing TF_DATA_DIR", stderr.getvalue())
 
+    def test_does_not_follow_a_symlinked_parent_of_the_data_dir(self):
+        """link/sub passes a lexical inside-the-config-directory check but resolves outside it"""
+        outside = tempfile.mkdtemp(prefix="c41e7d02-")
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        victim = os.path.join(outside, "sub", "precious")
+        os.makedirs(os.path.dirname(victim))
+        with open(victim, "w", encoding="utf-8") as precious:
+            precious.write("x")
+        os.symlink(outside, os.path.join(self.path, "link"))
+
+        prepare_init(self.path, {"TF_DATA_DIR": "link/sub"})
+
+        self.assertTrue(os.path.exists(victim))
+
+    def test_removes_the_data_dir_when_the_configuration_path_is_itself_a_symlink(self):
+        """A symlinked configuration directory (e.g. macOS /tmp) must not disable the cleanup"""
+        link = os.path.join(tempfile.mkdtemp(prefix="c41e7d02-"), "config-link")
+        self.addCleanup(shutil.rmtree, os.path.dirname(link), ignore_errors=True)
+        os.symlink(self.path, link)
+        data_file = self._touch(".terraform", "terraform.tfstate")
+
+        prepare_init(link, {})
+
+        self.assertFalse(os.path.exists(data_file))
+
     def test_does_not_follow_a_symlinked_data_dir(self):
         outside = tempfile.mkdtemp(prefix="c41e7d02-")
         self.addCleanup(shutil.rmtree, outside, ignore_errors=True)

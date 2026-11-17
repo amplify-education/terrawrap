@@ -84,12 +84,11 @@ def terraform_data_dir(path: str, env: Dict[str, str]) -> str:
 def prepare_init(path: str, command_env: Dict[str, str]):
     data_dir = os.path.abspath(terraform_data_dir(path, command_env))
     config_dir = os.path.abspath(path)
-    # TF_DATA_DIR can come from a checked-in .tf_wrapper, so only a real directory strictly inside the
-    # configuration directory is ever deleted; a symlink is never followed.
-    if (
-        data_dir != config_dir
-        and os.path.commonpath([data_dir, config_dir]) == config_dir
-        and not os.path.islink(data_dir)
+    # TF_DATA_DIR can come from a checked-in .tf_wrapper, so only a directory strictly inside the config
+    # directory is ever deleted, and only if no component below the config directory is a symlink.
+    inside = data_dir != config_dir and os.path.commonpath([data_dir, config_dir]) == config_dir
+    if inside and os.path.realpath(data_dir) == os.path.join(
+        os.path.realpath(config_dir), os.path.relpath(data_dir, config_dir)
     ):
         shutil.rmtree(data_dir, ignore_errors=True)
     elif os.path.lexists(data_dir) and data_dir != os.path.join(config_dir, ".terraform"):
