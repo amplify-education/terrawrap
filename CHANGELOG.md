@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.12.2\] - 2026-11-18
+
+### Security
+
+- The version-check cache no longer reads pickled data from the shared temp
+  directory. It used `diskcache` at `/tmp/terrawrap_version_cache`, which unpickles
+  its entries (CVE-2025-69872, no fixed release), so on a shared host another
+  account could create that directory first and run code in the next terrawrap
+  command. The lookup is now stored as plain JSON in the user's own cache directory
+  (`$XDG_CACHE_HOME/terrawrap/version.json`, default
+  `~/.cache/terrawrap/version.json`). A missing, stale, or malformed file is treated
+  as a miss, and a cache that can't be written just means a PyPI lookup each run.
+
+### Fixed
+
+- The `bin/tf_validate` unit tests no longer call PyPI and write the real version-check
+  cache; they stub the version check like the other `bin/` tests.
+
+### Removed
+
+- The `diskcache` dependency.
+
 ## \[0.12.1\] - 2026-11-17
 
 ### Removed

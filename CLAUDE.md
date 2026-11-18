@@ -14,7 +14,7 @@ build otherwise (semver: fix → patch, feature → minor).
 **Always pair the version bump with a matching `CHANGELOG.md` entry** under a new
 `## [<version>] - <YYYY-MM-DD>` heading, using the
 [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) sections
-(Added / Changed / Fixed / Removed). `versionCheck.sh` does **not** check the
+(Added / Changed / Fixed / Removed / Security). `versionCheck.sh` does **not** check the
 changelog, so it is easy to bump the version and forget the entry — don't. Set
 the heading version to the value you just wrote into `version.py`.
 
