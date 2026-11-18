@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## \[0.12.3\] - 2026-11-18
+
+### Changed
+
+- Loosened the `packaging` pin from `==26` to `>=26,<27` and the `filelock` pin from `<4` to `<5`. The
+  exact `packaging` pin downgraded packages that need a newer 26.x (`twine`, `tox`'s `pyproject-api`,
+  `virtualenv`) when terrawrap was installed alongside them, as in the AWS CodeBuild standard images.
+
 ## \[0.12.2\] - 2026-11-18
 
 ### Security
