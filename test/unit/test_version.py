@@ -137,11 +137,18 @@ class TestVersion(TestCase):
         self.assertEqual(stable, "1.0.1")
         self.assertIsNone(rc)
 
-    def _write_entry(self, **overrides):
-        entry = {"current_version": "1.0.0", "checked_at": time.time(), "stable": "1.0.1", "rc": None}
-        entry.update(overrides)
+    def _write_entries(self, entries):
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
-        self.cache_file.write_text(json.dumps(entry), encoding="utf-8")
+        self.cache_file.write_text(json.dumps(entries), encoding="utf-8")
+
+    def _read_entries(self):
+        return json.loads(self.cache_file.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _entry(**overrides):
+        entry = {"checked_at": time.time(), "stable": "1.0.1", "rc": None}
+        entry.update(overrides)
+        return entry
 
     @patch("requests.get")
     def test_get_latest_version_served_from_cache(self, mock_get):
@@ -152,49 +159,79 @@ class TestVersion(TestCase):
         self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
 
         self.assertEqual(mock_get.call_count, 1)
-        entry = json.loads(self.cache_file.read_text(encoding="utf-8"))
-        self.assertEqual(entry["current_version"], "1.0.0")
+        entry = self._read_entries()["1.0.0"]
         self.assertEqual((entry["stable"], entry["rc"]), ("1.0.1", None))
 
     @patch("requests.get")
+    def test_get_latest_version_caches_each_installed_version(self, mock_get):
+        """VersionUtils keeps a separate entry per installed version, so they don't evict each other"""
+        mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "2.0.0": []}}
+
+        for _ in range(2):
+            self.assertEqual(get_latest_version(current_version="1.0.0"), ("2.0.0", None))
+            self.assertEqual(get_latest_version(current_version="2.0.0"), ("2.0.0", None))
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(set(self._read_entries()), {"1.0.0", "2.0.0"})
+
+    @patch("requests.get")
+    def test_get_latest_version_drops_unusable_entries_on_write(self, mock_get):
+        """VersionUtils removes other versions' expired or malformed entries when it writes"""
+        mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": []}}
+        self._write_entries(
+            {
+                "0.8.0": self._entry(checked_at=time.time() - ONE_DAY_IN_SECONDS - 1),
+                "0.9.0": "not an entry",
+                "0.9.5": self._entry(stable="0.9.6"),
+            }
+        )
+
+        self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
+
+        self.assertEqual(set(self._read_entries()), {"0.9.5", "1.0.0"})
+
+    @patch("requests.get")
     def test_get_latest_version_ignores_unusable_entries(self, mock_get):
-        """VersionUtils treats stale, other-version, and malformed entries as a miss"""
+        """VersionUtils treats stale, malformed, and unparseable entries as a miss"""
         mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.2": []}}
         unusable = {
             "expired": {"checked_at": time.time() - ONE_DAY_IN_SECONDS - 1},
             "future timestamp": {"checked_at": time.time() + ONE_DAY_IN_SECONDS},
-            "other installed version": {"current_version": "0.9.0"},
             "non-string stable": {"stable": ["1.0.1"]},
             "non-string rc": {"rc": 1},
+            "unparseable stable": {"stable": "garbage"},
+            "unparseable rc": {"rc": "not a version"},
             "non-numeric timestamp": {"checked_at": "now"},
         }
         for case, overrides in unusable.items():
             with self.subTest(case):
-                self._write_entry(**overrides)
+                self._write_entries({"1.0.0": self._entry(**overrides)})
                 self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.2", None))
 
         self.assertEqual(mock_get.call_count, len(unusable))
 
     @patch("requests.get")
     def test_get_latest_version_ignores_unparseable_file(self, mock_get):
-        """VersionUtils treats a file that isn't a JSON object as a miss and replaces it"""
+        """VersionUtils treats a file that isn't a JSON object of entries as a miss and replaces it"""
         mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": []}}
         self.cache_file.parent.mkdir(parents=True)
-        for content in (b"\x80\x04not json", b"[1, 2]", b'{"stable": "1.0.1"}'):
+        for content in (b"\x80\x04not json", b"[1, 2]", b'{"1.0.0": "1.0.1"}'):
             with self.subTest(content=content):
                 self.cache_file.write_bytes(content)
                 self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
-                self.assertEqual(json.loads(self.cache_file.read_text(encoding="utf-8"))["stable"], "1.0.1")
+                self.assertEqual(self._read_entries()["1.0.0"]["stable"], "1.0.1")
 
     @patch("requests.get")
-    def test_get_latest_version_without_writable_cache(self, mock_get):
-        """VersionUtils still returns the lookup when the cache can't be written"""
+    @patch("terrawrap.utils.version.Path.mkdir", side_effect=PermissionError("read-only"))
+    def test_get_latest_version_without_writable_cache(self, _mock_mkdir, mock_get):
+        """VersionUtils still returns the lookup when the cache can't be written, and logs why"""
         mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": []}}
-        self.cache_file.parent.parent.chmod(0o500)
-        self.addCleanup(self.cache_file.parent.parent.chmod, 0o700)
 
-        self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
-        self.assertFalse(self.cache_file.parent.exists())
+        with self.assertLogs("terrawrap.utils.version", level="DEBUG") as logs:
+            self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
+
+        self.assertIn("read-only", logs.output[0])
+        self.assertFalse(self.cache_file.exists())
 
     @patch("requests.get")
     @patch("terrawrap.utils.version.os.replace", side_effect=OSError)
@@ -206,9 +243,7 @@ class TestVersion(TestCase):
         self.assertEqual(os.listdir(self.cache_file.parent), [])
 
     @patch("requests.get")
-    @patch(
-        "terrawrap.utils.version.cache_path", side_effect=RuntimeError("Could not determine home directory.")
-    )
+    @patch("terrawrap.utils.version.cache_path", side_effect=RuntimeError("no home directory"))
     def test_get_latest_version_without_home_directory(self, _mock_cache_path, mock_get):
         """VersionUtils still returns the lookup when there is no home directory"""
         mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": []}}
@@ -221,11 +256,16 @@ class TestCachePath(TestCase):
 
     @patch.dict(os.environ, {"XDG_CACHE_HOME": "/xdg/cache"})
     def test_cache_path_honors_xdg_cache_home(self):
-        """The cache file lives under XDG_CACHE_HOME when it is set"""
+        """The cache file lives under XDG_CACHE_HOME when it is an absolute path"""
         self.assertEqual(cache_path(), Path("/xdg/cache/terrawrap/version.json"))
 
-    @patch.dict(os.environ, {"XDG_CACHE_HOME": ""})
     @patch("terrawrap.utils.version.Path.home", return_value=Path("/home/someone"))
     def test_cache_path_defaults_to_home_cache(self, _mock_home):
-        """The cache file lives under ~/.cache when XDG_CACHE_HOME is unset or empty"""
-        self.assertEqual(cache_path(), Path("/home/someone/.cache/terrawrap/version.json"))
+        """The cache file lives under ~/.cache when XDG_CACHE_HOME is unset, empty, or relative"""
+        for xdg_cache_home in (None, "", ".", "relative/cache"):
+            with self.subTest(XDG_CACHE_HOME=xdg_cache_home):
+                env = {} if xdg_cache_home is None else {"XDG_CACHE_HOME": xdg_cache_home}
+                with patch.dict(os.environ, env):
+                    if xdg_cache_home is None:
+                        os.environ.pop("XDG_CACHE_HOME", None)
+                    self.assertEqual(cache_path(), Path("/home/someone/.cache/terrawrap/version.json"))

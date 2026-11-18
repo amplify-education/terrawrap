@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `~/.cache/terrawrap/version.json`). A missing, stale, or malformed file is treated
   as a miss, and a cache that can't be written just means a PyPI lookup each run.
 
+### Fixed
+
+- The `bin/tf_validate` unit tests no longer call PyPI and write the real version-check
+  cache; they stub the version check like the other `bin/` tests.
+
 ### Removed
 
 - The `diskcache` dependency.

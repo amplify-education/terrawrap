@@ -2,16 +2,18 @@
 
 import contextlib
 import json
+import logging
 import os
 import sys
 import tempfile
-import time
 from pathlib import Path
-from time import sleep
-from typing import Optional, Tuple
+from time import sleep, time
+from typing import Any, Dict, Optional, Tuple
 
 import requests
 from packaging import version
+
+logger = logging.getLogger(__name__)
 
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
 
@@ -19,10 +21,12 @@ ONE_DAY_IN_SECONDS = 60 * 60 * 24
 def cache_path() -> Path:
     """
     Path of the version-check cache file, under the user's own cache directory so
-    no other account can plant an entry.
+    no other account can plant an entry. A relative XDG_CACHE_HOME is ignored, as the
+    XDG Base Directory spec requires.
     """
-    cache_home = os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache"
-    return Path(cache_home) / "terrawrap" / "version.json"
+    xdg_cache_home = Path(os.environ.get("XDG_CACHE_HOME", ""))
+    cache_home = xdg_cache_home if xdg_cache_home.is_absolute() else Path.home() / ".cache"
+    return cache_home / "terrawrap" / "version.json"
 
 
 def version_check(current_version: str) -> bool:
@@ -73,12 +77,11 @@ def version_check(current_version: str) -> bool:
 def get_latest_version(current_version: str) -> Tuple[str, Optional[str]]:
     """
     Get the latest stable and RC versions of Terrawrap from PyPI.
-    Caches this lookup for one day locally, keyed on the installed version so that
-    upgrading Terrawrap invalidates it.
+    Caches this lookup for one day locally, separately for each installed version.
     :param current_version: The current version of Terrawrap.
     :return: Tuple of (latest stable version, latest RC version or None).
     """
-    cached = _read_cache(current_version)
+    cached = _usable_lookup(_load_entries().get(current_version))
     if cached is not None:
         return cached
 
@@ -93,41 +96,54 @@ def get_latest_version(current_version: str) -> Tuple[str, Optional[str]]:
     return latest_stable, latest_rc
 
 
-def _read_cache(current_version: str) -> Optional[Tuple[str, Optional[str]]]:
-    """Return the cached lookup, or None when it is missing, stale, or malformed."""
+def _load_entries() -> Dict[str, Any]:
+    """Return the cache file's entries keyed by installed version, or {} when it can't be read."""
     try:
         with open(cache_path(), encoding="utf-8") as cache_file:
-            entry = json.load(cache_file)
-        stable = entry["stable"]
-        rc = entry["rc"]
-        checked_at = entry["checked_at"]
-        cached_version = entry["current_version"]
-    except (OSError, RuntimeError, ValueError, TypeError, KeyError):
-        return None
+            entries = json.load(cache_file)
+    except (OSError, RuntimeError, ValueError):
+        return {}
+    return entries if isinstance(entries, dict) else {}
 
+
+def _usable_lookup(entry: Any) -> Optional[Tuple[str, Optional[str]]]:
+    """Return an entry's (stable, rc) when it is fresh and both are valid versions, else None."""
+    if not isinstance(entry, dict):
+        return None
+    stable, rc, checked_at = entry.get("stable"), entry.get("rc"), entry.get("checked_at")
     if (
-        cached_version != current_version
-        or not isinstance(stable, str)
+        not isinstance(stable, str)
         or not (rc is None or isinstance(rc, str))
         or not isinstance(checked_at, (int, float))
-        or not 0 <= time.time() - checked_at < ONE_DAY_IN_SECONDS
+        or not 0 <= time() - checked_at < ONE_DAY_IN_SECONDS
     ):
+        return None
+    try:
+        version.parse(stable)
+        if rc is not None:
+            version.parse(rc)
+    except version.InvalidVersion:
         return None
     return stable, rc
 
 
 def _write_cache(current_version: str, stable: str, rc: Optional[str]) -> None:
-    """Store the lookup; a cache that can't be written just means a PyPI lookup next run."""
-    entry = {"current_version": current_version, "checked_at": time.time(), "stable": stable, "rc": rc}
+    """
+    Store the lookup under the installed version, dropping entries that are no longer
+    usable. A cache that can't be written just means a PyPI lookup next run.
+    """
+    entries = {key: entry for key, entry in _load_entries().items() if _usable_lookup(entry) is not None}
+    entries[current_version] = {"checked_at": time(), "stable": stable, "rc": rc}
     tmp_name = None
     try:
         path = cache_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile("w", dir=path.parent, encoding="utf-8", delete=False) as tmp_file:
             tmp_name = tmp_file.name
-            json.dump(entry, tmp_file)
+            json.dump(entries, tmp_file)
         os.replace(tmp_name, path)
-    except (OSError, RuntimeError):
+    except (OSError, RuntimeError) as exc:
+        logger.debug("Could not write the version-check cache: %r", exc)
         if tmp_name:
             with contextlib.suppress(OSError):
                 os.unlink(tmp_name)
