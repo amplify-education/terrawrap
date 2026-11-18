@@ -163,6 +163,17 @@ class TestVersion(TestCase):
         self.assertEqual((entry["stable"], entry["rc"]), ("1.0.1", None))
 
     @patch("requests.get")
+    def test_get_latest_version_serves_rc_from_cache(self, mock_get):
+        """VersionUtils round-trips a non-null rc through the cache file"""
+        mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": [], "1.0.2rc1": []}}
+
+        self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", "1.0.2rc1"))
+        self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", "1.0.2rc1"))
+
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertEqual(self._read_entries()["1.0.0"]["rc"], "1.0.2rc1")
+
+    @patch("requests.get")
     def test_get_latest_version_caches_each_installed_version(self, mock_get):
         """VersionUtils keeps a separate entry per installed version, so they don't evict each other"""
         mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "2.0.0": []}}
@@ -231,7 +242,28 @@ class TestVersion(TestCase):
             self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
 
         self.assertIn("read-only", logs.output[0])
+        self.assertIn(str(self.cache_file), logs.output[0])
         self.assertFalse(self.cache_file.exists())
+
+    @patch("requests.get")
+    def test_get_latest_version_logs_unreadable_cache(self, mock_get):
+        """VersionUtils logs the cache path at debug level when the cache file can't be parsed"""
+        mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": []}}
+        self.cache_file.parent.mkdir(parents=True)
+        self.cache_file.write_text("not json", encoding="utf-8")
+
+        with self.assertLogs("terrawrap.utils.version", level="DEBUG") as logs:
+            self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
+
+        self.assertIn(str(self.cache_file), logs.output[0])
+
+    @patch("requests.get")
+    def test_get_latest_version_missing_cache_is_silent(self, mock_get):
+        """VersionUtils does not log when the cache file simply doesn't exist yet"""
+        mock_get.return_value.json.return_value = {"releases": {"1.0.0": [], "1.0.1": []}}
+
+        with self.assertNoLogs("terrawrap.utils.version", level="DEBUG"):
+            self.assertEqual(get_latest_version(current_version="1.0.0"), ("1.0.1", None))
 
     @patch("requests.get")
     @patch("terrawrap.utils.version.os.replace", side_effect=OSError)

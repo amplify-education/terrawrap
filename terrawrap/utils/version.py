@@ -99,11 +99,22 @@ def get_latest_version(current_version: str) -> Tuple[str, Optional[str]]:
 def _load_entries() -> Dict[str, Any]:
     """Return the cache file's entries keyed by installed version, or {} when it can't be read."""
     try:
-        with open(cache_path(), encoding="utf-8") as cache_file:
-            entries = json.load(cache_file)
-    except (OSError, RuntimeError, ValueError):
+        path = cache_path()
+    except RuntimeError as exc:  # Path.home() raises when no home directory exists; fall back to PyPI
+        logger.debug("Could not locate the version-check cache: %r", exc)
         return {}
-    return entries if isinstance(entries, dict) else {}
+    try:
+        with open(path, encoding="utf-8") as cache_file:
+            entries = json.load(cache_file)
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as exc:
+        logger.debug("Could not read the version-check cache %s: %r", path, exc)
+        return {}
+    if not isinstance(entries, dict):
+        logger.debug("Ignoring the version-check cache %s: it is not a JSON object", path)
+        return {}
+    return entries
 
 
 def _usable_lookup(entry: Any) -> Optional[Tuple[str, Optional[str]]]:
@@ -135,6 +146,7 @@ def _write_cache(current_version: str, stable: str, rc: Optional[str]) -> None:
     entries = {key: entry for key, entry in _load_entries().items() if _usable_lookup(entry) is not None}
     entries[current_version] = {"checked_at": time(), "stable": stable, "rc": rc}
     tmp_name = None
+    path = None
     try:
         path = cache_path()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -142,8 +154,8 @@ def _write_cache(current_version: str, stable: str, rc: Optional[str]) -> None:
             tmp_name = tmp_file.name
             json.dump(entries, tmp_file)
         os.replace(tmp_name, path)
-    except (OSError, RuntimeError) as exc:
-        logger.debug("Could not write the version-check cache: %r", exc)
+    except (OSError, RuntimeError) as exc:  # RuntimeError: no home directory, see _load_entries
+        logger.debug("Could not write the version-check cache %s: %r", path, exc)
         if tmp_name:
             with contextlib.suppress(OSError):
                 os.unlink(tmp_name)
