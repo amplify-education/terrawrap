@@ -12,7 +12,7 @@ python-hcl2~=8.1
 # Packaging does not obey semver
 packaging==26
 networkx~=3.4
-python-dateutil~=2.8
+python-dateutil~=3.0
 pytz>=2022.7.1,<2023.1
 requests~=2.32
 boto3~=1.34
