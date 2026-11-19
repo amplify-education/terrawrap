@@ -344,6 +344,7 @@ class TestTfValidateMain(TestCase):
         """
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(sys, "argv", ["tf_validate"] + argv))
+            stack.enter_context(patch.object(self._mod, "version_check"))
             if stub_return is not None:
                 stack.enter_context(patch.object(self._mod, "validate_and_fix", return_value=stub_return))
             try:

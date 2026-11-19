@@ -5,14 +5,75 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## \[0.11.10\] - 2026-11-16
+## \[0.12.3\] - 2026-11-19
 
 ### Changed
 
-- Runtime dependency ranges in `requirements.txt` now use the compatible-release `~=` form.
-  Floors are raised for `gitpython` (3.2), `networkx` (3.4) and `amplify-aws-utils` (0.5),
-  and patch-level floors are dropped. `networkx` and `amplify-aws-utils` stay below the
-  releases that require Python 3.11+, since 3.10 is still supported.
+- Runtime dependency ranges in `requirements.txt` now use the compatible-release `~=` form,
+  and patch-level floors are dropped. The `networkx` floor is raised to 3.4 and the `gitpython`
+  floor to 3.1; the `amplify-aws-utils` floor stays at 0.5.1 and gains a `<1` ceiling.
+  `networkx` and `amplify-aws-utils` allow releases that need Python 3.11+; pip installs the
+  newest release each Python supports.
+
+## \[0.12.2\] - 2026-11-18
+
+### Security
+
+- The version-check cache no longer reads pickled data from the shared temp
+  directory. It used `diskcache` at `/tmp/terrawrap_version_cache`, which unpickles
+  its entries (CVE-2025-69872, no fixed release), so on a shared host another
+  account could create that directory first and run code in the next terrawrap
+  command. The lookup is now stored as plain JSON in the user's own cache directory
+  (`$XDG_CACHE_HOME/terrawrap/version.json`, default
+  `~/.cache/terrawrap/version.json`). A missing, stale, or malformed file is treated
+  as a miss, and a cache that can't be written just means a PyPI lookup each run.
+
+### Fixed
+
+- The `bin/tf_validate` unit tests no longer call PyPI and write the real version-check
+  cache; they stub the version check like the other `bin/` tests.
+
+### Removed
+
+- The `diskcache` dependency.
+
+## \[0.12.1\] - 2026-11-17
+
+### Removed
+
+- Live log-chunk streaming of `apply`/`destroy` output to the audit API (`POST /log_chunk`), added in
+  `0.11.7`. The audit API still receives the full output in the final `update_audit_info` call; it just no
+  longer sees it while the run is in progress.
+
+## \[0.12.0\] - 2026-11-11
+
+### Added
+
+- `tf` now runs `init` automatically when a directory's backend has never been initialized, then runs the
+  requested command. Commands that read the backend (`apply`, `destroy`, `plan`, `output`, `state`, …) initialize
+  up front, when Terrawrap can parse the backend block, so the audit API never records the failed first attempt
+  and stdout holds only the command's own output; other commands (except `init`, `console` and `import`)
+  initialize after terraform reports `Initial configuration of the requested backend`, and commands that never
+  need a backend (`fmt`, `validate`, `version`, `get`, `test`) are not initialized up front. A changed backend is never
+  initialized automatically. Opt out with `--no-auto-init` or `auto_init: false` in `.tf_wrapper`; the
+  `auto_init` key needs terrawrap 0.12.0+, and older releases reject a `.tf_wrapper` that sets it. When Terrawrap
+  manages the backend, the init uses the same arguments as `tf <directory> init` except `-upgrade`, so the lock
+  file is honored. The init runs with `-input=false` and writes its banner and output to stderr, so stdout stays
+  parseable for commands such as `output -json`.
+
+### Changed
+
+- Auto-init is on by default: a never-initialized backend that used to fail now initializes and continues.
+  Opt out per run with `--no-auto-init` or per directory with `auto_init: false`.
+- `process_arguments` in `bin/tf` returns a sixth value, `skip_auto_init`.
+
+### Fixed
+
+- `test_version.py` no longer fails intermittently when test processes run concurrently (e.g. `tox -p`). The
+  `get_latest_version` tests read and wrote the on-disk version cache shared by every process; they now call the
+  unmemoized function.
+- `tox -p` no longer fails intermittently with `sqlite3.OperationalError: unable to open database file`. Every
+  env wrote the same coverage data file; each env now has its own.
 
 ## \[0.11.9\] - 2026-10-21
 
